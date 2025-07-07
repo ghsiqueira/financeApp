@@ -1,13 +1,38 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, AxiosError } from 'axios'
 import * as SecureStore from 'expo-secure-store'
 import Toast from 'react-native-toast-message'
+import { Platform } from 'react-native'
 
-// Configuração base da API
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:5000/api'  // Desenvolvimento
-  : 'https://your-api-domain.com/api'  // Produção
+// ⚠️ CONFIGURAÇÃO CRÍTICA - ALTERE AQUI SEU IP LOCAL
+const getApiBaseUrl = () => {
+  if (__DEV__) {
+    // Para descobrir seu IP: 
+    // Windows: ipconfig
+    // Mac/Linux: ifconfig
+    
+    // ALTERE ESTE IP PARA O SEU IP LOCAL!
+    const LOCAL_IP = '192.168.0.101' // ⚠️ MUDE AQUI!
+    
+    if (Platform.OS === 'android') {
+      // Para Android real, use seu IP da rede local
+      return `http://${LOCAL_IP}:5000/api`
+    } else if (Platform.OS === 'ios') {
+      // Para iOS, também use IP da rede local
+      return `http://${LOCAL_IP}:5000/api`
+    } else {
+      // Para web/emulador, localhost funciona
+      return 'http://localhost:5000/api'
+    }
+  } else {
+    // Produção
+    return 'https://your-api-domain.com/api'
+  }
+}
 
-const API_TIMEOUT = 10000
+const API_BASE_URL = getApiBaseUrl()
+const API_TIMEOUT = 15000 // Aumentado para 15 segundos
+
+console.log('🔗 API Base URL:', API_BASE_URL)
 
 interface ApiError {
   message: string
@@ -28,10 +53,30 @@ class ApiService {
     })
 
     this.setupInterceptors()
+    
+    // Teste de conectividade na inicialização
+    this.testConnection()
+  }
+
+  private async testConnection() {
+    try {
+      console.log('🧪 Testando conexão com backend...')
+      const response = await axios.get(`${API_BASE_URL.replace('/api', '')}/health`, {
+        timeout: 5000
+      })
+      console.log('✅ Backend conectado:', response.data)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      console.error('❌ Erro de conexão com backend:', errorMessage)
+      console.error('🔍 Verifique se:')
+      console.error('   1. O backend está rodando (npm run dev)')
+      console.error('   2. O IP está correto no api.ts')
+      console.error('   3. Dispositivo e backend estão na mesma rede')
+    }
   }
 
   private setupInterceptors() {
-    // Request interceptor - adicionar token de autenticação
+    // Request interceptor
     this.api.interceptors.request.use(
       async (config) => {
         try {
@@ -39,38 +84,52 @@ class ApiService {
           if (token) {
             config.headers.Authorization = `Bearer ${token}`
           }
-        } catch (error) {
-          console.log('Erro ao obter token:', error)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+          console.log('Erro ao obter token:', errorMessage)
         }
         
-        // Log de requisições em desenvolvimento
+        // Log detalhado
         if (__DEV__) {
-          console.log(`🚀 ${config.method?.toUpperCase()} ${config.url}`)
+          console.log(`🚀 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`)
+          if (config.data) {
+            const logData = { ...config.data }
+            if (logData.senha) logData.senha = '***'
+            if (logData.password) logData.password = '***'
+            console.log('📦 Data:', JSON.stringify(logData, null, 2))
+          }
         }
         
         return config
       },
       (error) => {
+        console.error('❌ Request interceptor error:', error)
         return Promise.reject(error)
       }
     )
 
-    // Response interceptor - tratar respostas e erros
+    // Response interceptor
     this.api.interceptors.response.use(
       (response: AxiosResponse) => {
-        // Log de respostas em desenvolvimento
         if (__DEV__) {
           console.log(`✅ ${response.status} ${response.config.url}`)
+          if (response.data) {
+            console.log('📥 Response:', JSON.stringify(response.data, null, 2))
+          }
         }
         return response
       },
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
 
-        // Log de erros em desenvolvimento
+        // Log detalhado de erros
         if (__DEV__) {
-          console.log(`❌ ${error.response?.status} ${error.config?.url}`)
-          console.log('Error details:', error.response?.data)
+          console.error('❌ API Error:', {
+            status: error.response?.status,
+            url: error.config?.url,
+            message: error.message,
+            data: error.response?.data
+          })
         }
 
         // Tratar erro 401 (token expirado)
@@ -79,21 +138,27 @@ class ApiService {
 
           try {
             const refreshToken = await SecureStore.getItemAsync('refreshToken')
-            if (refreshToken) {
-              const response = await this.refreshToken(refreshToken)
-              await SecureStore.setItemAsync('token', response.data.token)
+            const userId = await SecureStore.getItemAsync('userId')
+            
+            if (refreshToken && userId) {
+              const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+                refreshToken,
+                userId
+              })
               
-              // Retry original request
+              const newToken = response.data.data.token
+              await SecureStore.setItemAsync('token', newToken)
+              
+              // Retry request original
               if (originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${response.data.token}`
+                originalRequest.headers.Authorization = `Bearer ${newToken}`
               }
               return this.api(originalRequest)
             }
-          } catch (refreshError) {
-            // Refresh failed, redirect to login
+          } catch (refreshError: unknown) {
+            console.error('❌ Refresh token failed:', refreshError)
             await this.clearAuthData()
             this.showErrorToast('Sessão expirada. Faça login novamente.')
-            // Aqui você pode disparar um evento para redirecionar para login
             return Promise.reject(refreshError)
           }
         }
@@ -105,18 +170,16 @@ class ApiService {
     )
   }
 
-  private async refreshToken(refreshToken: string) {
-    return axios.post(`${API_BASE_URL}/auth/refresh-token`, {
-      refreshToken
-    })
-  }
-
   private async clearAuthData() {
     try {
-      await SecureStore.deleteItemAsync('token')
-      await SecureStore.deleteItemAsync('refreshToken')
-    } catch (error) {
-      console.log('Erro ao limpar dados de autenticação:', error)
+      await Promise.all([
+        SecureStore.deleteItemAsync('token'),
+        SecureStore.deleteItemAsync('refreshToken'),
+        SecureStore.deleteItemAsync('userId')
+      ])
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido'
+      console.log('Erro ao limpar dados de autenticação:', errorMessage)
     }
   }
 
@@ -126,7 +189,17 @@ class ApiService {
 
     let message = 'Erro inesperado. Tente novamente.'
 
-    if (response) {
+    if (!response) {
+      // Erro de rede
+      if (error.code === 'ECONNABORTED') {
+        message = 'Tempo limite excedido. Verifique sua conexão.'
+      } else if (error.message === 'Network Error' || error.code === 'ECONNREFUSED') {
+        message = 'Erro de conexão. Verifique se o backend está rodando e o IP está correto.'
+      } else {
+        message = `Erro de rede: ${error.message}`
+      }
+    } else {
+      // Erro de resposta HTTP
       switch (response.status) {
         case 400:
           message = data?.error || 'Dados inválidos'
@@ -152,10 +225,6 @@ class ApiService {
         default:
           message = data?.error || `Erro ${response.status}`
       }
-    } else if (error.code === 'ECONNABORTED') {
-      message = 'Tempo limite excedido. Verifique sua conexão.'
-    } else if (error.message === 'Network Error') {
-      message = 'Erro de conexão. Verifique sua internet.'
     }
 
     this.showErrorToast(message)
@@ -166,7 +235,7 @@ class ApiService {
       type: 'error',
       text1: 'Erro',
       text2: message,
-      visibilityTime: 4000,
+      visibilityTime: 5000,
     })
   }
 
@@ -215,10 +284,49 @@ class ApiService {
   // Verificar conectividade
   async checkConnectivity(): Promise<boolean> {
     try {
-      await this.get('/health')
+      await axios.get(`${API_BASE_URL.replace('/api', '')}/health`, {
+        timeout: 5000
+      })
       return true
-    } catch (error) {
+    } catch (error: unknown) {
       return false
+    }
+  }
+
+  // Método para testar backend manualmente
+  async testBackend(): Promise<{ success: boolean; message: string; data?: any }> {
+    try {
+      console.log('🧪 Testando backend em:', API_BASE_URL)
+      
+      const response = await axios.get(`${API_BASE_URL.replace('/api', '')}/health`, {
+        timeout: 10000
+      })
+      
+      return {
+        success: true,
+        message: 'Backend conectado com sucesso!',
+        data: response.data
+      }
+    } catch (error: unknown) {
+      let message = 'Erro desconhecido'
+      
+      if (axios.isAxiosError(error)) {
+        if (error.code === 'ECONNREFUSED' || error.message === 'Network Error') {
+          message = 'Não foi possível conectar ao backend. Verifique se está rodando e o IP está correto.'
+        } else if (error.code === 'ECONNABORTED') {
+          message = 'Timeout na conexão. Backend muito lento ou indisponível.'
+        } else {
+          message = error.message || 'Erro na conexão'
+        }
+      } else if (error instanceof Error) {
+        message = error.message
+      }
+      
+      return {
+        success: false,
+        message,
+        data: axios.isAxiosError(error) ? error.response?.data : undefined
+      }
     }
   }
 }
