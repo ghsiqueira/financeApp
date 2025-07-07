@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import apiService from '../services/api'
+import { api } from '../services/api'
 
 interface UseApiState<T> {
   data: T | null
@@ -35,8 +35,9 @@ export function useApi<T = any>(
       setLoading(true)
       setError(null)
       
-      const response = await apiService.get<T>(url)
-      setData(response)
+      // Corrigido: usar api diretamente sem tipagem genérica
+      const response = await api.get(url)
+      setData(response as T)
       
       if (onSuccess) {
         onSuccess(response)
@@ -96,39 +97,64 @@ export function useMutation<TData = any, TVariables = any>() {
       setLoading(true)
       setError(null)
 
-      let response: TData
+      console.log(`🚀 ${method.toUpperCase()} ${url}`, variables)
+
+      let response: any
       
       switch (method) {
         case 'post':
-          response = await apiService.post<TData>(url, variables)
+          response = await api.post(url, variables)
           break
         case 'put':
-          response = await apiService.put<TData>(url, variables)
+          response = await api.put(url, variables)
           break
         case 'patch':
-          response = await apiService.patch<TData>(url, variables)
+          response = await api.patch(url, variables)
           break
         case 'delete':
-          response = await apiService.delete<TData>(url)
+          response = await api.delete(url)
           break
         default:
           throw new Error(`Método ${method} não suportado`)
       }
 
+      console.log(`✅ Resposta ${method.toUpperCase()} ${url}:`, response)
+
       if (options?.onSuccess) {
-        options.onSuccess(response)
+        options.onSuccess(response as TData)
       }
 
-      return response
+      return response as TData
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || err.message || 'Erro desconhecido'
+      console.error(`❌ Erro ${method.toUpperCase()} ${url}:`, err)
+      
+      // Tratar diferentes tipos de erro
+      let errorMessage = 'Erro desconhecido'
+      
+      if (err.response?.data) {
+        // Erro do servidor com dados
+        const serverError = err.response.data
+        errorMessage = serverError.error || 
+                      serverError.message || 
+                      serverError.msg ||
+                      `Erro ${err.response.status}`
+                      
+        // Se há detalhes de validação, usar o primeiro
+        if (serverError.detalhes && Array.isArray(serverError.detalhes) && serverError.detalhes.length > 0) {
+          errorMessage = serverError.detalhes[0].message || errorMessage
+        }
+      } else if (err.message) {
+        // Erro de rede ou outro
+        errorMessage = err.message
+      }
+      
       setError(errorMessage)
       
       if (options?.onError) {
         options.onError(errorMessage)
       }
       
-      return null
+      throw new Error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -161,24 +187,31 @@ export function usePagination<T = any>(url: string, pageSize: number = 20) {
       setLoading(true)
       setError(null)
 
-      const response = await apiService.get<{
-        success: boolean
-        data: {
-          items?: T[]
-          transacoes?: T[]
-          orcamentos?: T[]
-          metas?: T[]
-          paginacao: {
-            currentPage: number
-            totalPages: number
-            totalItems: number
-            itemsPerPage: number
-          }
-        }
-      }>(`${url}?page=${pageNumber}&limit=${pageSize}`)
+      const response = await api.get(`${url}?page=${pageNumber}&limit=${pageSize}`)
+      
+      // ✅ SOLUÇÃO CORRETA: Validar primeiro e depois usar
+      if (!response || typeof response !== 'object') {
+        throw new Error('Resposta inválida da API')
+      }
 
-      const items = response.data.items || response.data.transacoes || response.data.orcamentos || response.data.metas || []
-      const pagination = response.data.paginacao
+      // Agora podemos acessar as propriedades com segurança
+      const success = (response as any).success
+      const data = (response as any).data
+      
+      if (!success || !data) {
+        throw new Error('Estrutura de resposta inválida')
+      }
+
+      const items = data.items || 
+                    data.transacoes || 
+                    data.orcamentos || 
+                    data.metas || []
+      
+      const pagination = data.paginacao
+
+      if (!pagination) {
+        throw new Error('Dados de paginação não encontrados')
+      }
 
       if (reset) {
         setData(items)
@@ -247,9 +280,9 @@ export function useUpload() {
       setError(null)
       setProgress(0)
 
-      const response = await apiService.upload(url, file, (progressPercent) => {
-        setProgress(progressPercent)
-      })
+      // Por enquanto, usar uma implementação básica
+      // Você pode implementar o upload com progresso posteriormente
+      const response = await api.post(url, file)
 
       if (options?.onSuccess) {
         options.onSuccess(response)
@@ -281,5 +314,147 @@ export function useUpload() {
       setProgress(0)
       setLoading(false)
     }
+  }
+}
+
+// Hooks específicos para as funcionalidades do app
+
+/**
+ * Hook para autenticação
+ */
+export function useAuthMutation() {
+  const { mutate, loading, error, reset } = useMutation()
+
+  const login = useCallback(async (email: string, password: string) => {
+    // Converter campos para português como esperado pelo backend
+    // IMPORTANTE: Limpar email e senha de espaços/quebras de linha
+    return await mutate('post', '/auth/login', { 
+      email: email.trim().toLowerCase(),  // Limpar e converter para minúsculo
+      senha: password.trim()              // Limpar espaços
+    })
+  }, [mutate])
+
+  const register = useCallback(async (name: string, email: string, password: string) => {
+    // Converter campos para português como esperado pelo backend
+    // IMPORTANTE: Limpar todos os campos
+    return await mutate('post', '/auth/register', { 
+      nome: name.trim(),                   // Limpar espaços
+      email: email.trim().toLowerCase(),   // Limpar e converter para minúsculo
+      senha: password.trim()               // Limpar espaços
+    })
+  }, [mutate])
+
+  const forgotPassword = useCallback(async (email: string) => {
+    return await mutate('post', '/auth/forgot-password', { 
+      email: email.trim().toLowerCase()   // Limpar email
+    })
+  }, [mutate])
+
+  const resetPassword = useCallback(async (email: string, code: string, newPassword: string) => {
+    // Converter campos para português como esperado pelo backend
+    return await mutate('post', '/auth/reset-password', { 
+      email: email.trim().toLowerCase(),  // Limpar email
+      codigo: code.trim(),                // Limpar código
+      novaSenha: newPassword.trim()       // Limpar senha
+    })
+  }, [mutate])
+
+  return {
+    login,
+    register,
+    forgotPassword,
+    resetPassword,
+    loading,
+    error,
+    reset
+  }
+}
+
+/**
+ * Hook para transações
+ */
+export function useTransactionsMutation() {
+  const { mutate, loading, error, reset } = useMutation()
+
+  const createTransaction = useCallback(async (data: any) => {
+    return await mutate('post', '/transactions', data)
+  }, [mutate])
+
+  const updateTransaction = useCallback(async (id: string, data: any) => {
+    return await mutate('put', `/transactions/${id}`, data)
+  }, [mutate])
+
+  const deleteTransaction = useCallback(async (id: string) => {
+    return await mutate('delete', `/transactions/${id}`)
+  }, [mutate])
+
+  return {
+    createTransaction,
+    updateTransaction,
+    deleteTransaction,
+    loading,
+    error,
+    reset
+  }
+}
+
+/**
+ * Hook para orçamentos
+ */
+export function useBudgetsMutation() {
+  const { mutate, loading, error, reset } = useMutation()
+
+  const createBudget = useCallback(async (data: any) => {
+    return await mutate('post', '/budgets', data)
+  }, [mutate])
+
+  const updateBudget = useCallback(async (id: string, data: any) => {
+    return await mutate('put', `/budgets/${id}`, data)
+  }, [mutate])
+
+  const deleteBudget = useCallback(async (id: string) => {
+    return await mutate('delete', `/budgets/${id}`)
+  }, [mutate])
+
+  return {
+    createBudget,
+    updateBudget,
+    deleteBudget,
+    loading,
+    error,
+    reset
+  }
+}
+
+/**
+ * Hook para metas
+ */
+export function useGoalsMutation() {
+  const { mutate, loading, error, reset } = useMutation()
+
+  const createGoal = useCallback(async (data: any) => {
+    return await mutate('post', '/goals', data)
+  }, [mutate])
+
+  const updateGoal = useCallback(async (id: string, data: any) => {
+    return await mutate('put', `/goals/${id}`, data)
+  }, [mutate])
+
+  const deleteGoal = useCallback(async (id: string) => {
+    return await mutate('delete', `/goals/${id}`)
+  }, [mutate])
+
+  const addContribution = useCallback(async (id: string, valor: number, observacao?: string) => {
+    return await mutate('post', `/goals/${id}/contribute`, { valor, observacao })
+  }, [mutate])
+
+  return {
+    createGoal,
+    updateGoal,
+    deleteGoal,
+    addContribution,
+    loading,
+    error,
+    reset
   }
 }

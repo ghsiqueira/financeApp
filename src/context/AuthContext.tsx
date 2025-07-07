@@ -1,7 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import * as SecureStore from 'expo-secure-store'
-import { authService } from '../services/authService'
-import { User } from '../types/auth'
+// src/context/AuthContext.tsx
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import SecureStorageHelper from '../utils/secureStorage'
+import { useAuthMutation } from '../hooks/useApi'
+import Toast from 'react-native-toast-message'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  createdAt: string
+}
 
 interface AuthContextData {
   user: User | null
@@ -12,75 +20,159 @@ interface AuthContextData {
   signOut: () => Promise<void>
   forgotPassword: (email: string) => Promise<void>
   resetPassword: (email: string, code: string, newPassword: string) => Promise<void>
-  updateProfile: (data: Partial<User>) => Promise<void>
   refreshUserData: () => Promise<void>
 }
-
-const AuthContext = createContext<AuthContextData>({} as AuthContextData)
 
 interface AuthProviderProps {
   children: ReactNode
 }
 
+const AuthContext = createContext<AuthContextData>({} as AuthContextData)
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  
+  const { 
+    login, 
+    register, 
+    forgotPassword: forgotPasswordMutation,
+    resetPassword: resetPasswordMutation,
+    loading: authLoading,
+    error: authError,
+    reset: resetAuth
+  } = useAuthMutation()
 
   const isAuthenticated = !!user
 
+  // Verificar autenticação ao inicializar
   useEffect(() => {
-    loadStoredAuth()
+    checkAuthStatus()
   }, [])
 
-  async function loadStoredAuth() {
+  // Monitorar erros de autenticação
+  useEffect(() => {
+    if (authError) {
+      Toast.show({
+        type: 'error',
+        text1: 'Erro de Autenticação',
+        text2: authError
+      })
+    }
+  }, [authError])
+
+  async function checkAuthStatus() {
     try {
       setIsLoading(true)
-      const token = await SecureStore.getItemAsync('token')
       
-      if (token) {
-        // Verificar se o token é válido
-        const isValid = await authService.validateToken()
-        
-        if (isValid) {
-          const userData = await authService.getProfile()
-          setUser(userData)
-        } else {
-          // Token inválido, limpar dados
-          await clearAuthData()
-        }
+      const { token, user: savedUser } = await SecureStorageHelper.getAuthData()
+      
+      if (token && savedUser) {
+        setUser(savedUser)
+        console.log('✅ Usuário autenticado:', savedUser.email)
+      } else {
+        console.log('⚠️  Nenhum usuário autenticado encontrado')
       }
     } catch (error) {
-      console.log('Erro ao carregar dados de autenticação:', error)
-      await clearAuthData()
+      console.error('❌ Erro ao verificar status de autenticação:', error)
+      await SecureStorageHelper.clearAuthData()
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  async function clearAuthData() {
-    try {
-      await SecureStore.deleteItemAsync('token')
-      await SecureStore.deleteItemAsync('refreshToken')
-      setUser(null)
-    } catch (error) {
-      console.log('Erro ao limpar dados de autenticação:', error)
     }
   }
 
   async function signIn(email: string, password: string) {
     try {
       setIsLoading(true)
-      const response = await authService.login(email, password)
+      resetAuth() // Limpar erros anteriores
       
-      // Salvar tokens no secure store
-      await SecureStore.setItemAsync('token', response.token)
-      if (response.refreshToken) {
-        await SecureStore.setItemAsync('refreshToken', response.refreshToken)
+      // Limpar e validar dados de entrada
+      const cleanEmail = email.trim().toLowerCase()
+      const cleanPassword = password.trim()
+      
+      // Validações básicas no frontend
+      if (!cleanEmail) {
+        throw new Error('Email é obrigatório')
       }
       
-      setUser(response.user)
-    } catch (error) {
-      throw error
+      if (!cleanPassword) {
+        throw new Error('Senha é obrigatória')
+      }
+      
+      // Validação básica de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(cleanEmail)) {
+        throw new Error('Email inválido')
+      }
+      
+      console.log('🔑 Tentando fazer login com:', { email: cleanEmail, senha: '***' })
+      const response = await login(cleanEmail, cleanPassword)
+      
+      console.log('📝 Resposta do login:', response)
+      
+      // A resposta vem na estrutura: response.data.data.{token, user, refreshToken}
+      let authData
+      
+      if (response?.data?.data) {
+        // Estrutura atual: { data: { data: { token, user, refreshToken } } }
+        authData = response.data.data
+      } else if (response?.data) {
+        // Estrutura alternativa: { data: { token, user, refreshToken } }
+        authData = response.data
+      } else if (response?.token) {
+        // Estrutura direta: { token, user, refreshToken }
+        authData = response
+      } else {
+        console.error('❌ Estrutura de resposta não reconhecida:', response)
+        throw new Error('Formato de resposta inválido')
+      }
+
+      const { token, refreshToken, user: userData } = authData
+      
+      console.log('📋 Dados extraídos:', { 
+        hasToken: !!token, 
+        hasRefreshToken: !!refreshToken, 
+        hasUser: !!userData,
+        userName: userData?.nome 
+      })
+      
+      // Validar dados recebidos
+      if (!token) {
+        throw new Error('Token não recebido')
+      }
+      
+      if (!userData) {
+        throw new Error('Dados do usuário não recebidos')
+      }
+
+      // Salvar dados no storage
+      await SecureStorageHelper.saveAuthData(token, refreshToken, userData)
+      
+      // Atualizar estado
+      setUser(userData)
+      
+      console.log('✅ Login realizado com sucesso')
+      Toast.show({
+        type: 'success',
+        text1: 'Bem-vindo!',
+        text2: `Olá, ${userData.nome || userData.name}`
+      })
+      
+    } catch (error: any) {
+      console.error('❌ Erro no login:', error)
+      
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Erro ao fazer login'
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erro no Login',
+        text2: errorMessage
+      })
+      
+      throw new Error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -89,17 +181,89 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function signUp(name: string, email: string, password: string) {
     try {
       setIsLoading(true)
-      const response = await authService.register(name, email, password)
+      resetAuth()
       
-      // Salvar tokens no secure store
-      await SecureStore.setItemAsync('token', response.token)
-      if (response.refreshToken) {
-        await SecureStore.setItemAsync('refreshToken', response.refreshToken)
+      // Limpar e validar dados de entrada
+      const cleanName = name.trim()
+      const cleanEmail = email.trim().toLowerCase()
+      const cleanPassword = password.trim()
+      
+      // Validações básicas no frontend
+      if (!cleanName) {
+        throw new Error('Nome é obrigatório')
       }
       
-      setUser(response.user)
-    } catch (error) {
-      throw error
+      if (!cleanEmail) {
+        throw new Error('Email é obrigatório')
+      }
+      
+      if (!cleanPassword) {
+        throw new Error('Senha é obrigatória')
+      }
+      
+      // Validação básica de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(cleanEmail)) {
+        throw new Error('Email inválido')
+      }
+      
+      if (cleanPassword.length < 6) {
+        throw new Error('Senha deve ter pelo menos 6 caracteres')
+      }
+      
+      console.log('📝 Criando nova conta para:', { nome: cleanName, email: cleanEmail })
+      const response = await register(cleanName, cleanEmail, cleanPassword)
+      
+      console.log('📝 Resposta do registro:', response)
+      
+      // A resposta pode vir em diferentes formatos, vamos ser flexíveis
+      let authData
+      
+      if (response?.data) {
+        // Se a resposta tem a estrutura { success: true, data: { token, user } }
+        authData = response.data
+      } else if (response?.token) {
+        // Se a resposta já é os dados diretamente { token, user }
+        authData = response
+      } else {
+        throw new Error('Formato de resposta inválido')
+      }
+
+      const { token, refreshToken, user: userData } = authData
+      
+      if (!token) {
+        throw new Error('Token não recebido')
+      }
+      
+      if (!userData) {
+        throw new Error('Dados do usuário não recebidos')
+      }
+
+      await SecureStorageHelper.saveAuthData(token, refreshToken, userData)
+      setUser(userData)
+      
+      console.log('✅ Conta criada com sucesso')
+      Toast.show({
+        type: 'success',
+        text1: 'Conta Criada!',
+        text2: `Bem-vindo, ${userData.nome || userData.name}`
+      })
+      
+    } catch (error: any) {
+      console.error('❌ Erro no registro:', error)
+      
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Erro ao criar conta'
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erro no Registro',
+        text2: errorMessage
+      })
+      
+      throw new Error(errorMessage)
     } finally {
       setIsLoading(false)
     }
@@ -109,20 +273,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setIsLoading(true)
       
-      // Tentar fazer logout no backend
-      try {
-        await authService.logout()
-      } catch (error) {
-        console.log('Erro ao fazer logout no servidor:', error)
-        // Continuar com logout local mesmo se falhar no servidor
-      }
+      console.log('👋 Fazendo logout...')
       
       // Limpar dados locais
-      await clearAuthData()
+      await SecureStorageHelper.clearAuthData()
+      setUser(null)
+      
+      console.log('✅ Logout realizado')
+      Toast.show({
+        type: 'success',
+        text1: 'Logout',
+        text2: 'Até logo!'
+      })
       
     } catch (error) {
-      console.log('Erro ao fazer logout:', error)
-      // Forçar limpeza local em caso de erro
+      console.error('❌ Erro no logout:', error)
+      // Forçar limpeza mesmo em caso de erro
+      await SecureStorageHelper.clearAuthData()
       setUser(null)
     } finally {
       setIsLoading(false)
@@ -131,29 +298,59 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function forgotPassword(email: string) {
     try {
-      await authService.forgotPassword(email)
-    } catch (error) {
-      throw error
+      resetAuth()
+      
+      const response = await forgotPasswordMutation(email)
+      
+      if (response?.success !== false) {
+        Toast.show({
+          type: 'success',
+          text1: 'Email Enviado',
+          text2: 'Verifique sua caixa de entrada'
+        })
+      }
+      
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 
+                          error.message || 
+                          'Erro ao enviar email'
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erro',
+        text2: errorMessage
+      })
+      
+      throw new Error(errorMessage)
     }
   }
 
   async function resetPassword(email: string, code: string, newPassword: string) {
     try {
-      await authService.resetPassword(email, code, newPassword)
-    } catch (error) {
-      throw error
-    }
-  }
-
-  async function updateProfile(data: Partial<User>) {
-    try {
-      setIsLoading(true)
-      const updatedUser = await authService.updateProfile(data)
-      setUser(updatedUser)
-    } catch (error) {
-      throw error
-    } finally {
-      setIsLoading(false)
+      resetAuth()
+      
+      const response = await resetPasswordMutation(email, code, newPassword)
+      
+      if (response?.success !== false) {
+        Toast.show({
+          type: 'success',
+          text1: 'Senha Alterada',
+          text2: 'Sua senha foi atualizada com sucesso'
+        })
+      }
+      
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 
+                          error.message || 
+                          'Erro ao alterar senha'
+      
+      Toast.show({
+        type: 'error',
+        text1: 'Erro',
+        text2: errorMessage
+      })
+      
+      throw new Error(errorMessage)
     }
   }
 
@@ -161,25 +358,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       if (!isAuthenticated) return
       
-      const userData = await authService.getProfile()
-      setUser(userData)
+      // Aqui você pode fazer uma requisição para atualizar os dados do usuário
+      // const userData = await api.get('/user/profile')
+      // setUser(userData)
+      
     } catch (error) {
-      console.log('Erro ao atualizar dados do usuário:', error)
-      // Se falhar ao buscar dados, pode ser que o token expirou
-      await clearAuthData()
+      console.error('❌ Erro ao atualizar dados do usuário:', error)
+      // Em caso de erro, pode ser que o token expirou
+      await signOut()
     }
   }
 
   const value: AuthContextData = {
     user,
-    isLoading,
+    isLoading: isLoading || authLoading,
     isAuthenticated,
     signIn,
     signUp,
     signOut,
     forgotPassword,
     resetPassword,
-    updateProfile,
     refreshUserData
   }
 

@@ -31,7 +31,7 @@ interface Props {
 
 export default function ResetPasswordScreen({ navigation, route }: Props) {
   const { theme } = useTheme()
-  const { resetPassword } = useAuth()
+  const { resetPassword, forgotPassword } = useAuth()
   const { email } = route.params
   
   const [formData, setFormData] = useState({
@@ -45,6 +45,7 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
     confirmPassword: '',
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [isResending, setIsResending] = useState(false)
 
   const validateForm = () => {
     const newErrors = { code: '', newPassword: '', confirmPassword: '' }
@@ -113,6 +114,27 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
     }
   }
 
+  const handleResendCode = async () => {
+    try {
+      setIsResending(true)
+      await forgotPassword(email)
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Código reenviado!',
+        text2: 'Verifique sua caixa de entrada',
+      })
+    } catch (error: any) {
+      Alert.alert(
+        'Erro',
+        error.message || 'Não foi possível reenviar o código.',
+        [{ text: 'OK' }]
+      )
+    } finally {
+      setIsResending(false)
+    }
+  }
+
   const handleInputChange = (field: keyof typeof formData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     // Limpar erro do campo quando usuário começar a digitar
@@ -151,8 +173,16 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
       backgroundColor: theme.surface,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
     },
-    icon: {
+    iconContainer: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
       marginBottom: 24,
     },
     title: {
@@ -208,6 +238,33 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
       fontWeight: '600',
       marginLeft: 4,
     },
+    passwordRequirements: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    requirementsTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 8,
+    },
+    requirement: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    requirementText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginLeft: 8,
+    },
+    requirementMet: {
+      color: theme.success,
+    },
     footer: {
       flexDirection: 'row',
       justifyContent: 'center',
@@ -225,6 +282,31 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
       marginLeft: 4,
     },
   })
+
+  // Validar requisitos da senha em tempo real
+  const checkPasswordRequirements = (password: string) => {
+    return {
+      length: password.length >= 6,
+      uppercase: /[A-Z]/.test(password),
+      lowercase: /[a-z]/.test(password),
+      number: /\d/.test(password),
+    }
+  }
+
+  const passwordChecks = checkPasswordRequirements(formData.newPassword)
+
+  const RequirementItem = ({ met, text }: { met: boolean; text: string }) => (
+    <View style={styles.requirement}>
+      <Ionicons
+        name={met ? 'checkmark-circle' : 'ellipse-outline'}
+        size={16}
+        color={met ? theme.success : theme.textSecondary}
+      />
+      <Text style={[styles.requirementText, met && styles.requirementMet]}>
+        {text}
+      </Text>
+    </View>
+  )
 
   return (
     <SafeAreaView style={styles.container}>
@@ -246,8 +328,8 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
               <Ionicons name="arrow-back" size={24} color={theme.text} />
             </TouchableOpacity>
             
-            <View style={styles.icon}>
-              <Ionicons name="key" size={60} color={theme.primary} />
+            <View style={styles.iconContainer}>
+              <Ionicons name="key" size={40} color={theme.primary} />
             </View>
             
             <Text style={styles.title}>Redefinir senha</Text>
@@ -285,6 +367,29 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
               required
             />
 
+            {/* Requisitos da senha */}
+            {formData.newPassword.length > 0 && (
+              <View style={styles.passwordRequirements}>
+                <Text style={styles.requirementsTitle}>Requisitos da senha:</Text>
+                <RequirementItem 
+                  met={passwordChecks.length} 
+                  text="Pelo menos 6 caracteres" 
+                />
+                <RequirementItem 
+                  met={passwordChecks.uppercase} 
+                  text="Uma letra maiúscula" 
+                />
+                <RequirementItem 
+                  met={passwordChecks.lowercase} 
+                  text="Uma letra minúscula" 
+                />
+                <RequirementItem 
+                  met={passwordChecks.number} 
+                  text="Um número" 
+                />
+              </View>
+            )}
+
             <Input
               label="Confirmar nova senha"
               placeholder="Digite sua senha novamente"
@@ -307,8 +412,10 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
 
             <View style={styles.resendContainer}>
               <Text style={styles.resendText}>Não recebeu o código?</Text>
-              <TouchableOpacity onPress={() => navigation.goBack()}>
-                <Text style={styles.resendLink}>Reenviar</Text>
+              <TouchableOpacity onPress={handleResendCode} disabled={isResending}>
+                <Text style={styles.resendLink}>
+                  {isResending ? 'Reenviando...' : 'Reenviar'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

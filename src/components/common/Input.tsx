@@ -21,6 +21,7 @@ interface InputProps extends TextInputProps {
   size?: 'small' | 'medium' | 'large'
   containerStyle?: ViewStyle
   required?: boolean
+  autoClean?: boolean // Nova prop para limpeza automática
 }
 
 const Input = forwardRef<TextInput, InputProps>(({
@@ -33,13 +34,37 @@ const Input = forwardRef<TextInput, InputProps>(({
   size = 'medium',
   containerStyle,
   required = false,
+  autoClean = true, // Por padrão, limpa automaticamente
   style,
   secureTextEntry,
+  onChangeText,
   ...props
 }, ref) => {
   const { theme } = useTheme()
   const [isFocused, setIsFocused] = useState(false)
   const [isPasswordVisible, setIsPasswordVisible] = useState(!secureTextEntry)
+
+  // Função para limpar automaticamente os dados
+  const handleChangeText = (text: string) => {
+    let cleanText = text
+    
+    if (autoClean) {
+      // Remover quebras de linha e espaços desnecessários
+      cleanText = text.replace(/[\r\n]/g, '')
+      
+      // Para campos de email, converter para minúsculo e trimmar
+      if (props.keyboardType === 'email-address' || 
+          props.autoComplete === 'email' ||
+          props.textContentType === 'emailAddress') {
+        cleanText = cleanText.toLowerCase().trim()
+      } else if (!secureTextEntry) {
+        // Para outros campos (exceto senha), apenas trimmar no final da digitação
+        cleanText = text.replace(/[\r\n]/g, '')
+      }
+    }
+    
+    onChangeText?.(cleanText)
+  }
 
   const getContainerStyle = (): ViewStyle => {
     const baseStyle: ViewStyle = {
@@ -169,6 +194,10 @@ const Input = forwardRef<TextInput, InputProps>(({
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
           secureTextEntry={secureTextEntry && !isPasswordVisible}
+          onChangeText={handleChangeText}
+          autoCapitalize="none" // Por padrão, não capitalizar
+          autoCorrect={false}   // Por padrão, não corrigir
+          spellCheck={false}    // Por padrão, não verificar ortografia
           {...props}
         />
         

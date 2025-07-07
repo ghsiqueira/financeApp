@@ -20,13 +20,13 @@ import Button from '../../components/common/Button'
 const { width } = Dimensions.get('window')
 
 interface DashboardData {
-  resumoFinanceiro: {
+  resumoFinanceiro?: {
     receitas: number
     despesas: number
     saldo: number
     totalTransacoes: number
   }
-  transacoesRecentes: Array<{
+  transacoesRecentes?: Array<{
     _id: string
     tipo: 'receita' | 'despesa'
     descricao: string
@@ -34,15 +34,15 @@ interface DashboardData {
     categoria: string
     data: string
   }>
-  orcamentos: {
+  orcamentos?: {
     total: number
     excedidos: number
   }
-  metas: {
+  metas?: {
     total: number
     concluidas: number
   }
-  alertas: Array<{
+  alertas?: Array<{
     tipo: string
     titulo: string
     mensagem: string
@@ -53,6 +53,7 @@ export default function DashboardScreen() {
   const { theme } = useTheme()
   const { user } = useAuth()
   const [selectedPeriod, setSelectedPeriod] = useState('mes')
+  const [refreshing, setRefreshing] = useState(false)
 
   const { 
     data: dashboardData, 
@@ -65,14 +66,18 @@ export default function DashboardScreen() {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
-    }).format(value)
+    }).format(value || 0)
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit'
-    })
+    try {
+      return new Date(dateString).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit'
+      })
+    } catch {
+      return ''
+    }
   }
 
   const getGreeting = () => {
@@ -81,6 +86,79 @@ export default function DashboardScreen() {
     if (hour < 18) return 'Boa tarde'
     return 'Boa noite'
   }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await refresh()
+    setRefreshing(false)
+  }
+
+  // Dados padrão caso a API não retorne nada
+  const defaultData: DashboardData = {
+    resumoFinanceiro: {
+      receitas: 0,
+      despesas: 0,
+      saldo: 0,
+      totalTransacoes: 0
+    },
+    transacoesRecentes: [],
+    orcamentos: {
+      total: 0,
+      excedidos: 0
+    },
+    metas: {
+      total: 0,
+      concluidas: 0
+    },
+    alertas: []
+  }
+
+  // Usar dados da API ou dados padrão
+  const data = dashboardData?.data || defaultData
+  const resumo = data.resumoFinanceiro || defaultData.resumoFinanceiro!
+  const transacoes = data.transacoesRecentes || []
+  const orcamentos = data.orcamentos || defaultData.orcamentos!
+  const metas = data.metas || defaultData.metas!
+
+  const QuickActionButton = ({ icon, title, onPress }: {
+    icon: keyof typeof Ionicons.glyphMap
+    title: string
+    onPress: () => void
+  }) => (
+    <TouchableOpacity style={styles.quickActionButton} onPress={onPress}>
+      <Ionicons
+        name={icon}
+        size={24}
+        color={theme.primary}
+        style={styles.quickActionIcon}
+      />
+      <Text style={styles.quickActionText}>{title}</Text>
+    </TouchableOpacity>
+  )
+
+  const TransactionItem = ({ transaction }: { transaction: any }) => (
+    <View style={styles.transactionItem}>
+      <View style={styles.transactionIcon}>
+        <Ionicons
+          name={transaction.tipo === 'receita' ? 'add-circle' : 'remove-circle'}
+          size={24}
+          color={transaction.tipo === 'receita' ? theme.success : theme.error}
+        />
+      </View>
+      <View style={styles.transactionDetails}>
+        <Text style={styles.transactionDescription}>{transaction.descricao}</Text>
+        <Text style={styles.transactionInfo}>
+          {transaction.categoria} • {formatDate(transaction.data)}
+        </Text>
+      </View>
+      <Text style={[
+        styles.transactionAmount,
+        { color: transaction.tipo === 'receita' ? theme.success : theme.error }
+      ]}>
+        {transaction.tipo === 'receita' ? '+' : '-'}{formatCurrency(transaction.valor)}
+      </Text>
+    </View>
+  )
 
   const styles = StyleSheet.create({
     container: {
@@ -95,23 +173,25 @@ export default function DashboardScreen() {
     greeting: {
       fontSize: 16,
       color: theme.textSecondary,
-      marginBottom: 4,
     },
     userName: {
       fontSize: 24,
       fontWeight: 'bold',
       color: theme.text,
+      marginTop: 4,
     },
     periodSelector: {
       flexDirection: 'row',
-      marginVertical: 20,
       paddingHorizontal: 20,
+      marginBottom: 20,
     },
     periodButton: {
-      paddingHorizontal: 16,
+      flex: 1,
       paddingVertical: 8,
-      borderRadius: 20,
-      marginRight: 12,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      marginHorizontal: 4,
+      alignItems: 'center',
     },
     periodButtonActive: {
       backgroundColor: theme.primary,
@@ -129,17 +209,18 @@ export default function DashboardScreen() {
       color: '#FFFFFF',
     },
     periodTextInactive: {
-      color: theme.textSecondary,
+      color: theme.text,
     },
     balanceCard: {
       marginHorizontal: 20,
-      borderRadius: 16,
-      padding: 24,
       marginBottom: 24,
+      borderRadius: 16,
+      padding: 20,
     },
     balanceLabel: {
-      fontSize: 16,
-      color: 'rgba(255, 255, 255, 0.8)',
+      fontSize: 14,
+      color: '#FFFFFF',
+      opacity: 0.9,
       marginBottom: 8,
     },
     balanceAmount: {
@@ -153,37 +234,18 @@ export default function DashboardScreen() {
       justifyContent: 'space-between',
     },
     balanceItem: {
-      alignItems: 'center',
+      flex: 1,
     },
     balanceItemLabel: {
       fontSize: 12,
-      color: 'rgba(255, 255, 255, 0.7)',
+      color: '#FFFFFF',
+      opacity: 0.8,
       marginBottom: 4,
     },
     balanceItemValue: {
       fontSize: 16,
       fontWeight: '600',
       color: '#FFFFFF',
-    },
-    section: {
-      marginBottom: 24,
-    },
-    sectionHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 20,
-      marginBottom: 16,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: theme.text,
-    },
-    seeAllButton: {
-      fontSize: 14,
-      color: theme.primary,
-      fontWeight: '500',
     },
     quickActionsContainer: {
       flexDirection: 'row',
@@ -214,6 +276,7 @@ export default function DashboardScreen() {
       flexDirection: 'row',
       paddingHorizontal: 20,
       justifyContent: 'space-between',
+      marginBottom: 24,
     },
     statCard: {
       flex: 1,
@@ -236,23 +299,40 @@ export default function DashboardScreen() {
       color: theme.textSecondary,
       textAlign: 'center',
     },
+    section: {
+      marginBottom: 24,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.text,
+    },
+    seeAllButton: {
+      fontSize: 14,
+      color: theme.primary,
+      fontWeight: '500',
+    },
+    transactionsList: {
+      paddingHorizontal: 20,
+    },
     transactionItem: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
-      marginHorizontal: 20,
-      marginBottom: 8,
+      marginBottom: 12,
       borderWidth: 1,
       borderColor: theme.border,
     },
     transactionIcon: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
       marginRight: 12,
     },
     transactionDetails: {
@@ -273,6 +353,8 @@ export default function DashboardScreen() {
       fontWeight: 'bold',
     },
     emptyState: {
+      flex: 1,
+      justifyContent: 'center',
       alignItems: 'center',
       padding: 40,
     },
@@ -280,10 +362,11 @@ export default function DashboardScreen() {
       marginBottom: 16,
     },
     emptyStateText: {
-      fontSize: 16,
-      color: theme.textSecondary,
-      textAlign: 'center',
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.text,
       marginBottom: 8,
+      textAlign: 'center',
     },
     emptyStateSubtext: {
       fontSize: 14,
@@ -291,84 +374,35 @@ export default function DashboardScreen() {
       textAlign: 'center',
       marginBottom: 24,
     },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      marginTop: 16,
+      color: theme.textSecondary,
+      fontSize: 16,
+    },
   })
 
-  const QuickActionButton = ({ icon, title, onPress }: {
-    icon: keyof typeof Ionicons.glyphMap
-    title: string
-    onPress: () => void
-  }) => (
-    <TouchableOpacity style={styles.quickActionButton} onPress={onPress}>
-      <View style={styles.quickActionIcon}>
-        <Ionicons name={icon} size={24} color={theme.primary} />
-      </View>
-      <Text style={styles.quickActionText}>{title}</Text>
-    </TouchableOpacity>
-  )
-
-  const TransactionItem = ({ transaction }: { transaction: DashboardData['transacoesRecentes'][0] }) => (
-    <View style={styles.transactionItem}>
-      <View style={[
-        styles.transactionIcon,
-        { backgroundColor: transaction.tipo === 'receita' ? theme.success + '20' : theme.error + '20' }
-      ]}>
-        <Ionicons 
-          name={transaction.tipo === 'receita' ? 'arrow-up' : 'arrow-down'} 
-          size={20} 
-          color={transaction.tipo === 'receita' ? theme.success : theme.error} 
-        />
-      </View>
-      <View style={styles.transactionDetails}>
-        <Text style={styles.transactionDescription}>{transaction.descricao}</Text>
-        <Text style={styles.transactionInfo}>
-          {transaction.categoria} • {formatDate(transaction.data)}
-        </Text>
-      </View>
-      <Text style={[
-        styles.transactionAmount,
-        { color: transaction.tipo === 'receita' ? theme.success : theme.error }
-      ]}>
-        {transaction.tipo === 'receita' ? '+' : '-'}{formatCurrency(transaction.valor)}
-      </Text>
-    </View>
-  )
-
-  if (loading) {
+  if (loading && !dashboardData) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <View style={styles.loadingContainer}>
           <Ionicons name="reload" size={32} color={theme.primary} />
-          <Text style={{ marginTop: 16, color: theme.textSecondary }}>Carregando...</Text>
+          <Text style={styles.loadingText}>Carregando dashboard...</Text>
         </View>
       </SafeAreaView>
     )
   }
-
-  if (error || !dashboardData?.data) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.emptyState}>
-          <View style={styles.emptyStateIcon}>
-            <Ionicons name="alert-circle" size={48} color={theme.error} />
-          </View>
-          <Text style={styles.emptyStateText}>Erro ao carregar dados</Text>
-          <Text style={styles.emptyStateSubtext}>
-            Verifique sua conexão e tente novamente
-          </Text>
-          <Button title="Tentar novamente" onPress={refresh} />
-        </View>
-      </SafeAreaView>
-    )
-  }
-
-  const data = dashboardData.data
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
         {/* Header */}
@@ -415,19 +449,19 @@ export default function DashboardScreen() {
         >
           <Text style={styles.balanceLabel}>Saldo atual</Text>
           <Text style={styles.balanceAmount}>
-            {formatCurrency(data.resumoFinanceiro.saldo)}
+            {formatCurrency(resumo.saldo)}
           </Text>
           <View style={styles.balanceRow}>
             <View style={styles.balanceItem}>
               <Text style={styles.balanceItemLabel}>Receitas</Text>
               <Text style={styles.balanceItemValue}>
-                {formatCurrency(data.resumoFinanceiro.receitas)}
+                {formatCurrency(resumo.receitas)}
               </Text>
             </View>
             <View style={styles.balanceItem}>
               <Text style={styles.balanceItemLabel}>Despesas</Text>
               <Text style={styles.balanceItemValue}>
-                {formatCurrency(data.resumoFinanceiro.despesas)}
+                {formatCurrency(resumo.despesas)}
               </Text>
             </View>
           </View>
@@ -455,15 +489,15 @@ export default function DashboardScreen() {
         {/* Stats */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{data.orcamentos.total}</Text>
+            <Text style={styles.statNumber}>{orcamentos.total}</Text>
             <Text style={styles.statLabel}>Orçamentos Ativos</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{data.metas.total}</Text>
+            <Text style={styles.statNumber}>{metas.total}</Text>
             <Text style={styles.statLabel}>Metas em Andamento</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statNumber}>{data.resumoFinanceiro.totalTransacoes}</Text>
+            <Text style={styles.statNumber}>{resumo.totalTransacoes}</Text>
             <Text style={styles.statLabel}>Transações</Text>
           </View>
         </View>
@@ -477,22 +511,20 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
           
-          {data.transacoesRecentes.length > 0 ? (
-            data.transacoesRecentes.slice(0, 5).map((transaction) => (
-              <TransactionItem key={transaction._id} transaction={transaction} />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyStateIcon}>
-                <Ionicons name="receipt-outline" size={48} color={theme.textSecondary} />
+          <View style={styles.transactionsList}>
+            {transacoes.length > 0 ? (
+              transacoes.slice(0, 5).map((transaction) => (
+                <TransactionItem key={transaction._id} transaction={transaction} />
+              ))
+            ) : (
+              <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                <Ionicons name="document-outline" size={48} color={theme.textSecondary} />
+                <Text style={{ color: theme.textSecondary, marginTop: 16 }}>
+                  Nenhuma transação ainda
+                </Text>
               </View>
-              <Text style={styles.emptyStateText}>Nenhuma transação ainda</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Adicione sua primeira transação para começar
-              </Text>
-              <Button title="Adicionar Transação" onPress={() => {}} />
-            </View>
-          )}
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
