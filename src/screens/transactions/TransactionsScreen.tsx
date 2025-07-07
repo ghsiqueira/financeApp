@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { useFocusEffect } from '@react-navigation/native'
 
 import { useTheme } from '../../context/ThemeContext'
-import { usePagination } from '../../hooks/useApi'
+import { useApi } from '../../hooks/useApi'
 import Button from '../../components/common/Button'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 
@@ -48,8 +48,6 @@ export default function TransactionsScreen() {
     data: transactionsData,
     loading,
     error,
-    hasMore,
-    loadMore,
     refresh
   } = useApi<TransactionsData>('/transactions')
 

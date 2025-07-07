@@ -5,7 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { NavigationContainer } from '@react-navigation/native'
 import Toast from 'react-native-toast-message'
 import * as SplashScreen from 'expo-splash-screen'
-import * as Font from 'expo-font'
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter'
 
 import { AuthProvider } from './src/context/AuthContext'
 import { ThemeProvider } from './src/context/ThemeContext'
@@ -18,35 +18,47 @@ SplashScreen.preventAutoHideAsync()
 export default function App() {
   const [appIsReady, setAppIsReady] = useState(false)
 
+  // Carregar fontes do Google Fonts
+  let [fontsLoaded, fontError] = useFonts({
+    'Inter-Regular': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+  })
+
   useEffect(() => {
     async function prepare() {
       try {
-        // Carregar fontes customizadas
-        await Font.loadAsync({
-          'Inter-Regular': require('./assets/fonts/Inter-Regular.ttf'),
-          'Inter-Medium': require('./assets/fonts/Inter-Medium.ttf'),
-          'Inter-SemiBold': require('./assets/fonts/Inter-SemiBold.ttf'),
-          'Inter-Bold': require('./assets/fonts/Inter-Bold.ttf'),
-        })
-
-        // Simular carregamento de dados iniciais
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        // Aguardar carregamento das fontes
+        if (fontsLoaded || fontError) {
+          // Simular carregamento de dados iniciais se necessário
+          await new Promise(resolve => setTimeout(resolve, 1000))
+          
+          // Se houver erro no carregamento das fontes, log do erro mas continue
+          if (fontError) {
+            console.warn('Erro ao carregar fontes:', fontError)
+          }
+        }
       } catch (e) {
         console.warn('Erro ao carregar recursos:', e)
       } finally {
-        setAppIsReady(true)
+        if (fontsLoaded || fontError) {
+          setAppIsReady(true)
+        }
       }
     }
 
     prepare()
-  }, [])
+  }, [fontsLoaded, fontError])
 
   useEffect(() => {
     if (appIsReady) {
+      // Esconder splash screen quando o app estiver pronto
       SplashScreen.hideAsync()
     }
   }, [appIsReady])
 
+  // Mostrar tela vazia enquanto o app não estiver pronto
   if (!appIsReady) {
     return null
   }

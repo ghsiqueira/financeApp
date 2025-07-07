@@ -44,7 +44,6 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router",
       [
         "expo-notifications",
         {
@@ -60,7 +59,9 @@
         {
           "cameraPermission": "Permitir que $(PRODUCT_NAME) acesse sua câmera para capturar fotos de recibos."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {
