@@ -408,7 +408,7 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>{getGreeting()},</Text>
-          <Text style={styles.userName}>{user?.nome?.split(' ')[0] || 'Usuário'}</Text>
+          <Text style={styles.userName}>{user?.name?.split(' ')[0] || 'Usuário'}</Text>
         </View>
 
         {/* Period Selector */}

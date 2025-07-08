@@ -351,10 +351,10 @@ export function useAuthMutation() {
   }, [mutate])
 
   const resetPassword = useCallback(async (email: string, code: string, newPassword: string) => {
-    // Converter campos para português como esperado pelo backend
+    // 🔧 CORREÇÃO CRÍTICA: Backend espera 'code', não 'codigo'
     return await mutate('post', '/auth/reset-password', { 
       email: email.trim().toLowerCase(),  // Limpar email
-      codigo: code.trim(),                // Limpar código
+      code: code.trim(),                  // ✅ CORRIGIDO: era 'codigo', agora é 'code'
       novaSenha: newPassword.trim()       // Limpar senha
     })
   }, [mutate])

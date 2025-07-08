@@ -47,6 +47,14 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
   const [isLoading, setIsLoading] = useState(false)
   const [isResending, setIsResending] = useState(false)
 
+  // Verificações de requisitos da senha
+  const passwordChecks = {
+    length: formData.newPassword.length >= 6,
+    uppercase: /[A-Z]/.test(formData.newPassword),
+    lowercase: /[a-z]/.test(formData.newPassword),
+    number: /\d/.test(formData.newPassword),
+  }
+
   const validateForm = () => {
     const newErrors = { code: '', newPassword: '', confirmPassword: '' }
     let isValid = true
@@ -149,6 +157,20 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
     return numbers
   }
 
+  // Componente para mostrar requisitos da senha
+  const RequirementItem = ({ met, text }: { met: boolean; text: string }) => (
+    <View style={styles.requirementItem}>
+      <Ionicons
+        name={met ? 'checkmark-circle' : 'ellipse-outline'}
+        size={16}
+        color={met ? theme.success : theme.textSecondary}
+      />
+      <Text style={[styles.requirementText, met && styles.requirementMet]}>
+        {text}
+      </Text>
+    </View>
+  )
+
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -189,21 +211,20 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
       fontSize: 28,
       fontWeight: 'bold',
       color: theme.text,
-      marginBottom: 12,
+      marginBottom: 8,
       textAlign: 'center',
     },
     subtitle: {
       fontSize: 16,
       color: theme.textSecondary,
       textAlign: 'center',
-      lineHeight: 24,
+      marginBottom: 4,
     },
     emailInfo: {
-      fontSize: 14,
+      fontSize: 16,
       color: theme.primary,
       fontWeight: '600',
       textAlign: 'center',
-      marginTop: 8,
     },
     form: {
       flex: 1,
@@ -214,19 +235,44 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
     },
     codeInput: {
       textAlign: 'center',
-      fontSize: 24,
+      fontSize: 18,
+      letterSpacing: 4,
+    },
+    passwordRequirements: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 24,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    requirementsTitle: {
+      fontSize: 14,
       fontWeight: '600',
-      letterSpacing: 8,
+      color: theme.text,
+      marginBottom: 12,
+    },
+    requirementItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    requirementText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginLeft: 8,
+    },
+    requirementMet: {
+      color: theme.success,
     },
     resetButton: {
-      marginTop: 12,
-      marginBottom: 24,
+      marginBottom: 20,
     },
     resendContainer: {
       flexDirection: 'row',
       justifyContent: 'center',
       alignItems: 'center',
-      marginBottom: 32,
+      marginTop: 20,
     },
     resendText: {
       fontSize: 14,
@@ -237,33 +283,6 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
       color: theme.primary,
       fontWeight: '600',
       marginLeft: 4,
-    },
-    passwordRequirements: {
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 20,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    requirementsTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 8,
-    },
-    requirement: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 4,
-    },
-    requirementText: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginLeft: 8,
-    },
-    requirementMet: {
-      color: theme.success,
     },
     footer: {
       flexDirection: 'row',
@@ -282,31 +301,6 @@ export default function ResetPasswordScreen({ navigation, route }: Props) {
       marginLeft: 4,
     },
   })
-
-  // Validar requisitos da senha em tempo real
-  const checkPasswordRequirements = (password: string) => {
-    return {
-      length: password.length >= 6,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      number: /\d/.test(password),
-    }
-  }
-
-  const passwordChecks = checkPasswordRequirements(formData.newPassword)
-
-  const RequirementItem = ({ met, text }: { met: boolean; text: string }) => (
-    <View style={styles.requirement}>
-      <Ionicons
-        name={met ? 'checkmark-circle' : 'ellipse-outline'}
-        size={16}
-        color={met ? theme.success : theme.textSecondary}
-      />
-      <Text style={[styles.requirementText, met && styles.requirementMet]}>
-        {text}
-      </Text>
-    </View>
-  )
 
   return (
     <SafeAreaView style={styles.container}>
