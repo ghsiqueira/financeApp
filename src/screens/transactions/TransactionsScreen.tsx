@@ -39,10 +39,9 @@ interface TransactionsData {
   }
 }
 
-export default function TransactionsScreen() {
+export default function TransactionsScreen({ navigation }: any) {
   const { theme } = useTheme()
   const [selectedFilter, setSelectedFilter] = useState<'todos' | 'receita' | 'despesa'>('todos')
-  const [searchTerm, setSearchTerm] = useState('')
 
   const {
     data: transactionsData,
@@ -91,12 +90,59 @@ export default function TransactionsScreen() {
     )
   }
 
+  const SummaryCard = () => (
+    <View style={styles.summaryCard}>
+      <View style={styles.summaryItem}>
+        <Text style={styles.summaryLabel}>Receitas</Text>
+        <Text style={[styles.summaryValue, { color: theme.success }]}>
+          {formatCurrency(transactionsData?.resumo?.totalReceitas || 0)}
+        </Text>
+      </View>
+      <View style={styles.summaryItem}>
+        <Text style={styles.summaryLabel}>Despesas</Text>
+        <Text style={[styles.summaryValue, { color: theme.error }]}>
+          {formatCurrency(transactionsData?.resumo?.totalDespesas || 0)}
+        </Text>
+      </View>
+      <View style={styles.summaryItem}>
+        <Text style={styles.summaryLabel}>Saldo</Text>
+        <Text style={[
+          styles.summaryValue, 
+          { color: (transactionsData?.resumo?.saldo || 0) >= 0 ? theme.success : theme.error }
+        ]}>
+          {formatCurrency(transactionsData?.resumo?.saldo || 0)}
+        </Text>
+      </View>
+    </View>
+  )
+
+  const FilterButton = ({ filter, label, icon }: { filter: typeof selectedFilter, label: string, icon: string }) => (
+    <TouchableOpacity
+      style={[
+        styles.filterButton,
+        selectedFilter === filter && styles.filterButtonActive
+      ]}
+      onPress={() => setSelectedFilter(filter)}
+    >
+      <Ionicons 
+        name={icon as any} 
+        size={16} 
+        color={selectedFilter === filter ? '#FFFFFF' : theme.textSecondary} 
+      />
+      <Text style={[
+        styles.filterButtonText,
+        selectedFilter === filter && styles.filterButtonTextActive
+      ]}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  )
+
   const TransactionItem = ({ item }: { item: Transaction }) => (
     <TouchableOpacity 
       style={styles.transactionItem}
       onPress={() => {
-        // TODO: Navegar para detalhes/edição
-        console.log('Edit transaction:', item._id)
+        navigation.navigate('AddTransaction', { transaction: item })
       }}
     >
       <View style={[
@@ -127,9 +173,8 @@ export default function TransactionsScreen() {
           styles.transactionAmount,
           { color: item.tipo === 'receita' ? theme.success : theme.error }
         ]}>
-          {item.tipo === 'receita' ? '+' : '-'}{formatCurrency(item.valor)}
+          {item.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(item.valor))}
         </Text>
-        
         <TouchableOpacity 
           style={styles.deleteButton}
           onPress={() => handleDeleteTransaction(item._id)}
@@ -140,72 +185,6 @@ export default function TransactionsScreen() {
     </TouchableOpacity>
   )
 
-  const FilterButton = ({ 
-    filter, 
-    label, 
-    icon 
-  }: { 
-    filter: typeof selectedFilter
-    label: string
-    icon: keyof typeof Ionicons.glyphMap
-  }) => (
-    <TouchableOpacity
-      style={[
-        styles.filterButton,
-        selectedFilter === filter && styles.filterButtonActive
-      ]}
-      onPress={() => setSelectedFilter(filter)}
-    >
-      <Ionicons 
-        name={icon} 
-        size={16} 
-        color={selectedFilter === filter ? '#FFFFFF' : theme.textSecondary} 
-      />
-      <Text style={[
-        styles.filterButtonText,
-        selectedFilter === filter && styles.filterButtonTextActive
-      ]}>
-        {label}
-      </Text>
-    </TouchableOpacity>
-  )
-
-  const SummaryCard = () => {
-    if (!transactionsData?.resumo) return null
-
-    return (
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Receitas</Text>
-          <Text style={[styles.summaryValue, { color: theme.success }]}>
-            {formatCurrency(transactionsData.resumo.totalReceitas)}
-          </Text>
-        </View>
-        
-        <View style={styles.summaryDivider} />
-        
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Despesas</Text>
-          <Text style={[styles.summaryValue, { color: theme.error }]}>
-            {formatCurrency(transactionsData.resumo.totalDespesas)}
-          </Text>
-        </View>
-        
-        <View style={styles.summaryDivider} />
-        
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Saldo</Text>
-          <Text style={[
-            styles.summaryValue,
-            { color: transactionsData.resumo.saldo >= 0 ? theme.success : theme.error }
-          ]}>
-            {formatCurrency(transactionsData.resumo.saldo)}
-          </Text>
-        </View>
-      </View>
-    )
-  }
-
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -213,10 +192,12 @@ export default function TransactionsScreen() {
     },
     header: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: 20,
       paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
     },
     title: {
       fontSize: 24,
@@ -224,9 +205,9 @@ export default function TransactionsScreen() {
       color: theme.text,
     },
     addButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       backgroundColor: theme.primary,
       alignItems: 'center',
       justifyContent: 'center',
@@ -235,7 +216,7 @@ export default function TransactionsScreen() {
       flexDirection: 'row',
       backgroundColor: theme.surface,
       marginHorizontal: 20,
-      marginBottom: 20,
+      marginVertical: 16,
       borderRadius: 12,
       padding: 16,
       borderWidth: 1,
@@ -254,22 +235,17 @@ export default function TransactionsScreen() {
       fontSize: 16,
       fontWeight: 'bold',
     },
-    summaryDivider: {
-      width: 1,
-      backgroundColor: theme.border,
-      marginHorizontal: 12,
-    },
     filtersContainer: {
       flexDirection: 'row',
       paddingHorizontal: 20,
-      marginBottom: 20,
+      marginBottom: 16,
       gap: 8,
     },
     filterButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 12,
       paddingVertical: 8,
+      paddingHorizontal: 12,
       borderRadius: 20,
       backgroundColor: theme.surface,
       borderWidth: 1,
@@ -388,8 +364,7 @@ export default function TransactionsScreen() {
         <TouchableOpacity 
           style={styles.addButton}
           onPress={() => {
-            // TODO: Navegar para AddTransactionScreen
-            console.log('Add transaction')
+            navigation.navigate('AddTransaction')
           }}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
@@ -419,8 +394,7 @@ export default function TransactionsScreen() {
           <Button
             title="Adicionar Transação"
             onPress={() => {
-              // TODO: Navegar para AddTransactionScreen
-              console.log('Add first transaction')
+              navigation.navigate('AddTransaction')
             }}
           />
         </View>

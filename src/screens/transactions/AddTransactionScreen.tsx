@@ -8,6 +8,7 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
@@ -32,6 +33,7 @@ interface Budget {
   categoria: string
   valorLimite: number
   valorGasto: number
+  valorRestante: number
 }
 
 const PAYMENT_METHODS = [
@@ -41,6 +43,13 @@ const PAYMENT_METHODS = [
   { id: 'pix', label: 'PIX', icon: 'phone-portrait' },
   { id: 'transferencia', label: 'Transferência', icon: 'swap-horizontal' },
   { id: 'boleto', label: 'Boleto', icon: 'document-text' },
+]
+
+const RECURRENCE_TYPES = [
+  { id: 'diario', label: 'Diário', icon: 'calendar' },
+  { id: 'semanal', label: 'Semanal', icon: 'calendar' },
+  { id: 'mensal', label: 'Mensal', icon: 'calendar' },
+  { id: 'personalizado', label: 'Personalizado', icon: 'settings' },
 ]
 
 export default function AddTransactionScreen({ navigation, route }: any) {
@@ -60,36 +69,83 @@ export default function AddTransactionScreen({ navigation, route }: any) {
     tags: [] as string[],
     recorrente: {
       ativo: false,
-      tipo: 'mensal' as 'diario' | 'semanal' | 'mensal' | 'anual',
+      tipo: 'mensal' as 'diario' | 'semanal' | 'mensal' | 'personalizado',
+      dataInicio: new Date(),
+      dataFim: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 ano depois
       intervalo: 1,
     }
   })
 
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false)
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false)
   const [tagInput, setTagInput] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // Buscar categorias
-  const { data: categories } = useApi<Category[]>('/categories')
+  // Buscar categorias - CORRIGIDO para acessar .data com debug
+  const { data: categoriesResponse } = useApi('/categories')
   
-  // Buscar orçamentos ativos (apenas para despesas)
-  const { data: budgets } = useApi<Budget[]>(
-    formData.tipo === 'despesa' ? '/budgets?ativo=true' : null
+  // Debug: ver o que está sendo retornado
+  console.log('📊 Categories Response:', categoriesResponse)
+  
+  // Extrair categorias de forma segura
+  let categories = []
+  if (categoriesResponse) {
+    if (Array.isArray(categoriesResponse)) {
+      // Se já é um array diretamente
+      categories = categoriesResponse
+    } else if (categoriesResponse.data && Array.isArray(categoriesResponse.data)) {
+      // Se está dentro de .data
+      categories = categoriesResponse.data
+    } else if (categoriesResponse.success && Array.isArray(categoriesResponse.data)) {
+      // Se tem success e data
+      categories = categoriesResponse.data
+    }
+  }
+  
+  console.log('📊 Categories Final:', categories)
+  
+  // Buscar orçamentos ativos (apenas para despesas) - CORRIGIDO para acessar .data
+  const { data: budgetsResponse } = useApi(
+    formData.tipo === 'despesa' ? '/budgets?status=ativo' : null
   )
+  
+  // Extrair orçamentos de forma segura
+  let budgets = []
+  if (budgetsResponse) {
+    if (Array.isArray(budgetsResponse)) {
+      budgets = budgetsResponse
+    } else if (budgetsResponse.data && Array.isArray(budgetsResponse.data)) {
+      budgets = budgetsResponse.data
+    } else if (budgetsResponse.success && Array.isArray(budgetsResponse.data)) {
+      budgets = budgetsResponse.data
+    }
+  }
 
-  // Mutation para criar/editar transação
   const { mutate: saveTransaction, loading: saving } = useMutation()
 
-  // Preencher dados se estiver editando
+  // Carregar dados se estiver editando
   useEffect(() => {
     if (editingTransaction) {
       setFormData({
-        ...editingTransaction,
-        data: new Date(editingTransaction.data),
+        ...formData,
+        tipo: editingTransaction.tipo,
+        descricao: editingTransaction.descricao,
         valor: editingTransaction.valor.toString(),
+        categoria: editingTransaction.categoria,
+        metodoPagamento: editingTransaction.metodoPagamento,
+        data: new Date(editingTransaction.data),
+        observacoes: editingTransaction.observacoes || '',
+        orcamentoId: editingTransaction.orcamentoId || '',
+        tags: editingTransaction.tags || [],
+        recorrente: editingTransaction.recorrente || formData.recorrente,
       })
     }
   }, [editingTransaction])
+
+  const filteredCategories = Array.isArray(categories) ? categories.filter((cat: Category) => 
+    cat.tipo === formData.tipo || cat.tipo === 'ambos'
+  ) : []
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -98,14 +154,12 @@ export default function AddTransactionScreen({ navigation, route }: any) {
       newErrors.descricao = 'Descrição é obrigatória'
     }
 
-    if (!formData.valor.trim()) {
-      newErrors.valor = 'Valor é obrigatório'
-    } else if (isNaN(parseFloat(formData.valor)) || parseFloat(formData.valor) <= 0) {
+    if (!formData.valor || parseFloat(formData.valor) <= 0) {
       newErrors.valor = 'Valor deve ser maior que zero'
     }
 
     if (!formData.categoria) {
-      newErrors.categoria = 'Categoria é obrigatória'
+      newErrors.categoria = 'Selecione uma categoria'
     }
 
     setErrors(newErrors)
@@ -115,201 +169,61 @@ export default function AddTransactionScreen({ navigation, route }: any) {
   const handleSave = async () => {
     if (!validateForm()) return
 
-    const transactionData = {
-      ...formData,
-      valor: parseFloat(formData.valor),
-      tags: formData.tags.filter(tag => tag.trim() !== ''),
-    }
-
     try {
-      const method = isEditing ? 'patch' : 'post'
-      const url = isEditing ? `/transactions/${editingTransaction._id}` : '/transactions'
-      
-      await saveTransaction(method, url, transactionData, {
-        onSuccess: () => {
-          Alert.alert(
-            'Sucesso',
-            `Transação ${isEditing ? 'atualizada' : 'criada'} com sucesso!`,
-            [{ text: 'OK', onPress: () => navigation.goBack() }]
-          )
-        },
-        onError: (error) => {
-          Alert.alert('Erro', error)
-        }
-      })
-    } catch (error) {
-      console.error('Erro ao salvar transação:', error)
+      const transactionData = {
+        ...formData,
+        valor: parseFloat(formData.valor),
+        data: formData.data.toISOString(),
+        recorrente: formData.recorrente.ativo ? {
+          ...formData.recorrente,
+          dataInicio: formData.recorrente.dataInicio.toISOString(),
+          dataFim: formData.recorrente.dataFim.toISOString(),
+        } : undefined,
+      }
+
+      if (isEditing) {
+        await saveTransaction('put', `/transactions/${editingTransaction._id}`, transactionData)
+      } else {
+        await saveTransaction('post', '/transactions', transactionData)
+      }
+
+      Alert.alert(
+        'Sucesso',
+        `Transação ${isEditing ? 'atualizada' : 'criada'} com sucesso!`,
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      )
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao salvar transação')
     }
   }
 
   const addTag = () => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()]
-      }))
+      setFormData({
+        ...formData,
+        tags: [...formData.tags, tagInput.trim()]
+      })
       setTagInput('')
     }
   }
 
   const removeTag = (tagToRemove: string) => {
-    setFormData(prev => ({
-      ...prev,
-      tags: prev.tags.filter(tag => tag !== tagToRemove)
-    }))
+    setFormData({
+      ...formData,
+      tags: formData.tags.filter(tag => tag !== tagToRemove)
+    })
   }
 
-  const TypeSelector = () => (
-    <View style={styles.typeSelector}>
-      <TouchableOpacity
-        style={[
-          styles.typeButton,
-          formData.tipo === 'receita' && styles.typeButtonActiveIncome
-        ]}
-        onPress={() => setFormData(prev => ({ ...prev, tipo: 'receita', orcamentoId: '' }))}
-      >
-        <Ionicons 
-          name="arrow-up" 
-          size={20} 
-          color={formData.tipo === 'receita' ? '#FFFFFF' : theme.success} 
-        />
-        <Text style={[
-          styles.typeButtonText,
-          formData.tipo === 'receita' && styles.typeButtonTextActive
-        ]}>
-          Receita
-        </Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[
-          styles.typeButton,
-          formData.tipo === 'despesa' && styles.typeButtonActiveExpense
-        ]}
-        onPress={() => setFormData(prev => ({ ...prev, tipo: 'despesa' }))}
-      >
-        <Ionicons 
-          name="arrow-down" 
-          size={20} 
-          color={formData.tipo === 'despesa' ? '#FFFFFF' : theme.error} 
-        />
-        <Text style={[
-          styles.typeButtonText,
-          formData.tipo === 'despesa' && styles.typeButtonTextActive
-        ]}>
-          Despesa
-        </Text>
-      </TouchableOpacity>
-    </View>
-  )
-
-  const CategorySelector = () => {
-    const filteredCategories = categories?.filter(cat => 
-      cat.tipo === formData.tipo || cat.tipo === 'ambos'
-    ) || []
-
-    return (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Categoria</Text>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.categoryScroll}
-        >
-          {filteredCategories.map((category) => (
-            <TouchableOpacity
-              key={category._id}
-              style={[
-                styles.categoryItem,
-                formData.categoria === category.nome && styles.categoryItemActive,
-                { borderColor: category.cor }
-              ]}
-              onPress={() => setFormData(prev => ({ ...prev, categoria: category.nome }))}
-            >
-              <Ionicons 
-                name={category.icone as any} 
-                size={24} 
-                color={formData.categoria === category.nome ? '#FFFFFF' : category.cor} 
-              />
-              <Text style={[
-                styles.categoryText,
-                formData.categoria === category.nome && styles.categoryTextActive
-              ]}>
-                {category.nome}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        {errors.categoria && <Text style={styles.errorText}>{errors.categoria}</Text>}
-      </View>
-    )
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value)
   }
 
-  const PaymentMethodSelector = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Método de Pagamento</Text>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        style={styles.paymentScroll}
-      >
-        {PAYMENT_METHODS.map((method) => (
-          <TouchableOpacity
-            key={method.id}
-            style={[
-              styles.paymentItem,
-              formData.metodoPagamento === method.id && styles.paymentItemActive
-            ]}
-            onPress={() => setFormData(prev => ({ ...prev, metodoPagamento: method.id }))}
-          >
-            <Ionicons 
-              name={method.icon as any} 
-              size={20} 
-              color={formData.metodoPagamento === method.id ? '#FFFFFF' : theme.primary} 
-            />
-            <Text style={[
-              styles.paymentText,
-              formData.metodoPagamento === method.id && styles.paymentTextActive
-            ]}>
-              {method.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  )
-
-  const TagsSection = () => (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Tags</Text>
-      
-      <View style={styles.tagInputContainer}>
-        <Input
-          placeholder="Digite uma tag"
-          value={tagInput}
-          onChangeText={setTagInput}
-          onSubmitEditing={addTag}
-          style={styles.tagInput}
-        />
-        <TouchableOpacity style={styles.addTagButton} onPress={addTag}>
-          <Ionicons name="add" size={20} color={theme.primary} />
-        </TouchableOpacity>
-      </View>
-
-      {formData.tags.length > 0 && (
-        <View style={styles.tagsContainer}>
-          {formData.tags.map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
-              <TouchableOpacity onPress={() => removeTag(tag)}>
-                <Ionicons name="close" size={16} color={theme.primary} />
-              </TouchableOpacity>
-            </View>
-          ))}
-        </View>
-      )}
-    </View>
-  )
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('pt-BR')
+  }
 
   const styles = StyleSheet.create({
     container: {
@@ -390,10 +304,12 @@ export default function AddTransactionScreen({ navigation, route }: any) {
       borderRadius: 12,
       backgroundColor: theme.surface,
       borderWidth: 2,
+      borderColor: theme.border,
       minWidth: 80,
     },
     categoryItemActive: {
       backgroundColor: theme.primary,
+      borderColor: theme.primary,
     },
     categoryText: {
       fontSize: 12,
@@ -537,16 +453,47 @@ export default function AddTransactionScreen({ navigation, route }: any) {
     },
     recurrentOptions: {
       marginTop: 12,
-      paddingLeft: 16,
     },
     recurrentOption: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 8,
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginBottom: 8,
+    },
+    recurrentOptionActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primary + '10',
     },
     recurrentOptionText: {
       marginLeft: 12,
       fontSize: 16,
+      color: theme.text,
+      flex: 1,
+    },
+    dateRangeContainer: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 12,
+    },
+    dateRangeButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 8,
+    },
+    dateRangeText: {
+      fontSize: 14,
       color: theme.text,
     },
     saveButton: {
@@ -579,84 +526,164 @@ export default function AddTransactionScreen({ navigation, route }: any) {
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView 
-          style={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Type Selector */}
-          <TypeSelector />
-
-          {/* Basic Info */}
-          <View style={styles.inputContainer}>
-            <Input
-              label="Descrição"
-              placeholder="Ex: Almoço no restaurante"
-              value={formData.descricao}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, descricao: text }))}
-              error={errors.descricao}
-              required
-            />
-          </View>
-
-          <View style={styles.inputContainer}>
-            <Input
-              label="Valor"
-              placeholder="0,00"
-              value={formData.valor}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, valor: text }))}
-              keyboardType="numeric"
-              leftIcon="attach-outline"
-              error={errors.valor}
-              required
-            />
-          </View>
-
-          {/* Date Picker */}
-          <View style={styles.dateContainer}>
-            <Text style={styles.sectionTitle}>Data</Text>
-            <TouchableOpacity 
-              style={styles.dateButton}
-              onPress={() => setShowDatePicker(true)}
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Tipo de Transação */}
+          <View style={styles.typeSelector}>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                formData.tipo === 'receita' && styles.typeButtonActiveIncome
+              ]}
+              onPress={() => setFormData({ ...formData, tipo: 'receita', categoria: '', orcamentoId: '' })}
             >
-              <Ionicons name="calendar" size={20} color={theme.primary} />
-              <Text style={styles.dateText}>
-                {formData.data.toLocaleDateString('pt-BR')}
+              <Ionicons 
+                name="arrow-up" 
+                size={20} 
+                color={formData.tipo === 'receita' ? '#FFFFFF' : theme.text} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                formData.tipo === 'receita' && styles.typeButtonTextActive
+              ]}>
+                Receita
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                formData.tipo === 'despesa' && styles.typeButtonActiveExpense
+              ]}
+              onPress={() => setFormData({ ...formData, tipo: 'despesa', categoria: '' })}
+            >
+              <Ionicons 
+                name="arrow-down" 
+                size={20} 
+                color={formData.tipo === 'despesa' ? '#FFFFFF' : theme.text} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                formData.tipo === 'despesa' && styles.typeButtonTextActive
+              ]}>
+                Despesa
               </Text>
             </TouchableOpacity>
           </View>
 
-          {showDatePicker && (
-            <DateTimePicker
-              value={formData.data}
-              mode="date"
-              display="default"
-              onChange={(event, selectedDate) => {
-                setShowDatePicker(false)
-                if (selectedDate) {
-                  setFormData(prev => ({ ...prev, data: selectedDate }))
-                }
-              }}
+          {/* Descrição */}
+          <View style={styles.inputContainer}>
+            <Input
+              label="Descrição"
+              value={formData.descricao}
+              onChangeText={(text) => setFormData({ ...formData, descricao: text })}
+              placeholder="Ex: Almoço no restaurante"
+              error={errors.descricao}
             />
-          )}
+          </View>
 
-          {/* Category Selector */}
-          <CategorySelector />
+          {/* Valor */}
+          <View style={styles.inputContainer}>
+            <Input
+              label="Valor"
+              value={formData.valor}
+              onChangeText={(text) => setFormData({ ...formData, valor: text })}
+              placeholder="0,00"
+              keyboardType="numeric"
+              error={errors.valor}
+            />
+          </View>
 
-          {/* Payment Method */}
-          <PaymentMethodSelector />
+          {/* Categorias */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Categoria {formData.tipo === 'receita' ? 'de Receita' : 'de Despesa'}
+            </Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScroll}
+            >
+              {filteredCategories.map((category: Category) => (
+                <TouchableOpacity
+                  key={category._id}
+                  style={[
+                    styles.categoryItem,
+                    formData.categoria === category._id && styles.categoryItemActive
+                  ]}
+                  onPress={() => setFormData({ ...formData, categoria: category._id })}
+                >
+                  <Ionicons 
+                    name={category.icone as any} 
+                    size={24} 
+                    color={formData.categoria === category._id ? '#FFFFFF' : category.cor} 
+                  />
+                  <Text style={[
+                    styles.categoryText,
+                    formData.categoria === category._id && styles.categoryTextActive
+                  ]}>
+                    {category.nome}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            {errors.categoria && <Text style={styles.errorText}>{errors.categoria}</Text>}
+          </View>
 
-          {/* Budget Selection (only for expenses) */}
-          {formData.tipo === 'despesa' && budgets && budgets.length > 0 && (
+          {/* Método de Pagamento */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Método de Pagamento</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.paymentScroll}
+            >
+              {PAYMENT_METHODS.map((method) => (
+                <TouchableOpacity
+                  key={method.id}
+                  style={[
+                    styles.paymentItem,
+                    formData.metodoPagamento === method.id && styles.paymentItemActive
+                  ]}
+                  onPress={() => setFormData({ ...formData, metodoPagamento: method.id })}
+                >
+                  <Ionicons 
+                    name={method.icon as any} 
+                    size={16} 
+                    color={formData.metodoPagamento === method.id ? '#FFFFFF' : theme.text} 
+                  />
+                  <Text style={[
+                    styles.paymentText,
+                    formData.metodoPagamento === method.id && styles.paymentTextActive
+                  ]}>
+                    {method.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Data */}
+          <View style={styles.dateContainer}>
+            <Text style={styles.sectionTitle}>Data</Text>
+            <TouchableOpacity
+              style={styles.dateButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar" size={20} color={theme.text} />
+              <Text style={styles.dateText}>{formatDate(formData.data)}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Orçamento (apenas para despesas) */}
+          {formData.tipo === 'despesa' && Array.isArray(budgets) && budgets.length > 0 && (
             <View style={styles.budgetSection}>
               <Text style={styles.sectionTitle}>Orçamento (Opcional)</Text>
-              
               <TouchableOpacity
                 style={[
                   styles.budgetOption,
                   !formData.orcamentoId && styles.budgetOptionActive
                 ]}
-                onPress={() => setFormData(prev => ({ ...prev, orcamentoId: '' }))}
+                onPress={() => setFormData({ ...formData, orcamentoId: '' })}
               >
                 <Ionicons 
                   name={!formData.orcamentoId ? "radio-button-on" : "radio-button-off"} 
@@ -664,18 +691,17 @@ export default function AddTransactionScreen({ navigation, route }: any) {
                   color={theme.primary} 
                 />
                 <View style={styles.budgetOptionText}>
-                  <Text style={styles.budgetName}>Sem orçamento</Text>
+                  <Text style={styles.budgetName}>Não utilizar orçamento</Text>
                 </View>
               </TouchableOpacity>
-
-              {budgets.map((budget) => (
+              {Array.isArray(budgets) && budgets.map((budget: Budget) => (
                 <TouchableOpacity
                   key={budget._id}
                   style={[
                     styles.budgetOption,
                     formData.orcamentoId === budget._id && styles.budgetOptionActive
                   ]}
-                  onPress={() => setFormData(prev => ({ ...prev, orcamentoId: budget._id }))}
+                  onPress={() => setFormData({ ...formData, orcamentoId: budget._id })}
                 >
                   <Ionicons 
                     name={formData.orcamentoId === budget._id ? "radio-button-on" : "radio-button-off"} 
@@ -685,7 +711,7 @@ export default function AddTransactionScreen({ navigation, route }: any) {
                   <View style={styles.budgetOptionText}>
                     <Text style={styles.budgetName}>{budget.nome}</Text>
                     <Text style={styles.budgetInfo}>
-                      Usado: R$ {budget.valorGasto.toFixed(2)} de R$ {budget.valorLimite.toFixed(2)}
+                      Restante: {formatCurrency(budget.valorRestante)}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -693,76 +719,176 @@ export default function AddTransactionScreen({ navigation, route }: any) {
             </View>
           )}
 
-          {/* Tags */}
-          <TagsSection />
-
-          {/* Observations */}
-          <View style={styles.inputContainer}>
-            <Input
-              label="Observações (Opcional)"
-              placeholder="Detalhes adicionais sobre a transação"
-              value={formData.observacoes}
-              onChangeText={(text) => setFormData(prev => ({ ...prev, observacoes: text }))}
-              multiline
-              numberOfLines={3}
-            />
-          </View>
-
-          {/* Recurrent Transaction */}
+          {/* Transação Recorrente */}
           <View style={styles.recurrentSection}>
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Transação Recorrente</Text>
-              <TouchableOpacity
-                onPress={() => setFormData(prev => ({ 
-                  ...prev, 
-                  recorrente: { ...prev.recorrente, ativo: !prev.recorrente.ativo }
-                }))}
-              >
-                <Ionicons 
-                  name={formData.recorrente.ativo ? "toggle" : "toggle-outline"} 
-                  size={32} 
-                  color={formData.recorrente.ativo ? theme.primary : theme.textSecondary} 
-                />
-              </TouchableOpacity>
+              <Switch
+                value={formData.recorrente.ativo}
+                onValueChange={(value) => 
+                  setFormData({ 
+                    ...formData, 
+                    recorrente: { ...formData.recorrente, ativo: value } 
+                  })
+                }
+                trackColor={{ false: theme.border, true: theme.primary + '50' }}
+                thumbColor={formData.recorrente.ativo ? theme.primary : '#f4f3f4'}
+              />
             </View>
 
             {formData.recorrente.ativo && (
               <View style={styles.recurrentOptions}>
-                {[
-                  { value: 'semanal', label: 'Semanal' },
-                  { value: 'mensal', label: 'Mensal' },
-                  { value: 'anual', label: 'Anual' },
-                ].map((option) => (
+                <Text style={styles.sectionTitle}>Frequência</Text>
+                {RECURRENCE_TYPES.map((type) => (
                   <TouchableOpacity
-                    key={option.value}
-                    style={styles.recurrentOption}
-                    onPress={() => setFormData(prev => ({ 
-                      ...prev, 
-                      recorrente: { ...prev.recorrente, tipo: option.value as any }
-                    }))}
+                    key={type.id}
+                    style={[
+                      styles.recurrentOption,
+                      formData.recorrente.tipo === type.id && styles.recurrentOptionActive
+                    ]}
+                    onPress={() => 
+                      setFormData({ 
+                        ...formData, 
+                        recorrente: { ...formData.recorrente, tipo: type.id as any } 
+                      })
+                    }
                   >
                     <Ionicons 
-                      name={formData.recorrente.tipo === option.value ? "radio-button-on" : "radio-button-off"} 
+                      name={formData.recorrente.tipo === type.id ? "radio-button-on" : "radio-button-off"} 
                       size={20} 
                       color={theme.primary} 
                     />
-                    <Text style={styles.recurrentOptionText}>{option.label}</Text>
+                    <Text style={styles.recurrentOptionText}>{type.label}</Text>
                   </TouchableOpacity>
+                ))}
+
+                {formData.recorrente.tipo === 'personalizado' && (
+                  <View style={styles.dateRangeContainer}>
+                    <TouchableOpacity
+                      style={styles.dateRangeButton}
+                      onPress={() => setShowStartDatePicker(true)}
+                    >
+                      <Ionicons name="calendar" size={16} color={theme.text} />
+                      <Text style={styles.dateRangeText}>
+                        Início: {formatDate(formData.recorrente.dataInicio)}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.dateRangeButton}
+                      onPress={() => setShowEndDatePicker(true)}
+                    >
+                      <Ionicons name="calendar" size={16} color={theme.text} />
+                      <Text style={styles.dateRangeText}>
+                        Fim: {formatDate(formData.recorrente.dataFim)}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Tags */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tags (Opcional)</Text>
+            <View style={styles.tagInputContainer}>
+              <Input
+                style={styles.tagInput}
+                value={tagInput}
+                onChangeText={setTagInput}
+                placeholder="Adicionar tag"
+                onSubmitEditing={addTag}
+              />
+              <TouchableOpacity style={styles.addTagButton} onPress={addTag}>
+                <Ionicons name="add" size={20} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+            {formData.tags.length > 0 && (
+              <View style={styles.tagsContainer}>
+                {formData.tags.map((tag, index) => (
+                  <View key={index} style={styles.tag}>
+                    <Text style={styles.tagText}>{tag}</Text>
+                    <TouchableOpacity onPress={() => removeTag(tag)}>
+                      <Ionicons name="close" size={16} color={theme.primary} />
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </View>
             )}
           </View>
+
+          {/* Observações */}
+          <View style={styles.inputContainer}>
+            <Input
+              label="Observações (Opcional)"
+              value={formData.observacoes}
+              onChangeText={(text) => setFormData({ ...formData, observacoes: text })}
+              placeholder="Observações adicionais..."
+              multiline
+              numberOfLines={3}
+            />
+          </View>
         </ScrollView>
 
-        {/* Save Button */}
-        <Button
-          title={isEditing ? 'Atualizar Transação' : 'Salvar Transação'}
-          onPress={handleSave}
-          loading={saving}
-          style={styles.saveButton}
-          fullWidth
-        />
+        {/* Botão Salvar */}
+        <View style={styles.saveButton}>
+          <Button
+            title={isEditing ? 'Atualizar Transação' : 'Salvar Transação'}
+            onPress={handleSave}
+            loading={saving}
+          />
+        </View>
       </KeyboardAvoidingView>
+
+      {/* Date Pickers */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={formData.data}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowDatePicker(false)
+            if (selectedDate) {
+              setFormData({ ...formData, data: selectedDate })
+            }
+          }}
+        />
+      )}
+
+      {showStartDatePicker && (
+        <DateTimePicker
+          value={formData.recorrente.dataInicio}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowStartDatePicker(false)
+            if (selectedDate) {
+              setFormData({ 
+                ...formData, 
+                recorrente: { ...formData.recorrente, dataInicio: selectedDate }
+              })
+            }
+          }}
+        />
+      )}
+
+      {showEndDatePicker && (
+        <DateTimePicker
+          value={formData.recorrente.dataFim}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowEndDatePicker(false)
+            if (selectedDate) {
+              setFormData({ 
+                ...formData, 
+                recorrente: { ...formData.recorrente, dataFim: selectedDate }
+              })
+            }
+          }}
+        />
+      )}
     </SafeAreaView>
   )
 }

@@ -52,16 +52,18 @@ interface GoalsData {
   }
 }
 
-export default function GoalsScreen() {
+export default function GoalsScreen({ navigation }: any) {
   const { theme } = useTheme()
   const [selectedFilter, setSelectedFilter] = useState<'todas' | 'ativas' | 'concluidas'>('ativas')
 
   const { 
-    data: goalsData, 
+    data: goalsDataResponse, 
     loading, 
     error, 
     refresh 
-  } = useApi<GoalsData>('/goals')
+  } = useApi<any>('/goals')
+
+  const goalsData = goalsDataResponse?.data || null
 
   const { mutate: updateGoal } = useMutation()
 
@@ -88,15 +90,15 @@ export default function GoalsScreen() {
           text: 'Adicionar',
           onPress: async (value) => {
             if (value && !isNaN(parseFloat(value))) {
-              await updateGoal('post', `/goals/${goalId}/contribution`, {
-                valor: parseFloat(value),
-                nota: 'Contribuição manual'
-              }, {
-                onSuccess: () => {
-                  refresh()
-                },
-                onError: (error) => Alert.alert('Erro', error)
-              })
+              try {
+                await updateGoal('post', `/goals/${goalId}/contribute`, {
+                  valor: parseFloat(value),
+                  observacoes: 'Contribuição manual'
+                })
+                refresh()
+              } catch (error: any) {
+                Alert.alert('Erro', error.message || 'Erro ao adicionar contribuição')
+              }
             }
           }
         }
@@ -108,17 +110,21 @@ export default function GoalsScreen() {
   }
 
   const handlePauseGoal = async (goalId: string) => {
-    await updateGoal('post', `/goals/${goalId}/pause`, {}, {
-      onSuccess: () => refresh(),
-      onError: (error) => Alert.alert('Erro', error)
-    })
+    try {
+      await updateGoal('put', `/goals/${goalId}/status`, { status: 'pausada' })
+      refresh()
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao pausar meta')
+    }
   }
 
   const handleReactivateGoal = async (goalId: string) => {
-    await updateGoal('post', `/goals/${goalId}/reactivate`, {}, {
-      onSuccess: () => refresh(),
-      onError: (error) => Alert.alert('Erro', error)
-    })
+    try {
+      await updateGoal('put', `/goals/${goalId}/status`, { status: 'ativa' })
+      refresh()
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao reativar meta')
+    }
   }
 
   const getPriorityColor = (priority: string) => {
@@ -191,7 +197,10 @@ export default function GoalsScreen() {
                       ? handlePauseGoal(goal._id) 
                       : handleReactivateGoal(goal._id)
                   },
-                  { text: 'Editar', onPress: () => console.log('Edit goal') },
+                  { 
+                    text: 'Editar', 
+                    onPress: () => navigation.navigate('AddGoal', { goal }) 
+                  },
                 ]
               )
             }}
@@ -343,7 +352,7 @@ export default function GoalsScreen() {
     </TouchableOpacity>
   )
 
-  const filteredGoals = goalsData?.metas?.filter(goal => {
+  const filteredGoals = goalsData?.metas?.filter((goal: Goal) => {
     switch (selectedFilter) {
       case 'ativas':
         return goal.status === 'ativa'
@@ -658,8 +667,7 @@ export default function GoalsScreen() {
         <TouchableOpacity 
           style={styles.addButton}
           onPress={() => {
-            // TODO: Navegar para AddGoalScreen
-            console.log('Add goal')
+            navigation.navigate('AddGoal')
           }}
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
@@ -712,8 +720,7 @@ export default function GoalsScreen() {
             <Button
               title="Criar Primeira Meta"
               onPress={() => {
-                // TODO: Navegar para AddGoalScreen
-                console.log('Create first goal')
+                navigation.navigate('AddGoal')
               }}
             />
           )}

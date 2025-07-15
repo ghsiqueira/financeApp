@@ -1,14 +1,89 @@
 import React from 'react'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
+import { createStackNavigator } from '@react-navigation/stack'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../context/ThemeContext'
 import { Platform } from 'react-native'
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen'
 import TransactionsScreen from '../screens/transactions/TransactionsScreen'
+import AddTransactionScreen from '../screens/transactions/AddTransactionScreen'
 import BudgetsScreen from '../screens/budgets/BudgetsScreen'
+import AddBudgetScreen from '../screens/budgets/AddBudgetScreen'
 import GoalsScreen from '../screens/goals/GoalsScreen'
+import AddGoalScreen from '../screens/goals/AddGoalScreen'
 import SettingsScreen from '../screens/settings/SettingsScreen'
+
+// Stack Navigators para cada tab
+const TransactionsStack = createStackNavigator()
+const BudgetsStack = createStackNavigator()
+const GoalsStack = createStackNavigator()
+
+function TransactionsNavigator() {
+  const { theme } = useTheme()
+  return (
+    <TransactionsStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: theme.background },
+      }}
+    >
+      <TransactionsStack.Screen name="TransactionsList" component={TransactionsScreen} />
+      <TransactionsStack.Screen 
+        name="AddTransaction" 
+        component={AddTransactionScreen}
+        options={{
+          presentation: 'modal',
+          gestureDirection: 'vertical',
+        }}
+      />
+    </TransactionsStack.Navigator>
+  )
+}
+
+function BudgetsNavigator() {
+  const { theme } = useTheme()
+  return (
+    <BudgetsStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: theme.background },
+      }}
+    >
+      <BudgetsStack.Screen name="BudgetsList" component={BudgetsScreen} />
+      <BudgetsStack.Screen 
+        name="AddBudget" 
+        component={AddBudgetScreen}
+        options={{
+          presentation: 'modal',
+          gestureDirection: 'vertical',
+        }}
+      />
+    </BudgetsStack.Navigator>
+  )
+}
+
+function GoalsNavigator() {
+  const { theme } = useTheme()
+  return (
+    <GoalsStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: theme.background },
+      }}
+    >
+      <GoalsStack.Screen name="GoalsList" component={GoalsScreen} />
+      <GoalsStack.Screen 
+        name="AddGoal" 
+        component={AddGoalScreen}
+        options={{
+          presentation: 'modal',
+          gestureDirection: 'vertical',
+        }}
+      />
+    </GoalsStack.Navigator>
+  )
+}
 
 export type TabParamList = {
   Dashboard: undefined
@@ -75,46 +150,32 @@ export default function TabNavigator() {
           fontWeight: '500',
           marginBottom: Platform.OS === 'ios' ? 0 : 5,
         },
-        tabBarItemStyle: {
-          paddingVertical: 4,
-        },
       })}
     >
       <Tab.Screen 
         name="Dashboard" 
         component={DashboardScreen}
-        options={{
-          tabBarLabel: 'Início',
-          tabBarBadge: undefined, // Pode ser usado para notificações
-        }}
+        options={{ tabBarLabel: 'Dashboard' }}
       />
       <Tab.Screen 
         name="Transactions" 
-        component={TransactionsScreen}
-        options={{
-          tabBarLabel: 'Transações',
-        }}
+        component={TransactionsNavigator}
+        options={{ tabBarLabel: 'Transações' }}
       />
       <Tab.Screen 
         name="Budgets" 
-        component={BudgetsScreen}
-        options={{
-          tabBarLabel: 'Orçamentos',
-        }}
+        component={BudgetsNavigator}
+        options={{ tabBarLabel: 'Orçamentos' }}
       />
       <Tab.Screen 
         name="Goals" 
-        component={GoalsScreen}
-        options={{
-          tabBarLabel: 'Metas',
-        }}
+        component={GoalsNavigator}
+        options={{ tabBarLabel: 'Metas' }}
       />
       <Tab.Screen 
         name="Settings" 
         component={SettingsScreen}
-        options={{
-          tabBarLabel: 'Configurações',
-        }}
+        options={{ tabBarLabel: 'Configurações' }}
       />
     </Tab.Navigator>
   )
