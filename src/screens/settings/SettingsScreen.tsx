@@ -295,10 +295,10 @@ export default function SettingsScreen({ navigation }: any) {
         <View style={styles.userSection}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {user?.nome?.charAt(0).toUpperCase() || 'U'}
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </Text>
           </View>
-          <Text style={styles.userName}>{user?.nome || 'Usuário'}</Text>
+          <Text style={styles.userName}>{user?.name || 'Usuário'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'email@exemplo.com'}</Text>
         </View>
 
