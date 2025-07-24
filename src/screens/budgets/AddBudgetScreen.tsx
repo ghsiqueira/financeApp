@@ -1,3 +1,4 @@
+// src/screens/budgets/AddBudgetScreen.tsx - Corrigido final
 import React, { useState, useEffect } from 'react'
 import {
   View,
@@ -25,6 +26,7 @@ interface Category {
   tipo: 'receita' | 'despesa' | 'ambos'
   icone: string
   cor: string
+  descricao?: string
 }
 
 const PERIOD_TYPES = [
@@ -66,9 +68,72 @@ export default function AddBudgetScreen({ navigation, route }: any) {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // Buscar categorias de despesa - CORRIGIDO para acessar .data
-  const { data: categoriesResponse } = useApi<any>('/categories?tipo=despesa')
-  const categories = categoriesResponse?.data || []
+  // 🔧 CORREÇÃO PRINCIPAL: API corrigida
+  const { 
+    data: categoriesResponse, 
+    loading: categoriesLoading, 
+    error: categoriesError,
+    refresh: refreshCategories 
+  } = useApi<any>('/categories?tipo=despesa')
+
+  // 🔧 PROCESSAMENTO CORRETO DOS DADOS
+  const categories = React.useMemo(() => {
+    console.log('=== CATEGORIES DEBUG ===')
+    console.log('Raw response:', categoriesResponse)
+    console.log('Loading:', categoriesLoading)
+    console.log('Error:', categoriesError)
+
+    // Se estiver carregando ou houver erro, retornar array vazio
+    if (categoriesLoading || categoriesError) {
+      console.log('Loading or error state, returning empty array')
+      return []
+    }
+
+    // Se não há resposta ainda
+    if (!categoriesResponse) {
+      console.log('No response yet')
+      return []
+    }
+
+    // Verificar se é uma resposta de sucesso
+    if (categoriesResponse.success === false) {
+      console.log('Response not successful:', categoriesResponse)
+      return []
+    }
+
+    // A API mock que criamos retorna os dados diretamente em 'data'
+    let categoriesData = null
+
+    // Tentar diferentes estruturas de resposta
+    if (categoriesResponse.data && Array.isArray(categoriesResponse.data)) {
+      // Formato: { success: true, data: [...] }
+      categoriesData = categoriesResponse.data
+      console.log('Found categories in data property:', categoriesData.length)
+    } else if (Array.isArray(categoriesResponse)) {
+      // Formato direto: [...]
+      categoriesData = categoriesResponse
+      console.log('Found categories as direct array:', categoriesData.length)
+    } else if (categoriesResponse.categorias && Array.isArray(categoriesResponse.categorias)) {
+      // Formato: { categorias: [...] }
+      categoriesData = categoriesResponse.categorias
+      console.log('Found categories in categorias property:', categoriesData.length)
+    } else {
+      console.log('Could not find categories array in response structure')
+      console.log('Response keys:', Object.keys(categoriesResponse || {}))
+      return []
+    }
+
+    // Filtrar apenas categorias de despesa
+    const despesaCategories = categoriesData.filter((cat: Category) => 
+      cat.tipo === 'despesa' || cat.tipo === 'ambos'
+    )
+
+    console.log('Filtered despesa categories:', despesaCategories.length)
+    console.log('Categories:', despesaCategories.map((c: { nome: any }) => c.nome))
+    console.log('=======================')
+
+    return despesaCategories
+  }, [categoriesResponse, categoriesLoading, categoriesError])
 
   const { mutate: saveBudget, loading: saving } = useMutation()
 
@@ -91,6 +156,35 @@ export default function AddBudgetScreen({ navigation, route }: any) {
       })
     }
   }, [editingBudget])
+
+  // Atualizar datas automaticamente quando mudar período
+  useEffect(() => {
+    if (formData.periodo !== 'personalizado') {
+      const agora = new Date()
+      let novaDataFim = new Date(agora)
+      
+      switch (formData.periodo) {
+        case 'semanal':
+          novaDataFim.setDate(novaDataFim.getDate() + 7)
+          break
+        case 'mensal':
+          novaDataFim.setMonth(novaDataFim.getMonth() + 1)
+          break
+        case 'trimestral':
+          novaDataFim.setMonth(novaDataFim.getMonth() + 3)
+          break
+        case 'anual':
+          novaDataFim.setFullYear(novaDataFim.getFullYear() + 1)
+          break
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        dataInicio: agora,
+        dataFim: novaDataFim
+      }))
+    }
+  }, [formData.periodo])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -139,49 +233,60 @@ export default function AddBudgetScreen({ navigation, route }: any) {
         `Orçamento ${isEditing ? 'atualizado' : 'criado'} com sucesso!`,
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       )
-    } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao salvar orçamento')
-    }
-  }
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value)
+    } catch (error: any) {
+      Alert.alert(
+        'Erro',
+        error.message || `Erro ao ${isEditing ? 'atualizar' : 'criar'} orçamento`
+      )
+    }
   }
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('pt-BR')
   }
 
-  const calculateEndDate = (periodo: string, startDate: Date) => {
-    const date = new Date(startDate)
-    switch (periodo) {
-      case 'semanal':
-        date.setDate(date.getDate() + 7)
-        break
-      case 'mensal':
-        date.setMonth(date.getMonth() + 1)
-        break
-      case 'trimestral':
-        date.setMonth(date.getMonth() + 3)
-        break
-      case 'anual':
-        date.setFullYear(date.getFullYear() + 1)
-        break
-      default:
-        return date
-    }
-    return date
+  const formatCurrency = (value: string) => {
+    const numericValue = value.replace(/[^\d]/g, '')
+    const formattedValue = (parseInt(numericValue) / 100).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+    return formattedValue === 'NaN' ? '0,00' : formattedValue
   }
 
-  useEffect(() => {
-    if (formData.periodo !== 'personalizado') {
-      const newEndDate = calculateEndDate(formData.periodo, formData.dataInicio)
-      setFormData((prev: typeof formData) => ({ ...prev, dataFim: newEndDate }))
+  const handleValueChange = (value: string) => {
+    const numericValue = value.replace(/[^\d]/g, '')
+    setFormData({ ...formData, valorLimite: numericValue })
+  }
+
+  // 🔧 FUNÇÃO PARA TESTAR A API
+  const testCategoriesAPI = async () => {
+    try {
+      console.log('🧪 Testando API de categorias...')
+      
+      // Testar URLs diferentes
+      const urls = [
+        '/categories?tipo=despesa',
+        '/categories',
+        '/api/categories?tipo=despesa',
+        '/api/categories'
+      ]
+
+      for (const url of urls) {
+        try {
+          console.log(`Testando: ${url}`)
+          const response = await fetch(`http://localhost:5001${url}`)
+          const data = await response.json()
+          console.log(`✅ ${url}:`, data)
+        } catch (error) {
+          console.log(`❌ ${url}:`, error)
+        }
+      }
+    } catch (error) {
+      console.error('Erro no teste:', error)
     }
-  }, [formData.periodo, formData.dataInicio])
+  }
 
   const styles = StyleSheet.create({
     container: {
@@ -191,26 +296,33 @@ export default function AddBudgetScreen({ navigation, route }: any) {
     header: {
       flexDirection: 'row',
       alignItems: 'center',
+      justifyContent: 'space-between',
       paddingHorizontal: 20,
       paddingVertical: 16,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
     backButton: {
-      marginRight: 16,
+      padding: 8,
     },
     title: {
-      fontSize: 20,
-      fontWeight: 'bold',
+      fontSize: 18,
+      fontWeight: '600',
       color: theme.text,
+      flex: 1,
+      textAlign: 'center',
+      marginRight: 40,
     },
     content: {
       flex: 1,
-      paddingHorizontal: 20,
-      paddingVertical: 20,
+    },
+    inputContainer: {
+      margin: 20,
+      marginBottom: 0,
     },
     section: {
-      marginBottom: 24,
+      margin: 20,
+      marginBottom: 0,
     },
     sectionTitle: {
       fontSize: 16,
@@ -218,38 +330,95 @@ export default function AddBudgetScreen({ navigation, route }: any) {
       color: theme.text,
       marginBottom: 12,
     },
-    inputContainer: {
-      marginBottom: 16,
+    // Debug container
+    debugContainer: {
+      backgroundColor: theme.error + '20',
+      margin: 20,
+      padding: 16,
+      borderRadius: 8,
+      borderLeftWidth: 4,
+      borderLeftColor: theme.error,
+    },
+    debugTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.error,
+      marginBottom: 8,
+    },
+    debugText: {
+      fontSize: 12,
+      color: theme.error,
+      marginBottom: 4,
+    },
+    testButton: {
+      backgroundColor: theme.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 8,
+      marginTop: 8,
+    },
+    testButtonText: {
+      color: '#FFFFFF',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    // Categorias
+    categoriesContainer: {
+      minHeight: 120,
     },
     categoryScroll: {
-      marginHorizontal: -20,
-      paddingHorizontal: 20,
+      paddingRight: 20,
     },
     categoryItem: {
       alignItems: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 16,
-      marginRight: 12,
+      justifyContent: 'center',
+      width: 80,
+      height: 80,
       borderRadius: 12,
       backgroundColor: theme.surface,
       borderWidth: 2,
-      borderColor: theme.border,
-      minWidth: 80,
+      borderColor: 'transparent',
+      marginRight: 12,
     },
     categoryItemActive: {
-      backgroundColor: theme.primary,
       borderColor: theme.primary,
+      backgroundColor: theme.primary + '20',
     },
     categoryText: {
-      fontSize: 12,
+      fontSize: 10,
       color: theme.text,
       textAlign: 'center',
       marginTop: 4,
     },
-    categoryTextActive: {
-      color: '#FFFFFF',
+    loadingText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      padding: 20,
     },
-    periodOptions: {
+    errorContainer: {
+      padding: 20,
+      alignItems: 'center',
+    },
+    errorText: {
+      fontSize: 14,
+      color: theme.error,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    retryButton: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: theme.primary,
+      borderRadius: 8,
+    },
+    retryButtonText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    // Período
+    periodContainer: {
       gap: 8,
     },
     periodOption: {
@@ -258,19 +427,12 @@ export default function AddBudgetScreen({ navigation, route }: any) {
       paddingVertical: 12,
       paddingHorizontal: 16,
       backgroundColor: theme.surface,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: theme.border,
-    },
-    periodOptionActive: {
-      borderColor: theme.primary,
-      backgroundColor: theme.primary + '10',
+      borderRadius: 8,
+      gap: 12,
     },
     periodOptionText: {
-      marginLeft: 12,
       fontSize: 16,
       color: theme.text,
-      flex: 1,
     },
     dateRangeContainer: {
       flexDirection: 'row',
@@ -281,7 +443,7 @@ export default function AddBudgetScreen({ navigation, route }: any) {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 12,
+      paddingVertical: 14,
       paddingHorizontal: 14,
       backgroundColor: theme.surface,
       borderRadius: 12,
@@ -341,7 +503,7 @@ export default function AddBudgetScreen({ navigation, route }: any) {
       margin: 20,
       marginBottom: 40,
     },
-    errorText: {
+    errorTextInput: {
       fontSize: 12,
       color: theme.error,
       marginTop: 4,
@@ -368,6 +530,21 @@ export default function AddBudgetScreen({ navigation, route }: any) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* 🔧 DEBUG INFO (remover em produção) */}
+          <View style={styles.debugContainer}>
+            <Text style={styles.debugTitle}>🔧 Debug - Categories API</Text>
+            <Text style={styles.debugText}>Loading: {categoriesLoading ? 'true' : 'false'}</Text>
+            <Text style={styles.debugText}>Error: {categoriesError || 'none'}</Text>
+            <Text style={styles.debugText}>Response: {categoriesResponse ? 'received' : 'none'}</Text>
+            <Text style={styles.debugText}>Categories Count: {categories.length}</Text>
+            <Text style={styles.debugText}>
+              Categories: {categories.map((c: { nome: any }) => c.nome).join(', ') || 'none'}
+            </Text>
+            <TouchableOpacity style={styles.testButton} onPress={testCategoriesAPI}>
+              <Text style={styles.testButtonText}>Testar API</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Nome */}
           <View style={styles.inputContainer}>
             <Input
@@ -383,8 +560,8 @@ export default function AddBudgetScreen({ navigation, route }: any) {
           <View style={styles.inputContainer}>
             <Input
               label="Valor Limite"
-              value={formData.valorLimite}
-              onChangeText={(text) => setFormData({ ...formData, valorLimite: text })}
+              value={formatCurrency(formData.valorLimite)}
+              onChangeText={handleValueChange}
               placeholder="0,00"
               keyboardType="numeric"
               error={errors.valorLimite}
@@ -394,54 +571,83 @@ export default function AddBudgetScreen({ navigation, route }: any) {
           {/* Categoria */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Categoria</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoryScroll}
-            >
-              {Array.isArray(categories) && categories.map((category: Category) => (
-                <TouchableOpacity
-                  key={category._id}
-                  style={[
-                    styles.categoryItem,
-                    formData.categoria === category._id && styles.categoryItemActive
-                  ]}
-                  onPress={() => setFormData({ ...formData, categoria: category._id })}
-                >
-                  <Ionicons 
-                    name={category.icone as any} 
-                    size={24} 
-                    color={formData.categoria === category._id ? '#FFFFFF' : category.cor} 
-                  />
-                  <Text style={[
-                    styles.categoryText,
-                    formData.categoria === category._id && styles.categoryTextActive
-                  ]}>
-                    {category.nome}
+            
+            <View style={styles.categoriesContainer}>
+              {categoriesLoading ? (
+                <Text style={styles.loadingText}>⏳ Carregando categorias...</Text>
+              ) : categoriesError ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>
+                    ❌ Erro ao carregar categorias: {categoriesError}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            {errors.categoria && <Text style={styles.errorText}>{errors.categoria}</Text>}
+                  <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={refreshCategories}
+                  >
+                    <Text style={styles.retryButtonText}>Tentar novamente</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : !Array.isArray(categories) || categories.length === 0 ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>
+                    📭 Nenhuma categoria de despesa encontrada
+                  </Text>
+                  <Text style={styles.errorText}>
+                    Verifique se o servidor está rodando e se as categorias foram criadas.
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.retryButton}
+                    onPress={refreshCategories}
+                  >
+                    <Text style={styles.retryButtonText}>Recarregar</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryScroll}
+                >
+                  {categories.map((category: Category) => (
+                    <TouchableOpacity
+                      key={category._id}
+                      style={[
+                        styles.categoryItem,
+                        formData.categoria === category._id && styles.categoryItemActive
+                      ]}
+                      onPress={() => setFormData({ ...formData, categoria: category._id })}
+                    >
+                      <Ionicons 
+                        name={category.icone as any} 
+                        size={24} 
+                        color={formData.categoria === category._id ? theme.primary : category.cor} 
+                      />
+                      <Text 
+                        style={[
+                          styles.categoryText,
+                          { color: formData.categoria === category._id ? theme.primary : theme.text }
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {category.nome}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
+            {errors.categoria && <Text style={styles.errorTextInput}>{errors.categoria}</Text>}
           </View>
 
           {/* Período */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Período</Text>
-            <View style={styles.periodOptions}>
+            <View style={styles.periodContainer}>
               {PERIOD_TYPES.map((period) => (
                 <TouchableOpacity
                   key={period.id}
-                  style={[
-                    styles.periodOption,
-                    formData.periodo === period.id && styles.periodOptionActive
-                  ]}
-                  onPress={() => 
-                    setFormData({ 
-                      ...formData, 
-                      periodo: period.id as any 
-                    })
-                  }
+                  style={styles.periodOption}
+                  onPress={() => setFormData({ ...formData, periodo: period.id as any })}
                 >
                   <Ionicons 
                     name={formData.periodo === period.id ? "radio-button-on" : "radio-button-off"} 
@@ -477,7 +683,7 @@ export default function AddBudgetScreen({ navigation, route }: any) {
                 </TouchableOpacity>
               </View>
             )}
-            {errors.dataFim && <Text style={styles.errorText}>{errors.dataFim}</Text>}
+            {errors.dataFim && <Text style={styles.errorTextInput}>{errors.dataFim}</Text>}
           </View>
 
           {/* Cor */}
@@ -512,15 +718,26 @@ export default function AddBudgetScreen({ navigation, route }: any) {
                   setFormData({ ...formData, renovacaoAutomatica: value })
                 }
                 trackColor={{ false: theme.border, true: theme.primary + '50' }}
-                thumbColor={formData.renovacaoAutomatica ? theme.primary : '#f4f3f4'}
+                thumbColor={formData.renovacaoAutomatica ? theme.primary : theme.textSecondary}
               />
             </View>
+            
+            {formData.renovacaoAutomatica && (
+              <View style={styles.alertContainer}>
+                <View style={styles.alertOption}>
+                  <Ionicons name="information-circle" size={16} color={theme.primary} />
+                  <Text style={styles.alertText}>
+                    O orçamento será renovado automaticamente no próximo período
+                  </Text>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Alertas */}
           <View style={styles.section}>
             <View style={styles.switchContainer}>
-              <Text style={styles.switchLabel}>Alertas de Limite</Text>
+              <Text style={styles.switchLabel}>Alertas</Text>
               <Switch
                 value={formData.alertas.ativo}
                 onValueChange={(value) => 
@@ -530,34 +747,18 @@ export default function AddBudgetScreen({ navigation, route }: any) {
                   })
                 }
                 trackColor={{ false: theme.border, true: theme.primary + '50' }}
-                thumbColor={formData.alertas.ativo ? theme.primary : '#f4f3f4'}
+                thumbColor={formData.alertas.ativo ? theme.primary : theme.textSecondary}
               />
             </View>
 
             {formData.alertas.ativo && (
               <View style={styles.alertContainer}>
-                <Text style={styles.sectionTitle}>Notificar quando atingir:</Text>
-                {[50, 80, 90, 100].map((percentage) => (
-                  <TouchableOpacity
-                    key={percentage}
-                    style={styles.alertOption}
-                    onPress={() => {
-                      const newPercentages = formData.alertas.porcentagens.includes(percentage)
-                        ? formData.alertas.porcentagens.filter((p: number) => p !== percentage)
-                        : [...formData.alertas.porcentagens, percentage]
-                      setFormData({
-                        ...formData,
-                        alertas: { ...formData.alertas, porcentagens: newPercentages }
-                      })
-                    }}
-                  >
-                    <Ionicons 
-                      name={formData.alertas.porcentagens.includes(percentage) ? "checkbox" : "square-outline"} 
-                      size={20} 
-                      color={theme.primary} 
-                    />
+                <Text style={styles.sectionTitle}>Porcentagens de Alerta</Text>
+                {formData.alertas.porcentagens.map((percentage) => (
+                  <View key={percentage} style={styles.alertOption}>
+                    <Ionicons name="notifications" size={16} color={theme.primary} />
                     <Text style={styles.alertText}>{percentage}% do limite</Text>
-                  </TouchableOpacity>
+                  </View>
                 ))}
               </View>
             )}
@@ -569,7 +770,7 @@ export default function AddBudgetScreen({ navigation, route }: any) {
               label="Descrição (Opcional)"
               value={formData.descricao}
               onChangeText={(text) => setFormData({ ...formData, descricao: text })}
-              placeholder="Descrição do orçamento..."
+              placeholder="Adicione uma descrição..."
               multiline
               numberOfLines={3}
             />
@@ -582,38 +783,39 @@ export default function AddBudgetScreen({ navigation, route }: any) {
             title={isEditing ? 'Atualizar Orçamento' : 'Criar Orçamento'}
             onPress={handleSave}
             loading={saving}
+            disabled={saving || categoriesLoading}
           />
         </View>
+
+        {/* Date Pickers */}
+        {showStartDatePicker && (
+          <DateTimePicker
+            value={formData.dataInicio}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowStartDatePicker(false)
+              if (selectedDate) {
+                setFormData({ ...formData, dataInicio: selectedDate })
+              }
+            }}
+          />
+        )}
+
+        {showEndDatePicker && (
+          <DateTimePicker
+            value={formData.dataFim}
+            mode="date"
+            display="default"
+            onChange={(event, selectedDate) => {
+              setShowEndDatePicker(false)
+              if (selectedDate) {
+                setFormData({ ...formData, dataFim: selectedDate })
+              }
+            }}
+          />
+        )}
       </KeyboardAvoidingView>
-
-      {/* Date Pickers */}
-      {showStartDatePicker && (
-        <DateTimePicker
-          value={formData.dataInicio}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowStartDatePicker(false)
-            if (selectedDate) {
-              setFormData({ ...formData, dataInicio: selectedDate })
-            }
-          }}
-        />
-      )}
-
-      {showEndDatePicker && (
-        <DateTimePicker
-          value={formData.dataFim}
-          mode="date"
-          display="default"
-          onChange={(event, selectedDate) => {
-            setShowEndDatePicker(false)
-            if (selectedDate) {
-              setFormData({ ...formData, dataFim: selectedDate })
-            }
-          }}
-        />
-      )}
     </SafeAreaView>
   )
 }
