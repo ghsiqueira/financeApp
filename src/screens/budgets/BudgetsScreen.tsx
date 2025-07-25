@@ -1,4 +1,4 @@
-// src/screens/budgets/BudgetsScreen.tsx - Completo e atualizado
+// src/screens/budgets/BudgetsScreen.tsx - VERSÃO COMPLETA E CORRIGIDA
 import React, { useState, useCallback } from 'react'
 import {
   View,
@@ -20,20 +20,12 @@ import { useFocusEffect } from '@react-navigation/native'
 
 import { useTheme } from '../../context/ThemeContext'
 import { useApi, useMutation } from '../../hooks/useApi'
+import { useCategories, Category } from '../../hooks/useCategories'
 import Button from '../../components/common/Button'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import Input from '../../components/common/Input'
 
 const { width } = Dimensions.get('window')
-
-interface Category {
-  _id: string
-  nome: string
-  icone: string
-  cor: string
-  tipo: 'receita' | 'despesa'
-  descricao?: string
-}
 
 interface Budget {
   _id: string
@@ -52,6 +44,8 @@ interface Budget {
   diasRestantes: number
   renovacaoAutomatica: boolean
   ultimaRenovacao?: string
+  vencido?: boolean
+  descricao?: string
   configuracoes?: {
     alertas: {
       ativo: boolean
@@ -121,11 +115,12 @@ interface BudgetsData {
     }>
     eficienciaOrcamentos: number
   }
+  total?: number
 }
 
 export default function BudgetsScreen({ navigation }: any) {
   const { theme } = useTheme()
-  const [selectedFilter, setSelectedFilter] = useState<'ativos' | 'excedidos' | 'pausados' | 'todos'>('ativos')
+  const [selectedFilter, setSelectedFilter] = useState<'ativos' | 'excedidos' | 'pausados' | 'todos'>('todos')
   const [showDetailsModal, setShowDetailsModal] = useState(false)
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null)
   const [showQuickEditModal, setShowQuickEditModal] = useState(false)
@@ -141,56 +136,110 @@ export default function BudgetsScreen({ navigation }: any) {
   } = useApi<any>('/budgets')
 
   const { 
-    data: categoriesResponse, 
+    categories, 
     loading: categoriesLoading, 
     error: categoriesError,
     refresh: refreshCategories 
-  } = useApi<any>('/categories?tipo=despesa')
+  } = useCategories('despesa')
 
-  // 🔧 PROCESSAR DADOS COM SEGURANÇA
+  // 🔧 PROCESSAR DADOS - VERSÃO CORRIGIDA
   const budgetsData: BudgetsData | null = React.useMemo(() => {
-    if (budgetsResponse?.success && budgetsResponse?.data) {
-      return budgetsResponse.data
+    console.log('=== BUDGETS DATA PROCESSING - FIXED ===')
+    console.log('1. budgetsResponse:', budgetsResponse)
+    
+    if (!budgetsResponse) {
+      console.log('❌ No budgetsResponse')
+      return null
     }
+
+    // A resposta tem o formato: { success: true, data: { orcamentos: [...], resumo: {...} } }
+    if (budgetsResponse.success === true && budgetsResponse.data) {
+      console.log('✅ Found success + data structure')
+      console.log('2. budgetsResponse.data:', budgetsResponse.data)
+      
+      // Verificar se tem orçamentos
+      if (budgetsResponse.data.orcamentos && Array.isArray(budgetsResponse.data.orcamentos)) {
+        console.log('✅ Found orcamentos array with', budgetsResponse.data.orcamentos.length, 'items')
+        return {
+          orcamentos: budgetsResponse.data.orcamentos,
+          resumo: budgetsResponse.data.resumo || {
+            totalLimite: 0,
+            totalGasto: 0,
+            totalRestante: 0,
+            excedidos: 0,
+            emAlerta: 0,
+            vencendoEm7Dias: 0,
+            comRenovacaoAutomatica: 0
+          },
+          total: budgetsResponse.data.total || budgetsResponse.data.orcamentos.length
+        }
+      }
+    }
+
+    // Tentar estruturas alternativas
+    if (budgetsResponse.data && Array.isArray(budgetsResponse.data)) {
+      console.log('✅ Found direct array in data')
+      return {
+        orcamentos: budgetsResponse.data,
+        resumo: {
+          totalLimite: 0,
+          totalGasto: 0,
+          totalRestante: 0,
+          excedidos: 0,
+          emAlerta: 0,
+          vencendoEm7Dias: 0,
+          comRenovacaoAutomatica: 0
+        },
+        total: budgetsResponse.data.length
+      }
+    }
+
+    if (Array.isArray(budgetsResponse)) {
+      console.log('✅ Found direct array response')
+      return {
+        orcamentos: budgetsResponse,
+        resumo: {
+          totalLimite: 0,
+          totalGasto: 0,
+          totalRestante: 0,
+          excedidos: 0,
+          emAlerta: 0,
+          vencendoEm7Dias: 0,
+          comRenovacaoAutomatica: 0
+        },
+        total: budgetsResponse.length
+      }
+    }
+
+    console.log('❌ Could not process budgets data')
     return null
   }, [budgetsResponse])
 
-  const categories: Category[] = React.useMemo(() => {
-     if (categoriesResponse?.success && categoriesResponse?.data) {
-       return Array.isArray(categoriesResponse.data.data) ? categoriesResponse.data.data : []
-     }
-     return []
-  }, [categoriesResponse]);
-
   const { mutate: updateBudget, loading: updating } = useMutation()
-
-  console.log('Categoriesasa:', categories);
 
   // 🔧 REFRESH GERAL
   const refresh = useCallback(() => {
+    console.log('🔄 Refreshing budgets and categories...')
     refreshBudgets()
     refreshCategories()
   }, [refreshBudgets, refreshCategories])
 
   useFocusEffect(
     useCallback(() => {
+      console.log('📱 BudgetsScreen focused, refreshing data...')
       refresh()
     }, [refresh])
   )
 
-  // 🔧 DEBUG: Log para verificar dados (remover em produção)
+  // 🔧 DEBUG LOG
   React.useEffect(() => {
-    console.log('=== DEBUG BUDGETS SCREEN ===')
+    console.log('=== CURRENT STATE ===')
     console.log('budgetsResponse:', budgetsResponse)
     console.log('budgetsData:', budgetsData)
-    console.log('categoriesResponse:', categoriesResponse)
-    console.log('categories:', categories)
     console.log('budgetsLoading:', budgetsLoading)
-    console.log('categoriesLoading:', categoriesLoading)
     console.log('budgetsError:', budgetsError)
-    console.log('categoriesError:', categoriesError)
-    console.log('=============================')
-  }, [budgetsResponse, budgetsData, categoriesResponse, categories, budgetsLoading, categoriesLoading, budgetsError, categoriesError])
+    console.log('==================')
+  }, [budgetsResponse, budgetsData, budgetsLoading, budgetsError])
 
   // 🔧 FUNÇÕES AUXILIARES
   const formatCurrency = (value: number) => {
@@ -218,13 +267,14 @@ export default function BudgetsScreen({ navigation }: any) {
     })
   }
 
+  // 🔧 FUNÇÕES DE CATEGORIA - CORRIGIDAS COM TIPO EXPLÍCITO
   const getCategoryName = (categoryId: string) => {
     if (!Array.isArray(categories) || categories.length === 0) {
-      return 'Categoria'
+      return `Categoria ${categoryId}`
     }
     
     const category = categories.find((cat: Category) => cat._id === categoryId)
-    return category?.nome || 'Categoria'
+    return category?.nome || `Categoria ${categoryId}`
   }
 
   const getCategoryIcon = (categoryId: string) => {
@@ -273,11 +323,18 @@ export default function BudgetsScreen({ navigation }: any) {
     return theme.textSecondary
   }
 
-  // 🔧 FILTRAR ORÇAMENTOS
+  // 🔧 FILTRAR ORÇAMENTOS - CORRIGIDO
   const filteredBudgets = React.useMemo(() => {
-    if (!budgetsData?.orcamentos) return []
+    console.log('=== FILTERING BUDGETS ===')
+    
+    if (!budgetsData?.orcamentos) {
+      console.log('❌ No budgets data for filtering')
+      return []
+    }
 
-    return budgetsData.orcamentos.filter(budget => {
+    console.log(`🔍 Filtering ${budgetsData.orcamentos.length} budgets by: "${selectedFilter}"`)
+
+    const filtered = budgetsData.orcamentos.filter(budget => {
       switch (selectedFilter) {
         case 'ativos':
           return budget.status === 'ativo'
@@ -290,6 +347,9 @@ export default function BudgetsScreen({ navigation }: any) {
           return true
       }
     })
+
+    console.log(`✅ Filtered result: ${filtered.length} budgets`)
+    return filtered
   }, [budgetsData, selectedFilter])
 
   const getFilterCount = (filter: string) => {
@@ -297,7 +357,7 @@ export default function BudgetsScreen({ navigation }: any) {
 
     switch (filter) {
       case 'excedidos':
-        return budgetsData.resumo.excedidos
+        return budgetsData.resumo?.excedidos || 0
       case 'pausados':
         return budgetsData.orcamentos.filter(b => b.status === 'pausado').length
       case 'ativos':
@@ -692,16 +752,100 @@ export default function BudgetsScreen({ navigation }: any) {
                       </Text>
                     </View>
                   )}
+
+                  {selectedBudget.descricao && (
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Descrição:</Text>
+                      <Text style={styles.infoValue}>{selectedBudget.descricao}</Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* Estatísticas de Renovação */}
-                {selectedBudget.estatisticasRenovacao && selectedBudget.estatisticasRenovacao.totalRenovacoes > 0 && (
+                {/* Valores e Estatísticas */}
+                <View style={styles.modalSection}>
+                  <Text style={styles.modalSectionTitle}>💰 Valores</Text>
+                  
+                  <View style={styles.statsGrid}>
+                    <View style={styles.statCard}>
+                      <Text style={styles.statValue}>{formatCurrency(selectedBudget.valorLimite)}</Text>
+                      <Text style={styles.statLabel}>Limite</Text>
+                    </View>
+                    
+                    <View style={styles.statCard}>
+                      <Text style={[styles.statValue, { color: theme.error }]}>
+                        {formatCurrency(selectedBudget.valorGasto)}
+                      </Text>
+                      <Text style={styles.statLabel}>Gasto</Text>
+                    </View>
+                    
+                    <View style={styles.statCard}>
+                      <Text style={[styles.statValue, { color: selectedBudget.valorRestante > 0 ? theme.success : theme.error }]}>
+                        {formatCurrency(selectedBudget.valorRestante)}
+                      </Text>
+                      <Text style={styles.statLabel}>Restante</Text>
+                    </View>
+                    
+                    <View style={styles.statCard}>
+                      <Text style={styles.statValue}>{selectedBudget.porcentagemGasta}%</Text>
+                      <Text style={styles.statLabel}>Utilizado</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Período:</Text>
+                    <Text style={styles.infoValue}>
+                      {formatDate(selectedBudget.dataInicio)} até {formatDate(selectedBudget.dataFim)}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoLabel}>Dias Restantes:</Text>
+                    <Text style={[styles.infoValue, { color: getDaysRemainingColor(selectedBudget.diasRestantes) }]}>
+                      {selectedBudget.diasRestantes} dias
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Configurações */}
+                {selectedBudget.configuracoes && (
                   <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>🔄 Histórico de Renovações</Text>
+                    <Text style={styles.modalSectionTitle}>⚙️ Configurações</Text>
+                    
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Alertas Ativos:</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedBudget.configuracoes.alertas?.ativo ? '✅ Sim' : '❌ Não'}
+                      </Text>
+                    </View>
+                    
+                    {selectedBudget.configuracoes.alertas?.ativo && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Alertas em:</Text>
+                        <Text style={styles.infoValue}>
+                          {selectedBudget.configuracoes.alertas.porcentagens?.join('%, ') || ''}%
+                        </Text>
+                      </View>
+                    )}
+                    
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Rollover:</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedBudget.configuracoes.renovacao?.rollover ? '✅ Ativado' : '❌ Desativado'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Estatísticas de Renovação */}
+                {selectedBudget.estatisticasRenovacao && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>📈 Estatísticas de Renovação</Text>
                     
                     <View style={styles.infoRow}>
                       <Text style={styles.infoLabel}>Total de Renovações:</Text>
-                      <Text style={styles.infoValue}>{selectedBudget.estatisticasRenovacao.totalRenovacoes}</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedBudget.estatisticasRenovacao.totalRenovacoes}
+                      </Text>
                     </View>
                     
                     <View style={styles.infoRow}>
@@ -715,10 +859,62 @@ export default function BudgetsScreen({ navigation }: any) {
                       <View style={styles.infoRow}>
                         <Text style={styles.infoLabel}>Melhor Performance:</Text>
                         <Text style={[styles.infoValue, { color: theme.success }]}>
-                          {selectedBudget.estatisticasRenovacao.melhorPerformance.porcentagem}%
+                          {selectedBudget.estatisticasRenovacao.melhorPerformance.porcentagem}% ({selectedBudget.estatisticasRenovacao.melhorPerformance.periodo})
                         </Text>
                       </View>
                     )}
+                    
+                    {selectedBudget.estatisticasRenovacao.piorPerformance && (
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoLabel}>Pior Performance:</Text>
+                        <Text style={[styles.infoValue, { color: theme.error }]}>
+                          {selectedBudget.estatisticasRenovacao.piorPerformance.porcentagem}% ({selectedBudget.estatisticasRenovacao.piorPerformance.periodo})
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Histórico */}
+                {selectedBudget.historico && selectedBudget.historico.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>📝 Histórico Recente</Text>
+                    
+                    {selectedBudget.historico.slice(0, 5).map((item, index) => (
+                      <View key={index} style={styles.historyItem}>
+                        <View style={styles.historyLeft}>
+                          <Text style={styles.historyAction}>{item.acao}</Text>
+                          <Text style={styles.historyDate}>{formatDateTime(item.data)}</Text>
+                        </View>
+                        <View style={styles.historyRight}>
+                          {item.valor && (
+                            <Text style={styles.historyValue}>{formatCurrency(item.valor)}</Text>
+                          )}
+                          {item.observacao && (
+                            <Text style={styles.historyObservation}>{item.observacao}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Transações Relacionadas */}
+                {selectedBudget.transacoes && selectedBudget.transacoes.length > 0 && (
+                  <View style={styles.modalSection}>
+                    <Text style={styles.modalSectionTitle}>💳 Transações Recentes</Text>
+                    
+                    {selectedBudget.transacoes.slice(0, 5).map((transacao, index) => (
+                      <View key={index} style={styles.transactionItem}>
+                        <View style={styles.transactionLeft}>
+                          <Text style={styles.transactionDescription}>{transacao.descricao}</Text>
+                          <Text style={styles.transactionDate}>{formatDate(transacao.data)}</Text>
+                        </View>
+                        <Text style={[styles.transactionValue, { color: transacao.tipo === 'receita' ? theme.success : theme.error }]}>
+                          {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(transacao.valor)}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 )}
 
@@ -908,13 +1104,13 @@ export default function BudgetsScreen({ navigation }: any) {
                   <View style={styles.statusStatItem}>
                     <View style={[styles.statusIndicator, { backgroundColor: theme.error }]} />
                     <Text style={styles.statusStatLabel}>Excedidos</Text>
-                    <Text style={styles.statusStatValue}>{budgetsData.resumo.excedidos}</Text>
+                    <Text style={styles.statusStatValue}>{budgetsData.resumo?.excedidos || 0}</Text>
                   </View>
                   
                   <View style={styles.statusStatItem}>
                     <View style={[styles.statusIndicator, { backgroundColor: theme.warning }]} />
                     <Text style={styles.statusStatLabel}>Em Alerta</Text>
-                    <Text style={styles.statusStatValue}>{budgetsData.resumo.emAlerta}</Text>
+                    <Text style={styles.statusStatValue}>{budgetsData.resumo?.emAlerta || 0}</Text>
                   </View>
                   
                   <View style={styles.statusStatItem}>
@@ -934,14 +1130,14 @@ export default function BudgetsScreen({ navigation }: any) {
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Com Renovação Automática:</Text>
                 <Text style={styles.infoValue}>
-                  {budgetsData?.resumo.comRenovacaoAutomatica || 0} orçamentos
+                  {budgetsData?.resumo?.comRenovacaoAutomatica || 0} orçamentos
                 </Text>
               </View>
               
               <View style={styles.infoRow}>
                 <Text style={styles.infoLabel}>Vencendo em 7 dias:</Text>
                 <Text style={[styles.infoValue, { color: theme.warning }]}>
-                  {budgetsData?.resumo.vencendoEm7Dias || 0} orçamentos
+                  {budgetsData?.resumo?.vencendoEm7Dias || 0} orçamentos
                 </Text>
               </View>
             </View>
@@ -977,6 +1173,7 @@ export default function BudgetsScreen({ navigation }: any) {
     </Modal>
   )
 
+  // 🔧 STYLES
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -1286,6 +1483,8 @@ export default function BudgetsScreen({ navigation }: any) {
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,
+      flex: 1,
+      textAlign: 'right',
     },
     actionButtons: {
       flexDirection: 'row',
@@ -1375,6 +1574,67 @@ export default function BudgetsScreen({ navigation }: any) {
       fontWeight: '600',
       color: theme.text,
     },
+    // History and Transactions
+    historyItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    historyLeft: {
+      flex: 1,
+    },
+    historyAction: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 2,
+    },
+    historyDate: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    historyRight: {
+      alignItems: 'flex-end',
+    },
+    historyValue: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.primary,
+      marginBottom: 2,
+    },
+    historyObservation: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      fontStyle: 'italic',
+    },
+    transactionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    transactionLeft: {
+      flex: 1,
+    },
+    transactionDescription: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 2,
+    },
+    transactionDate: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    transactionValue: {
+      fontSize: 14,
+      fontWeight: '600',
+    },
     // States
     emptyState: {
       flex: 1,
@@ -1447,6 +1707,87 @@ export default function BudgetsScreen({ navigation }: any) {
         >
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
+      </View>
+
+      {/* 🔧 BOTÃO DEBUG TEMPORÁRIO - REMOVER EM PRODUÇÃO */}
+      <View style={{ 
+        backgroundColor: '#FF0000', 
+        margin: 20, 
+        padding: 15, 
+        borderRadius: 8 
+      }}>
+        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', marginBottom: 10 }}>
+          🔧 DEBUG INFO
+        </Text>
+        
+        <TouchableOpacity 
+          style={{ 
+            backgroundColor: '#FFFFFF', 
+            padding: 10, 
+            borderRadius: 5, 
+            marginBottom: 10 
+          }}
+          onPress={() => {
+            console.log('=== MANUAL DEBUG TRIGGER ===')
+            console.log('1. budgetsResponse RAW:')
+            console.log(budgetsResponse)
+            console.log('2. budgetsResponse JSON:')
+            console.log(JSON.stringify(budgetsResponse, null, 2))
+            console.log('3. budgetsData:')
+            console.log(budgetsData)
+            console.log('4. filteredBudgets:')
+            console.log(filteredBudgets)
+            
+            Alert.alert(
+              'Debug Info Detalhado',
+              `
+📡 API Response:
+- Type: ${typeof budgetsResponse}
+- Success: ${budgetsResponse?.success}
+- Has Data: ${!!budgetsResponse?.data}
+
+📊 Data Processing:
+- BudgetsData: ${budgetsData ? 'Found' : 'Missing'}
+- Orcamentos: ${budgetsData?.orcamentos?.length || 0}
+- Is Array: ${Array.isArray(budgetsData?.orcamentos)}
+
+🔍 Filter Results:
+- Selected: ${selectedFilter}
+- Filtered Count: ${filteredBudgets.length}
+
+🚫 Issues:
+- Loading: ${budgetsLoading}
+- Error: ${budgetsError || 'None'}
+
+Ver CONSOLE para logs detalhados!
+              `,
+              [{ text: 'OK' }]
+            )
+          }}
+        >
+          <Text style={{ color: '#000000', textAlign: 'center', fontWeight: 'bold' }}>
+            🐛 DEBUG
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
+          Response: {budgetsResponse ? '✅ Present' : '❌ Missing'}
+        </Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
+          Data: {budgetsData ? '✅ Present' : '❌ Missing'}
+        </Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
+          Orçamentos: {budgetsData?.orcamentos?.length || 0}
+        </Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
+          Filtered: {filteredBudgets.length}
+        </Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
+          Loading: {budgetsLoading ? 'true' : 'false'}
+        </Text>
+        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
+          Error: {budgetsError || 'none'}
+        </Text>
       </View>
 
       {/* Errors */}

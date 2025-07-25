@@ -1,4 +1,4 @@
-// src/screens/budgets/AddBudgetScreen.tsx - Corrigido final
+// src/screens/budgets/AddBudgetScreen.tsx - Com DebugConnection
 import React, { useState, useEffect } from 'react'
 import {
   View,
@@ -16,18 +16,11 @@ import { Ionicons } from '@expo/vector-icons'
 import DateTimePicker from '@react-native-community/datetimepicker'
 
 import { useTheme } from '../../context/ThemeContext'
-import { useMutation, useApi } from '../../hooks/useApi'
+import { useMutation } from '../../hooks/useApi'
+import { useCategories, Category } from '../../hooks/useCategories'
 import Button from '../../components/common/Button'
 import Input from '../../components/common/Input'
-
-interface Category {
-  _id: string
-  nome: string
-  tipo: 'receita' | 'despesa' | 'ambos'
-  icone: string
-  cor: string
-  descricao?: string
-}
+import DebugConnection from '../../components/DebugConnection'
 
 const PERIOD_TYPES = [
   { id: 'semanal', label: 'Semanal', icon: 'calendar' },
@@ -46,6 +39,9 @@ export default function AddBudgetScreen({ navigation, route }: any) {
   const { theme } = useTheme()
   const editingBudget = route?.params?.budget
   const isEditing = !!editingBudget
+  
+  // 🔧 ESTADO PARA MOSTRAR/OCULTAR DEBUG
+  const [showDebug, setShowDebug] = useState(true) // Mude para false quando não precisar mais
 
   const [formData, setFormData] = useState({
     nome: '',
@@ -53,7 +49,7 @@ export default function AddBudgetScreen({ navigation, route }: any) {
     valorLimite: '',
     periodo: 'mensal' as 'semanal' | 'mensal' | 'trimestral' | 'anual' | 'personalizado',
     dataInicio: new Date(),
-    dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias depois
+    dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     cor: BUDGET_COLORS[0],
     icone: 'wallet',
     renovacaoAutomatica: true,
@@ -68,72 +64,13 @@ export default function AddBudgetScreen({ navigation, route }: any) {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // 🔧 CORREÇÃO PRINCIPAL: API corrigida
+  // 🔧 USANDO O HOOK CORRETO
   const { 
-    data: categoriesResponse, 
+    categories, 
     loading: categoriesLoading, 
     error: categoriesError,
     refresh: refreshCategories 
-  } = useApi<any>('/categories?tipo=despesa')
-
-  // 🔧 PROCESSAMENTO CORRETO DOS DADOS
-  const categories = React.useMemo(() => {
-    console.log('=== CATEGORIES DEBUG ===')
-    console.log('Raw response:', categoriesResponse)
-    console.log('Loading:', categoriesLoading)
-    console.log('Error:', categoriesError)
-
-    // Se estiver carregando ou houver erro, retornar array vazio
-    if (categoriesLoading || categoriesError) {
-      console.log('Loading or error state, returning empty array')
-      return []
-    }
-
-    // Se não há resposta ainda
-    if (!categoriesResponse) {
-      console.log('No response yet')
-      return []
-    }
-
-    // Verificar se é uma resposta de sucesso
-    if (categoriesResponse.success === false) {
-      console.log('Response not successful:', categoriesResponse)
-      return []
-    }
-
-    // A API mock que criamos retorna os dados diretamente em 'data'
-    let categoriesData = null
-
-    // Tentar diferentes estruturas de resposta
-    if (categoriesResponse.data && Array.isArray(categoriesResponse.data)) {
-      // Formato: { success: true, data: [...] }
-      categoriesData = categoriesResponse.data
-      console.log('Found categories in data property:', categoriesData.length)
-    } else if (Array.isArray(categoriesResponse)) {
-      // Formato direto: [...]
-      categoriesData = categoriesResponse
-      console.log('Found categories as direct array:', categoriesData.length)
-    } else if (categoriesResponse.categorias && Array.isArray(categoriesResponse.categorias)) {
-      // Formato: { categorias: [...] }
-      categoriesData = categoriesResponse.categorias
-      console.log('Found categories in categorias property:', categoriesData.length)
-    } else {
-      console.log('Could not find categories array in response structure')
-      console.log('Response keys:', Object.keys(categoriesResponse || {}))
-      return []
-    }
-
-    // Filtrar apenas categorias de despesa
-    const despesaCategories = categoriesData.filter((cat: Category) => 
-      cat.tipo === 'despesa' || cat.tipo === 'ambos'
-    )
-
-    console.log('Filtered despesa categories:', despesaCategories.length)
-    console.log('Categories:', despesaCategories.map((c: { nome: any }) => c.nome))
-    console.log('=======================')
-
-    return despesaCategories
-  }, [categoriesResponse, categoriesLoading, categoriesError])
+  } = useCategories('despesa')
 
   const { mutate: saveBudget, loading: saving } = useMutation()
 
@@ -260,34 +197,6 @@ export default function AddBudgetScreen({ navigation, route }: any) {
     setFormData({ ...formData, valorLimite: numericValue })
   }
 
-  // 🔧 FUNÇÃO PARA TESTAR A API
-  const testCategoriesAPI = async () => {
-    try {
-      console.log('🧪 Testando API de categorias...')
-      
-      // Testar URLs diferentes
-      const urls = [
-        '/categories?tipo=despesa',
-        '/categories',
-        '/api/categories?tipo=despesa',
-        '/api/categories'
-      ]
-
-      for (const url of urls) {
-        try {
-          console.log(`Testando: ${url}`)
-          const response = await fetch(`http://localhost:5001${url}`)
-          const data = await response.json()
-          console.log(`✅ ${url}:`, data)
-        } catch (error) {
-          console.log(`❌ ${url}:`, error)
-        }
-      }
-    } catch (error) {
-      console.error('Erro no teste:', error)
-    }
-  }
-
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -311,7 +220,9 @@ export default function AddBudgetScreen({ navigation, route }: any) {
       color: theme.text,
       flex: 1,
       textAlign: 'center',
-      marginRight: 40,
+    },
+    debugToggle: {
+      padding: 8,
     },
     content: {
       flex: 1,
@@ -510,6 +421,59 @@ export default function AddBudgetScreen({ navigation, route }: any) {
     },
   })
 
+  // 🔧 SE DEBUG ESTIVER ATIVO, MOSTRAR APENAS DEBUG
+  if (showDebug) {
+    return (
+      <SafeAreaView style={styles.container}>
+        {/* Header com toggle */}
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-back" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={styles.title}>🔧 Debug Mode</Text>
+          <TouchableOpacity 
+            style={styles.debugToggle}
+            onPress={() => setShowDebug(false)}
+          >
+            <Ionicons name="close" size={24} color={theme.text} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.content}>
+          {/* Debug do Hook */}
+          <View style={styles.debugContainer}>
+            <Text style={styles.debugTitle}>📋 Hook useCategories Debug</Text>
+            <Text style={styles.debugText}>Loading: {categoriesLoading ? 'true' : 'false'}</Text>
+            <Text style={styles.debugText}>Error: {categoriesError || 'none'}</Text>
+            <Text style={styles.debugText}>Categories Count: {categories.length}</Text>
+            <Text style={styles.debugText}>
+              Categories: {categories.map((c: Category) => c.nome).join(', ') || 'none'}
+            </Text>
+            {categoriesError && (
+              <TouchableOpacity style={styles.testButton} onPress={refreshCategories}>
+                <Text style={styles.testButtonText}>🔄 Tentar Novamente</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Debug de Conectividade */}
+          <DebugConnection />
+
+          {/* Botão para voltar ao formulário */}
+          <View style={{ margin: 20 }}>
+            <Button
+              title="✅ Voltar ao Formulário"
+              onPress={() => setShowDebug(false)}
+            />
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -523,6 +487,12 @@ export default function AddBudgetScreen({ navigation, route }: any) {
         <Text style={styles.title}>
           {isEditing ? 'Editar Orçamento' : 'Novo Orçamento'}
         </Text>
+        <TouchableOpacity 
+          style={styles.debugToggle}
+          onPress={() => setShowDebug(true)}
+        >
+          <Ionicons name="bug" size={24} color={theme.text} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView 
@@ -530,19 +500,17 @@ export default function AddBudgetScreen({ navigation, route }: any) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          {/* 🔧 DEBUG INFO (remover em produção) */}
-          <View style={styles.debugContainer}>
-            <Text style={styles.debugTitle}>🔧 Debug - Categories API</Text>
-            <Text style={styles.debugText}>Loading: {categoriesLoading ? 'true' : 'false'}</Text>
-            <Text style={styles.debugText}>Error: {categoriesError || 'none'}</Text>
-            <Text style={styles.debugText}>Response: {categoriesResponse ? 'received' : 'none'}</Text>
-            <Text style={styles.debugText}>Categories Count: {categories.length}</Text>
+          {/* Quick Debug Info */}
+          <View style={[styles.debugContainer, { margin: 10, padding: 12 }]}>
+            <Text style={styles.debugTitle}>📊 Status Rápido</Text>
             <Text style={styles.debugText}>
-              Categories: {categories.map((c: { nome: any }) => c.nome).join(', ') || 'none'}
+              Categories: {categories.length} | Loading: {categoriesLoading ? 'Sim' : 'Não'} | Error: {categoriesError ? 'Sim' : 'Não'}
             </Text>
-            <TouchableOpacity style={styles.testButton} onPress={testCategoriesAPI}>
-              <Text style={styles.testButtonText}>Testar API</Text>
-            </TouchableOpacity>
+            {categoriesError && (
+              <Text style={[styles.debugText, { color: theme.error }]}>
+                ❌ {categoriesError}
+              </Text>
+            )}
           </View>
 
           {/* Nome */}
@@ -593,14 +561,8 @@ export default function AddBudgetScreen({ navigation, route }: any) {
                     📭 Nenhuma categoria de despesa encontrada
                   </Text>
                   <Text style={styles.errorText}>
-                    Verifique se o servidor está rodando e se as categorias foram criadas.
+                    Usando categorias padrão como fallback.
                   </Text>
-                  <TouchableOpacity 
-                    style={styles.retryButton}
-                    onPress={refreshCategories}
-                  >
-                    <Text style={styles.retryButtonText}>Recarregar</Text>
-                  </TouchableOpacity>
                 </View>
               ) : (
                 <ScrollView 
