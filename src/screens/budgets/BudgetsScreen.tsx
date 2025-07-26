@@ -1,5 +1,5 @@
-// src/screens/budgets/BudgetsScreen.tsx - VERSÃO COMPLETA E CORRIGIDA
-import React, { useState, useCallback } from 'react'
+// src/screens/budgets/BudgetsScreen.tsx - LAYOUT MELHORADO
+import React, { useState } from 'react'
 import {
   View,
   Text,
@@ -16,232 +16,45 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { ProgressBar } from 'react-native-paper'
-import { useFocusEffect } from '@react-navigation/native'
 
 import { useTheme } from '../../context/ThemeContext'
-import { useApi, useMutation } from '../../hooks/useApi'
-import { useCategories, Category } from '../../hooks/useCategories'
+import { useBudgets, Budget } from '../../hooks/useBudgets'
+import { useCategories } from '../../hooks/useCategories'
 import Button from '../../components/common/Button'
 import LoadingSpinner from '../../components/common/LoadingSpinner'
 import Input from '../../components/common/Input'
 
 const { width } = Dimensions.get('window')
 
-interface Budget {
-  _id: string
-  nome: string
-  categoria: string
-  valorLimite: number
-  valorGasto: number
-  periodo: string
-  dataInicio: string
-  dataFim: string
-  status: 'ativo' | 'pausado' | 'finalizado' | 'excedido'
-  cor: string
-  icone: string
-  porcentagemGasta: number
-  valorRestante: number
-  diasRestantes: number
-  renovacaoAutomatica: boolean
-  ultimaRenovacao?: string
-  vencido?: boolean
-  descricao?: string
-  configuracoes?: {
-    alertas: {
-      ativo: boolean
-      porcentagens: number[]
-      email: boolean
-      push: boolean
-    }
-    renovacao: {
-      rollover: boolean
-      ajusteAutomatico: boolean
-      percentualAjuste: number
-      notificarRenovacao: boolean
-    }
-  }
-  estatisticasRenovacao?: {
-    totalRenovacoes: number
-    mediaGastosPorPeriodo: number
-    melhorPerformance?: {
-      porcentagem: number
-      periodo: string
-    }
-    piorPerformance?: {
-      porcentagem: number
-      periodo: string
-    }
-  }
-  historico?: Array<{
-    data: string
-    acao: string
-    valor?: number
-    observacao?: string
-    usuarioId?: string
-  }>
-  transacoes?: Array<{
-    _id: string
-    descricao: string
-    valor: number
-    data: string
-    tipo: 'receita' | 'despesa'
-    categoria: string
-    metodoPagamento?: string
-  }>
-}
-
-interface BudgetsData {
-  orcamentos: Budget[]
-  resumo: {
-    totalLimite: number
-    totalGasto: number
-    totalRestante: number
-    excedidos: number
-    emAlerta: number
-    vencendoEm7Dias: number
-    comRenovacaoAutomatica: number
-    economiaTotal?: number
-    mediaMensal?: number
-  }
-  estatisticas?: {
-    categoriasMaisGastas: Array<{
-      categoria: string
-      valor: number
-      porcentagem: number
-    }>
-    tendenciaMensal: Array<{
-      mes: string
-      valor: number
-    }>
-    eficienciaOrcamentos: number
-  }
-  total?: number
-}
-
 export default function BudgetsScreen({ navigation }: any) {
   const { theme } = useTheme()
   const [selectedFilter, setSelectedFilter] = useState<'ativos' | 'excedidos' | 'pausados' | 'todos'>('todos')
   const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null)
   const [showQuickEditModal, setShowQuickEditModal] = useState(false)
+  const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null)
   const [quickEditValue, setQuickEditValue] = useState('')
-  const [showStatsModal, setShowStatsModal] = useState(false)
+  const [quickEditType, setQuickEditType] = useState<'limite' | 'gasto'>('limite')
 
-  // 🔧 BUSCAR DADOS
-  const { 
-    data: budgetsResponse, 
-    loading: budgetsLoading, 
-    error: budgetsError, 
-    refresh: refreshBudgets 
-  } = useApi<any>('/budgets')
+  // Hook personalizado para orçamentos
+  const {
+    budgets,
+    summary,
+    loading,
+    error,
+    refresh,
+    pauseBudget,
+    reactivateBudget,
+    deleteBudget,
+    updateBudget,
+    filterBudgets
+  } = useBudgets({ autoRefresh: false })
 
-  const { 
-    categories, 
-    loading: categoriesLoading, 
-    error: categoriesError,
-    refresh: refreshCategories 
-  } = useCategories('despesa')
+  const { categories } = useCategories('despesa')
 
-  // 🔧 PROCESSAR DADOS - VERSÃO CORRIGIDA
-  const budgetsData: BudgetsData | null = React.useMemo(() => {
-    console.log('=== BUDGETS DATA PROCESSING - FIXED ===')
-    console.log('1. budgetsResponse:', budgetsResponse)
-    
-    if (!budgetsResponse) {
-      console.log('❌ No budgetsResponse')
-      return null
-    }
+  // Filtrar orçamentos
+  const filteredBudgets = filterBudgets(selectedFilter)
 
-    // A resposta tem o formato: { success: true, data: { orcamentos: [...], resumo: {...} } }
-    if (budgetsResponse.success === true && budgetsResponse.data) {
-      console.log('✅ Found success + data structure')
-      console.log('2. budgetsResponse.data:', budgetsResponse.data)
-      
-      // Verificar se tem orçamentos
-      if (budgetsResponse.data.orcamentos && Array.isArray(budgetsResponse.data.orcamentos)) {
-        console.log('✅ Found orcamentos array with', budgetsResponse.data.orcamentos.length, 'items')
-        return {
-          orcamentos: budgetsResponse.data.orcamentos,
-          resumo: budgetsResponse.data.resumo || {
-            totalLimite: 0,
-            totalGasto: 0,
-            totalRestante: 0,
-            excedidos: 0,
-            emAlerta: 0,
-            vencendoEm7Dias: 0,
-            comRenovacaoAutomatica: 0
-          },
-          total: budgetsResponse.data.total || budgetsResponse.data.orcamentos.length
-        }
-      }
-    }
-
-    // Tentar estruturas alternativas
-    if (budgetsResponse.data && Array.isArray(budgetsResponse.data)) {
-      console.log('✅ Found direct array in data')
-      return {
-        orcamentos: budgetsResponse.data,
-        resumo: {
-          totalLimite: 0,
-          totalGasto: 0,
-          totalRestante: 0,
-          excedidos: 0,
-          emAlerta: 0,
-          vencendoEm7Dias: 0,
-          comRenovacaoAutomatica: 0
-        },
-        total: budgetsResponse.data.length
-      }
-    }
-
-    if (Array.isArray(budgetsResponse)) {
-      console.log('✅ Found direct array response')
-      return {
-        orcamentos: budgetsResponse,
-        resumo: {
-          totalLimite: 0,
-          totalGasto: 0,
-          totalRestante: 0,
-          excedidos: 0,
-          emAlerta: 0,
-          vencendoEm7Dias: 0,
-          comRenovacaoAutomatica: 0
-        },
-        total: budgetsResponse.length
-      }
-    }
-
-    console.log('❌ Could not process budgets data')
-    return null
-  }, [budgetsResponse])
-
-  const { mutate: updateBudget, loading: updating } = useMutation()
-
-  // 🔧 REFRESH GERAL
-  const refresh = useCallback(() => {
-    console.log('🔄 Refreshing budgets and categories...')
-    refreshBudgets()
-    refreshCategories()
-  }, [refreshBudgets, refreshCategories])
-
-  useFocusEffect(
-    useCallback(() => {
-      console.log('📱 BudgetsScreen focused, refreshing data...')
-      refresh()
-    }, [refresh])
-  )
-
-  // 🔧 DEBUG LOG
-  React.useEffect(() => {
-    console.log('=== CURRENT STATE ===')
-    console.log('budgetsResponse:', budgetsResponse)
-    console.log('budgetsData:', budgetsData)
-    console.log('budgetsLoading:', budgetsLoading)
-    console.log('budgetsError:', budgetsError)
-    console.log('==================')
-  }, [budgetsResponse, budgetsData, budgetsLoading, budgetsError])
-
-  // 🔧 FUNÇÕES AUXILIARES
+  // Funções auxiliares
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -257,123 +70,52 @@ export default function BudgetsScreen({ navigation }: any) {
     })
   }
 
-  const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  }
-
-  // 🔧 FUNÇÕES DE CATEGORIA - CORRIGIDAS COM TIPO EXPLÍCITO
   const getCategoryName = (categoryId: string) => {
-    if (!Array.isArray(categories) || categories.length === 0) {
-      return `Categoria ${categoryId}`
-    }
-    
-    const category = categories.find((cat: Category) => cat._id === categoryId)
-    return category?.nome || `Categoria ${categoryId}`
+    const category = categories.find(cat => cat._id === categoryId)
+    return category?.nome || categoryId
   }
-
-  const getCategoryIcon = (categoryId: string) => {
-    if (!Array.isArray(categories) || categories.length === 0) {
-      return 'wallet'
-    }
-    
-    const category = categories.find((cat: Category) => cat._id === categoryId)
-    return category?.icone || 'wallet'
-  }
-
-  const getCategoryColor = (categoryId: string) => {
-    if (!Array.isArray(categories) || categories.length === 0) {
-      return theme.primary
-    }
-    
-    const category = categories.find((cat: Category) => cat._id === categoryId)
-    return category?.cor || theme.primary
-  }
-
-  const getStatusColor = (budget: Budget) => {
-    if (budget.status === 'pausado') return theme.textSecondary
-    if (budget.porcentagemGasta >= 100) return theme.error
-    if (budget.porcentagemGasta >= 80) return theme.warning
-    return theme.success
-  }
-
-  const getStatusText = (budget: Budget) => {
-    if (budget.status === 'pausado') return 'Pausado'
-    if (budget.porcentagemGasta >= 100) return 'Excedido'
-    if (budget.porcentagemGasta >= 90) return 'Crítico'
-    if (budget.porcentagemGasta >= 80) return 'Atenção'
-    return 'No controle'
-  }
-
-  const getStatusIcon = (budget: Budget) => {
-    if (budget.status === 'pausado') return 'pause-circle'
-    if (budget.porcentagemGasta >= 100) return 'alert-circle'
-    if (budget.porcentagemGasta >= 80) return 'warning'
-    return 'checkmark-circle'
-  }
-
-  const getDaysRemainingColor = (days: number) => {
-    if (days <= 3) return theme.error
-    if (days <= 7) return theme.warning
-    return theme.textSecondary
-  }
-
-  // 🔧 FILTRAR ORÇAMENTOS - CORRIGIDO
-  const filteredBudgets = React.useMemo(() => {
-    console.log('=== FILTERING BUDGETS ===')
-    
-    if (!budgetsData?.orcamentos) {
-      console.log('❌ No budgets data for filtering')
-      return []
-    }
-
-    console.log(`🔍 Filtering ${budgetsData.orcamentos.length} budgets by: "${selectedFilter}"`)
-
-    const filtered = budgetsData.orcamentos.filter(budget => {
-      switch (selectedFilter) {
-        case 'ativos':
-          return budget.status === 'ativo'
-        case 'excedidos':
-          return budget.porcentagemGasta >= 100
-        case 'pausados':
-          return budget.status === 'pausado'
-        case 'todos':
-        default:
-          return true
-      }
-    })
-
-    console.log(`✅ Filtered result: ${filtered.length} budgets`)
-    return filtered
-  }, [budgetsData, selectedFilter])
 
   const getFilterCount = (filter: string) => {
-    if (!budgetsData?.orcamentos) return 0
-
     switch (filter) {
       case 'excedidos':
-        return budgetsData.resumo?.excedidos || 0
+        return summary.excedidos
       case 'pausados':
-        return budgetsData.orcamentos.filter(b => b.status === 'pausado').length
+        return budgets.filter(b => b.status === 'pausado').length
       case 'ativos':
-        return budgetsData.orcamentos.filter(b => b.status === 'ativo').length
+        return budgets.filter(b => b.status === 'ativo').length
       default:
         return 0
     }
   }
 
-  // 🔧 AÇÕES DOS ORÇAMENTOS
-  const handlePauseBudget = async (budgetId: string, currentStatus: string) => {
-    const action = currentStatus === 'ativo' ? 'pausar' : 'reativar'
+  const getStatusColor = (status: string, porcentagem: number) => {
+    if (status === 'pausado') return theme.textSecondary
+    if (porcentagem >= 100) return theme.error
+    if (porcentagem >= 80) return theme.warning
+    return theme.success
+  }
+
+  const getStatusIcon = (status: string, porcentagem: number) => {
+    if (status === 'pausado') return 'pause-circle'
+    if (porcentagem >= 100) return 'alert-circle'
+    if (porcentagem >= 80) return 'warning'
+    return 'checkmark-circle'
+  }
+
+  const getProgressColor = (porcentagem: number) => {
+    if (porcentagem >= 100) return '#F44336'
+    if (porcentagem >= 80) return '#FF9800'
+    if (porcentagem >= 60) return '#FFC107'
+    return '#4CAF50'
+  }
+
+  // Ações dos orçamentos
+  const handleToggleBudget = async (budget: Budget) => {
+    const action = budget.status === 'ativo' ? 'pausar' : 'reativar'
     
     Alert.alert(
       `${action === 'pausar' ? 'Pausar' : 'Reativar'} Orçamento`,
-      `Tem certeza que deseja ${action} este orçamento?`,
+      `Tem certeza que deseja ${action} o orçamento "${budget.nome}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -381,8 +123,11 @@ export default function BudgetsScreen({ navigation }: any) {
           style: action === 'pausar' ? 'destructive' : 'default',
           onPress: async () => {
             try {
-              await updateBudget('put', `/budgets/${budgetId}/${action}`)
-              refresh()
+              if (action === 'pausar') {
+                await pauseBudget(budget._id)
+              } else {
+                await reactivateBudget(budget._id)
+              }
               Alert.alert('Sucesso', `Orçamento ${action === 'pausar' ? 'pausado' : 'reativado'} com sucesso!`)
             } catch (error: any) {
               Alert.alert('Erro', error.message || `Erro ao ${action} orçamento`)
@@ -393,10 +138,10 @@ export default function BudgetsScreen({ navigation }: any) {
     )
   }
 
-  const handleDeleteBudget = async (budgetId: string) => {
+  const handleDeleteBudget = async (budget: Budget) => {
     Alert.alert(
       'Excluir Orçamento',
-      'Tem certeza que deseja excluir este orçamento? Esta ação não pode ser desfeita.',
+      `Tem certeza que deseja excluir o orçamento "${budget.nome}"?\n\nEsta ação não pode ser desfeita.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { 
@@ -404,10 +149,7 @@ export default function BudgetsScreen({ navigation }: any) {
           style: 'destructive',
           onPress: async () => {
             try {
-              await updateBudget('delete', `/budgets/${budgetId}`)
-              setShowDetailsModal(false)
-              setSelectedBudget(null)
-              refresh()
+              await deleteBudget(budget._id)
               Alert.alert('Sucesso', 'Orçamento excluído com sucesso!')
             } catch (error: any) {
               Alert.alert('Erro', error.message || 'Erro ao excluir orçamento')
@@ -422,65 +164,96 @@ export default function BudgetsScreen({ navigation }: any) {
     if (!selectedBudget || !quickEditValue) return
 
     try {
-      const novoValor = parseFloat(quickEditValue.replace(/[^\d,]/g, '').replace(',', '.'))
+      const value = parseFloat(quickEditValue.replace(/[^\d,]/g, '').replace(',', '.'))
       
-      if (isNaN(novoValor) || novoValor <= 0) {
+      if (isNaN(value) || value <= 0) {
         Alert.alert('Erro', 'Por favor, insira um valor válido')
         return
       }
 
-      await updateBudget('put', `/budgets/${selectedBudget._id}`, { 
-        valorLimite: novoValor 
-      })
+      const updates = quickEditType === 'limite' 
+        ? { valorLimite: value }
+        : { valorGasto: value }
+
+      await updateBudget(selectedBudget._id, updates)
       
       setShowQuickEditModal(false)
       setQuickEditValue('')
-      setSelectedBudget(null)
-      refresh()
-      Alert.alert('Sucesso', 'Limite do orçamento atualizado com sucesso!')
+      Alert.alert('Sucesso', `${quickEditType === 'limite' ? 'Limite' : 'Valor gasto'} atualizado com sucesso!`)
+      
     } catch (error: any) {
       Alert.alert('Erro', error.message || 'Erro ao atualizar orçamento')
     }
   }
 
-  const handleRenewBudget = async (budgetId: string) => {
-    Alert.alert(
-      'Renovar Orçamento',
-      'Deseja renovar este orçamento para o próximo período?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Renovar', 
-          onPress: async () => {
-            try {
-              await updateBudget('post', `/budgets/renewal/${budgetId}/renew-now`)
-              refresh()
-              Alert.alert('Sucesso', 'Orçamento renovado com sucesso!')
-            } catch (error: any) {
-              Alert.alert('Erro', error.message || 'Erro ao renovar orçamento')
-            }
-          }
-        }
-      ]
-    )
-  }
+  // 📊 COMPONENTE DE RESUMO COMPACTO
+  const SummaryCard = () => (
+    <View style={styles.summaryCard}>
+      <LinearGradient
+        colors={[theme.primary, theme.primary + 'CC']}
+        style={styles.summaryGradient}
+      >
+        <View style={styles.summaryHeader}>
+          <View style={styles.summaryTitleRow}>
+            <Ionicons name="wallet" size={20} color="#FFFFFF" />
+            <Text style={styles.summaryTitle}>Resumo</Text>
+          </View>
+          <Text style={styles.summarySubtitle}>
+            {budgets.length} orçamento{budgets.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        
+        <View style={styles.summaryStats}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{formatCurrency(summary.totalLimite)}</Text>
+            <Text style={styles.statLabel}>Orçado</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{formatCurrency(summary.totalGasto)}</Text>
+            <Text style={styles.statLabel}>Gasto</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[
+              styles.statValue, 
+              { color: summary.totalRestante >= 0 ? '#4CAF50' : '#F44336' }
+            ]}>
+              {formatCurrency(summary.totalRestante)}
+            </Text>
+            <Text style={styles.statLabel}>Restante</Text>
+          </View>
+        </View>
 
-  // 🔧 COMPONENTES
-  const FilterButton = ({ filter, label, icon, count }: {
-    filter: string
-    label: string
-    icon: string
-    count?: number
-  }) => (
+        {summary.totalLimite > 0 && (
+          <View style={styles.summaryProgress}>
+            <View style={styles.progressRow}>
+              <Text style={styles.progressLabel}>Progresso Geral</Text>
+              <Text style={styles.progressPercent}>
+                {((summary.totalGasto / summary.totalLimite) * 100).toFixed(1)}%
+              </Text>
+            </View>
+            <ProgressBar
+              progress={Math.min(summary.totalGasto / summary.totalLimite, 1)}
+              color={getProgressColor((summary.totalGasto / summary.totalLimite) * 100)}
+              style={styles.progressBar}
+            />
+          </View>
+        )}
+      </LinearGradient>
+    </View>
+  )
+
+  const FilterButton = ({ filter, label, icon, count }: any) => (
     <TouchableOpacity
       style={[
         styles.filterButton,
         selectedFilter === filter && styles.filterButtonActive
       ]}
-      onPress={() => setSelectedFilter(filter as any)}
+      onPress={() => setSelectedFilter(filter)}
     >
       <Ionicons 
-        name={icon as any} 
+        name={icon} 
         size={16} 
         color={selectedFilter === filter ? '#FFFFFF' : theme.textSecondary} 
       />
@@ -493,11 +266,11 @@ export default function BudgetsScreen({ navigation }: any) {
       {count !== undefined && count > 0 && (
         <View style={[
           styles.filterBadge,
-          { backgroundColor: selectedFilter === filter ? 'rgba(255,255,255,0.3)' : theme.error }
+          selectedFilter === filter && styles.filterBadgeActive
         ]}>
           <Text style={[
             styles.filterBadgeText,
-            { color: '#FFFFFF' }
+            selectedFilter === filter && styles.filterBadgeTextActive
           ]}>
             {count}
           </Text>
@@ -506,479 +279,321 @@ export default function BudgetsScreen({ navigation }: any) {
     </TouchableOpacity>
   )
 
-  const SummaryCard = () => {
-    if (!budgetsData?.resumo) return null
-
-    return (
-      <View style={styles.summaryCard}>
-        <LinearGradient
-          colors={[theme.primary, theme.primary + '80']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.summaryGradient}
-        >
-          <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Resumo dos Orçamentos</Text>
-            <TouchableOpacity 
-              style={styles.statsButton}
-              onPress={() => setShowStatsModal(true)}
-            >
-              <Ionicons name="bar-chart" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.summaryContent}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Limite</Text>
-                <Text style={styles.summaryValue}>
-                  {formatCurrency(budgetsData.resumo.totalLimite)}
-                </Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Total Gasto</Text>
-                <Text style={styles.summaryValue}>
-                  {formatCurrency(budgetsData.resumo.totalGasto)}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Restante</Text>
-                <Text style={styles.summaryValue}>
-                  {formatCurrency(budgetsData.resumo.totalRestante)}
-                </Text>
-              </View>
-              <View style={styles.summaryItem}>
-                <Text style={styles.summaryLabel}>Renovação Auto</Text>
-                <Text style={styles.summaryValue}>
-                  {budgetsData.resumo.comRenovacaoAutomatica}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {(budgetsData.resumo.excedidos > 0 || budgetsData.resumo.emAlerta > 0 || budgetsData.resumo.vencendoEm7Dias > 0) && (
-            <View style={styles.summaryAlerts}>
-              {budgetsData.resumo.excedidos > 0 && (
-                <View style={styles.alertItem}>
-                  <Ionicons name="alert-circle" size={12} color="#FFFFFF" />
-                  <Text style={styles.alertText}>
-                    {budgetsData.resumo.excedidos} excedido{budgetsData.resumo.excedidos > 1 ? 's' : ''}
-                  </Text>
-                </View>
-              )}
-              {budgetsData.resumo.emAlerta > 0 && (
-                <View style={styles.alertItem}>
-                  <Ionicons name="warning" size={12} color="#FFFFFF" />
-                  <Text style={styles.alertText}>
-                    {budgetsData.resumo.emAlerta} em alerta
-                  </Text>
-                </View>
-              )}
-              {budgetsData.resumo.vencendoEm7Dias > 0 && (
-                <View style={styles.alertItem}>
-                  <Ionicons name="time" size={12} color="#FFFFFF" />
-                  <Text style={styles.alertText}>
-                    {budgetsData.resumo.vencendoEm7Dias} vencendo
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-        </LinearGradient>
-      </View>
-    )
-  }
-
+  // 💳 COMPONENTE DE ITEM DE ORÇAMENTO MELHORADO
   const BudgetItem = ({ budget }: { budget: Budget }) => (
-    <TouchableOpacity
-      style={[
-        styles.budgetItem,
-        budget.status === 'pausado' && styles.budgetItemPaused
-      ]}
-      onPress={() => {
-        setSelectedBudget(budget)
-        setShowDetailsModal(true)
-      }}
-    >
-      <View style={styles.budgetHeader}>
-        <View style={styles.budgetInfo}>
-          <Text style={styles.budgetName}>{budget.nome}</Text>
-          <Text style={styles.budgetCategory}>
-            {getCategoryName(budget.categoria)}
-          </Text>
-        </View>
-        
-        <View style={styles.budgetActions}>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(budget) }]}>
+    <View style={styles.budgetItem}>
+      <LinearGradient
+        colors={[budget.cor || theme.primary, (budget.cor || theme.primary) + 'CC']}
+        style={styles.budgetGradient}
+      >
+        <TouchableOpacity
+          style={styles.budgetContent}
+          onPress={() => {
+            setSelectedBudget(budget)
+            setShowDetailsModal(true)
+          }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.budgetHeader}>
+            <View style={styles.budgetMainInfo}>
+              <View style={styles.budgetIconContainer}>
+                <Ionicons name={budget.icone as any} size={16} color="#FFFFFF" />
+              </View>
+              <View style={styles.budgetTitleInfo}>
+                <Text style={styles.budgetName}>{budget.nome}</Text>
+                <Text style={styles.budgetCategory}>{getCategoryName(budget.categoria)}</Text>
+              </View>
+            </View>
+            
+            <View style={styles.budgetStatusBadge}>
+              <Ionicons 
+                name={getStatusIcon(budget.status, budget.porcentagemGasta)} 
+                size={14} 
+                color="#FFFFFF" 
+              />
+            </View>
+          </View>
+
+          <View style={styles.budgetBody}>
+            <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>Progresso</Text>
+                <Text style={styles.progressValue}>
+                  {budget.porcentagemGasta.toFixed(1)}%
+                </Text>
+              </View>
+              <ProgressBar
+                progress={Math.min(budget.porcentagemGasta / 100, 1)}
+                color={getProgressColor(budget.porcentagemGasta)}
+                style={styles.budgetProgressBar}
+              />
+            </View>
+
+            <View style={styles.budgetValues}>
+              <View style={styles.valueRow}>
+                <Text style={styles.valueLabel}>Gasto:</Text>
+                <Text style={styles.valueAmount}>{formatCurrency(budget.valorGasto)}</Text>
+              </View>
+              <View style={styles.valueRow}>
+                <Text style={styles.valueLabel}>Limite:</Text>
+                <Text style={styles.valueAmount}>{formatCurrency(budget.valorLimite)}</Text>
+              </View>
+              <View style={styles.valueRow}>
+                <Text style={styles.valueLabel}>Restante:</Text>
+                <Text style={[
+                  styles.valueAmount,
+                  { color: budget.valorRestante >= 0 ? '#4CAF50' : '#F44336' }
+                ]}>
+                  {formatCurrency(budget.valorRestante)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.budgetFooter}>
+              <View style={styles.footerInfo}>
+                <Ionicons name="calendar-outline" size={12} color="#FFFFFF" />
+                <Text style={styles.footerText}>{budget.periodo}</Text>
+              </View>
+              <View style={styles.footerInfo}>
+                <Ionicons name="time-outline" size={12} color="#FFFFFF" />
+                <Text style={styles.footerText}>
+                  {budget.diasRestantes > 0 ? `${budget.diasRestantes}d` : 'Vencido'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </TouchableOpacity>
+
+        {/* Botões de Ação Rápida */}
+        <View style={styles.quickActions}>
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => navigation.navigate('AddBudget', { budget })}
+          >
+            <Ionicons name="create-outline" size={14} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => {
+              setSelectedBudget(budget)
+              setQuickEditType('limite')
+              setQuickEditValue(budget.valorLimite.toString())
+              setShowQuickEditModal(true)
+            }}
+          >
+            <Ionicons name="cash-outline" size={14} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.quickActionButton}
+            onPress={() => handleToggleBudget(budget)}
+          >
             <Ionicons 
-              name={getStatusIcon(budget) as any} 
-              size={12} 
+              name={budget.status === 'ativo' ? 'pause-outline' : 'play-outline'} 
+              size={14} 
               color="#FFFFFF" 
             />
-            <Text style={styles.statusText}>{getStatusText(budget)}</Text>
-          </View>
-          
-          <View style={[styles.budgetIcon, { backgroundColor: getCategoryColor(budget.categoria) + '20' }]}>
-            <Ionicons 
-              name={getCategoryIcon(budget.categoria) as any} 
-              size={24} 
-              color={getCategoryColor(budget.categoria)} 
-            />
-          </View>
+          </TouchableOpacity>
         </View>
-      </View>
-
-      <View style={styles.budgetProgress}>
-        <ProgressBar
-          progress={Math.min(budget.porcentagemGasta / 100, 1)}
-          color={budget.porcentagemGasta >= 100 ? theme.error : 
-                 budget.porcentagemGasta >= 80 ? theme.warning : theme.success}
-          style={styles.progressBar}
-        />
-        
-        <View style={styles.progressLabels}>
-          <Text style={styles.progressText}>
-            {budget.porcentagemGasta}% usado
-          </Text>
-          <Text style={[styles.progressText, { color: getDaysRemainingColor(budget.diasRestantes) }]}>
-            {budget.diasRestantes} dias
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.budgetValues}>
-        <View style={styles.valueItem}>
-          <Text style={styles.valueLabel}>Gasto</Text>
-          <Text style={[styles.valueAmount, { color: theme.error }]}>
-            {formatCurrency(budget.valorGasto)}
-          </Text>
-        </View>
-        
-        <View style={styles.valueItem}>
-          <Text style={styles.valueLabel}>Limite</Text>
-          <Text style={styles.valueAmount}>
-            {formatCurrency(budget.valorLimite)}
-          </Text>
-        </View>
-        
-        <View style={styles.valueItem}>
-          <Text style={styles.valueLabel}>Restante</Text>
-          <Text style={[styles.valueAmount, { color: budget.valorRestante > 0 ? theme.success : theme.error }]}>
-            {formatCurrency(budget.valorRestante)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.budgetFooter}>
-        <Text style={styles.periodText}>
-          {formatDate(budget.dataInicio)} - {formatDate(budget.dataFim)}
-        </Text>
-        
-        <View style={styles.budgetTags}>
-          {budget.renovacaoAutomatica && (
-            <View style={styles.tag}>
-              <Ionicons name="refresh" size={10} color={theme.primary} />
-              <Text style={styles.tagText}>Auto</Text>
-            </View>
-          )}
-          
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{budget.periodo}</Text>
-          </View>
-        </View>
-      </View>
-    </TouchableOpacity>
+      </LinearGradient>
+    </View>
   )
 
-  // Modal de Detalhes do Orçamento
+  // Modal de Detalhes (mesmo código anterior)
   const BudgetDetailsModal = () => (
     <Modal
       visible={showDetailsModal}
-      transparent={true}
       animationType="slide"
+      presentationStyle="pageSheet"
       onRequestClose={() => setShowDetailsModal(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {selectedBudget && (
-            <>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>{selectedBudget.nome}</Text>
-                <TouchableOpacity
-                  style={styles.closeButton}
-                  onPress={() => setShowDetailsModal(false)}
-                >
-                  <Ionicons name="close" size={24} color={theme.text} />
-                </TouchableOpacity>
-              </View>
+      <SafeAreaView style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
+            <Ionicons name="close" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={styles.modalTitle}>Detalhes do Orçamento</Text>
+          <TouchableOpacity 
+            onPress={() => {
+              setShowDetailsModal(false)
+              navigation.navigate('AddBudget', { budget: selectedBudget })
+            }}
+          >
+            <Ionicons name="create-outline" size={24} color={theme.primary} />
+          </TouchableOpacity>
+        </View>
 
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Informações Básicas */}
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>📊 Informações Gerais</Text>
-                  
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Categoria:</Text>
-                    <Text style={styles.infoValue}>{getCategoryName(selectedBudget.categoria)}</Text>
+        {selectedBudget && (
+          <ScrollView style={styles.modalContent}>
+            {/* Card Principal */}
+            <View style={styles.detailsCard}>
+              <LinearGradient
+                colors={[selectedBudget.cor || theme.primary, (selectedBudget.cor || theme.primary) + 'DD']}
+                style={styles.detailsGradient}
+              >
+                <View style={styles.detailsHeader}>
+                  <View style={styles.detailsIconContainer}>
+                    <Ionicons name={selectedBudget.icone as any} size={24} color="#FFFFFF" />
                   </View>
-                  
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Período:</Text>
-                    <Text style={styles.infoValue}>{selectedBudget.periodo}</Text>
-                  </View>
-                  
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Status:</Text>
-                    <Text style={[styles.infoValue, { color: getStatusColor(selectedBudget) }]}>
-                      {getStatusText(selectedBudget)}
+                  <View style={styles.detailsHeaderInfo}>
+                    <Text style={styles.detailsName}>{selectedBudget.nome}</Text>
+                    <Text style={styles.detailsCategory}>
+                      {getCategoryName(selectedBudget.categoria)}
                     </Text>
                   </View>
-                  
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Renovação Automática:</Text>
-                    <Text style={styles.infoValue}>
-                      {selectedBudget.renovacaoAutomatica ? '✅ Ativada' : '❌ Desativada'}
-                    </Text>
-                  </View>
-
-                  {selectedBudget.ultimaRenovacao && (
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Última Renovação:</Text>
-                      <Text style={styles.infoValue}>
-                        {formatDateTime(selectedBudget.ultimaRenovacao)}
-                      </Text>
-                    </View>
-                  )}
-
-                  {selectedBudget.descricao && (
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Descrição:</Text>
-                      <Text style={styles.infoValue}>{selectedBudget.descricao}</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Valores e Estatísticas */}
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>💰 Valores</Text>
-                  
-                  <View style={styles.statsGrid}>
-                    <View style={styles.statCard}>
-                      <Text style={styles.statValue}>{formatCurrency(selectedBudget.valorLimite)}</Text>
-                      <Text style={styles.statLabel}>Limite</Text>
-                    </View>
-                    
-                    <View style={styles.statCard}>
-                      <Text style={[styles.statValue, { color: theme.error }]}>
-                        {formatCurrency(selectedBudget.valorGasto)}
-                      </Text>
-                      <Text style={styles.statLabel}>Gasto</Text>
-                    </View>
-                    
-                    <View style={styles.statCard}>
-                      <Text style={[styles.statValue, { color: selectedBudget.valorRestante > 0 ? theme.success : theme.error }]}>
-                        {formatCurrency(selectedBudget.valorRestante)}
-                      </Text>
-                      <Text style={styles.statLabel}>Restante</Text>
-                    </View>
-                    
-                    <View style={styles.statCard}>
-                      <Text style={styles.statValue}>{selectedBudget.porcentagemGasta}%</Text>
-                      <Text style={styles.statLabel}>Utilizado</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Período:</Text>
-                    <Text style={styles.infoValue}>
-                      {formatDate(selectedBudget.dataInicio)} até {formatDate(selectedBudget.dataFim)}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Dias Restantes:</Text>
-                    <Text style={[styles.infoValue, { color: getDaysRemainingColor(selectedBudget.diasRestantes) }]}>
-                      {selectedBudget.diasRestantes} dias
+                  <View style={[
+                    styles.detailsStatusBadge,
+                    { backgroundColor: getStatusColor(selectedBudget.status, selectedBudget.porcentagemGasta) }
+                  ]}>
+                    <Text style={styles.detailsStatusText}>
+                      {selectedBudget.status.toUpperCase()}
                     </Text>
                   </View>
                 </View>
 
-                {/* Configurações */}
-                {selectedBudget.configuracoes && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>⚙️ Configurações</Text>
-                    
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Alertas Ativos:</Text>
-                      <Text style={styles.infoValue}>
-                        {selectedBudget.configuracoes.alertas?.ativo ? '✅ Sim' : '❌ Não'}
-                      </Text>
-                    </View>
-                    
-                    {selectedBudget.configuracoes.alertas?.ativo && (
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Alertas em:</Text>
-                        <Text style={styles.infoValue}>
-                          {selectedBudget.configuracoes.alertas.porcentagens?.join('%, ') || ''}%
-                        </Text>
-                      </View>
-                    )}
-                    
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Rollover:</Text>
-                      <Text style={styles.infoValue}>
-                        {selectedBudget.configuracoes.renovacao?.rollover ? '✅ Ativado' : '❌ Desativado'}
-                      </Text>
-                    </View>
+                <View style={styles.detailsProgress}>
+                  <View style={styles.progressInfo}>
+                    <Text style={styles.progressLabel}>Progresso do Orçamento</Text>
+                    <Text style={styles.progressValue}>
+                      {selectedBudget.porcentagemGasta.toFixed(1)}%
+                    </Text>
                   </View>
-                )}
-
-                {/* Estatísticas de Renovação */}
-                {selectedBudget.estatisticasRenovacao && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>📈 Estatísticas de Renovação</Text>
-                    
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Total de Renovações:</Text>
-                      <Text style={styles.infoValue}>
-                        {selectedBudget.estatisticasRenovacao.totalRenovacoes}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.infoRow}>
-                      <Text style={styles.infoLabel}>Média de Gastos:</Text>
-                      <Text style={styles.infoValue}>
-                        {formatCurrency(selectedBudget.estatisticasRenovacao.mediaGastosPorPeriodo)}
-                      </Text>
-                    </View>
-                    
-                    {selectedBudget.estatisticasRenovacao.melhorPerformance && (
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Melhor Performance:</Text>
-                        <Text style={[styles.infoValue, { color: theme.success }]}>
-                          {selectedBudget.estatisticasRenovacao.melhorPerformance.porcentagem}% ({selectedBudget.estatisticasRenovacao.melhorPerformance.periodo})
-                        </Text>
-                      </View>
-                    )}
-                    
-                    {selectedBudget.estatisticasRenovacao.piorPerformance && (
-                      <View style={styles.infoRow}>
-                        <Text style={styles.infoLabel}>Pior Performance:</Text>
-                        <Text style={[styles.infoValue, { color: theme.error }]}>
-                          {selectedBudget.estatisticasRenovacao.piorPerformance.porcentagem}% ({selectedBudget.estatisticasRenovacao.piorPerformance.periodo})
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-
-                {/* Histórico */}
-                {selectedBudget.historico && selectedBudget.historico.length > 0 && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>📝 Histórico Recente</Text>
-                    
-                    {selectedBudget.historico.slice(0, 5).map((item, index) => (
-                      <View key={index} style={styles.historyItem}>
-                        <View style={styles.historyLeft}>
-                          <Text style={styles.historyAction}>{item.acao}</Text>
-                          <Text style={styles.historyDate}>{formatDateTime(item.data)}</Text>
-                        </View>
-                        <View style={styles.historyRight}>
-                          {item.valor && (
-                            <Text style={styles.historyValue}>{formatCurrency(item.valor)}</Text>
-                          )}
-                          {item.observacao && (
-                            <Text style={styles.historyObservation}>{item.observacao}</Text>
-                          )}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Transações Relacionadas */}
-                {selectedBudget.transacoes && selectedBudget.transacoes.length > 0 && (
-                  <View style={styles.modalSection}>
-                    <Text style={styles.modalSectionTitle}>💳 Transações Recentes</Text>
-                    
-                    {selectedBudget.transacoes.slice(0, 5).map((transacao, index) => (
-                      <View key={index} style={styles.transactionItem}>
-                        <View style={styles.transactionLeft}>
-                          <Text style={styles.transactionDescription}>{transacao.descricao}</Text>
-                          <Text style={styles.transactionDate}>{formatDate(transacao.data)}</Text>
-                        </View>
-                        <Text style={[styles.transactionValue, { color: transacao.tipo === 'receita' ? theme.success : theme.error }]}>
-                          {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(transacao.valor)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Ações */}
-                <View style={styles.modalSection}>
-                  <Text style={styles.modalSectionTitle}>⚙️ Ações</Text>
-                  
-                  <View style={styles.actionButtons}>
-                    <Button
-                      title="Editar"
-                      onPress={() => {
-                        setShowDetailsModal(false)
-                        navigation.navigate('AddBudget', { budget: selectedBudget })
-                      }}
-                      style={styles.actionButton}
-                    />
-                    
-                    <Button
-                      title="Editar Limite"
-                      onPress={() => {
-                        setShowDetailsModal(false)
-                        setQuickEditValue(selectedBudget.valorLimite.toString())
-                        setShowQuickEditModal(true)
-                      }}
-                      variant="secondary"
-                      style={styles.actionButton}
-                    />
-                  </View>
-
-                  <View style={styles.actionButtons}>
-                    <Button
-                      title={selectedBudget.status === 'ativo' ? 'Pausar' : 'Reativar'}
-                      onPress={() => {
-                        setShowDetailsModal(false)
-                        handlePauseBudget(selectedBudget._id, selectedBudget.status)
-                      }}
-                      variant="secondary"
-                      style={styles.actionButton}
-                    />
-                    
-                    {selectedBudget.renovacaoAutomatica && (
-                      <Button
-                        title="Renovar Agora"
-                        onPress={() => {
-                          setShowDetailsModal(false)
-                          handleRenewBudget(selectedBudget._id)
-                        }}
-                        style={styles.actionButton}
-                      />
-                    )}
-                  </View>
-
-                  <Button
-                    title="Excluir Orçamento"
-                    onPress={() => handleDeleteBudget(selectedBudget._id)}
-                    variant="secondary"
-                    style={{ ...styles.actionButton, backgroundColor: theme.error, marginTop: 12, width: '100%' }}
+                  <ProgressBar
+                    progress={Math.min(selectedBudget.porcentagemGasta / 100, 1)}
+                    color={getProgressColor(selectedBudget.porcentagemGasta)}
+                    style={styles.detailsProgressBar}
                   />
                 </View>
-              </ScrollView>
-            </>
-          )}
-        </View>
-      </View>
+              </LinearGradient>
+            </View>
+
+            {/* Informações Financeiras */}
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>💰 Informações Financeiras</Text>
+              
+              <View style={styles.financialGrid}>
+                <TouchableOpacity 
+                  style={styles.financialItem}
+                  onPress={() => {
+                    setQuickEditType('gasto')
+                    setQuickEditValue(selectedBudget.valorGasto.toString())
+                    setShowQuickEditModal(true)
+                  }}
+                >
+                  <Text style={styles.financialLabel}>Valor Gasto</Text>
+                  <Text style={styles.financialValue}>{formatCurrency(selectedBudget.valorGasto)}</Text>
+                  <Ionicons name="create-outline" size={16} color={theme.textSecondary} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={styles.financialItem}
+                  onPress={() => {
+                    setQuickEditType('limite')
+                    setQuickEditValue(selectedBudget.valorLimite.toString())
+                    setShowQuickEditModal(true)
+                  }}
+                >
+                  <Text style={styles.financialLabel}>Limite</Text>
+                  <Text style={styles.financialValue}>{formatCurrency(selectedBudget.valorLimite)}</Text>
+                  <Ionicons name="create-outline" size={16} color={theme.textSecondary} />
+                </TouchableOpacity>
+                
+                <View style={styles.financialItem}>
+                  <Text style={styles.financialLabel}>Restante</Text>
+                  <Text style={[
+                    styles.financialValue,
+                    { color: selectedBudget.valorRestante >= 0 ? theme.success : theme.error }
+                  ]}>
+                    {formatCurrency(selectedBudget.valorRestante)}
+                  </Text>
+                </View>
+                
+                <View style={styles.financialItem}>
+                  <Text style={styles.financialLabel}>Porcentagem</Text>
+                  <Text style={[
+                    styles.financialValue,
+                    { color: getProgressColor(selectedBudget.porcentagemGasta) }
+                  ]}>
+                    {selectedBudget.porcentagemGasta.toFixed(1)}%
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Informações de Período */}
+            <View style={styles.modalSection}>
+              <Text style={styles.modalSectionTitle}>📅 Período e Configurações</Text>
+              
+              <View style={styles.infoGrid}>
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Período</Text>
+                  <Text style={styles.infoValue}>{selectedBudget.periodo}</Text>
+                </View>
+                
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Data Início</Text>
+                  <Text style={styles.infoValue}>{formatDate(selectedBudget.dataInicio)}</Text>
+                </View>
+                
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Data Fim</Text>
+                  <Text style={styles.infoValue}>{formatDate(selectedBudget.dataFim)}</Text>
+                </View>
+                
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Dias Restantes</Text>
+                  <Text style={[
+                    styles.infoValue,
+                    { color: selectedBudget.diasRestantes <= 7 ? theme.warning : theme.text }
+                  ]}>
+                    {selectedBudget.diasRestantes > 0 ? `${selectedBudget.diasRestantes} dias` : 'Vencido'}
+                  </Text>
+                </View>
+                
+                <View style={styles.infoItem}>
+                  <Text style={styles.infoLabel}>Renovação Automática</Text>
+                  <Text style={styles.infoValue}>
+                    {selectedBudget.renovacaoAutomatica ? '✅ Sim' : '❌ Não'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Ações */}
+            <View style={styles.modalActions}>
+              <Button
+                title="Editar Orçamento"
+                onPress={() => {
+                  setShowDetailsModal(false)
+                  navigation.navigate('AddBudget', { budget: selectedBudget })
+                }}
+                style={styles.modalButton}
+              />
+              
+              <Button
+                title={selectedBudget.status === 'ativo' ? 'Pausar Orçamento' : 'Reativar Orçamento'}
+                onPress={() => {
+                  setShowDetailsModal(false)
+                  handleToggleBudget(selectedBudget)
+                }}
+                variant="secondary"
+                style={styles.modalButton}
+              />
+              
+              <Button
+                title="Excluir Orçamento"
+                onPress={() => {
+                  setShowDetailsModal(false)
+                  handleDeleteBudget(selectedBudget)
+                }}
+                variant="danger"
+                style={styles.modalButton}
+              />
+            </View>
+          </ScrollView>
+        )}
+      </SafeAreaView>
     </Modal>
   )
 
@@ -986,194 +601,55 @@ export default function BudgetsScreen({ navigation }: any) {
   const QuickEditModal = () => (
     <Modal
       visible={showQuickEditModal}
+      animationType="slide"
       transparent={true}
-      animationType="fade"
       onRequestClose={() => setShowQuickEditModal(false)}
     >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { height: 'auto' }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Editar Limite</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowQuickEditModal(false)}
-            >
+      <View style={styles.quickEditOverlay}>
+        <View style={styles.quickEditModal}>
+          <View style={styles.quickEditHeader}>
+            <Text style={styles.quickEditTitle}>
+              Editar {quickEditType === 'limite' ? 'Limite' : 'Valor Gasto'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowQuickEditModal(false)}>
               <Ionicons name="close" size={24} color={theme.text} />
             </TouchableOpacity>
           </View>
-
-          <View style={styles.modalSection}>
+          
+          <View style={styles.quickEditContent}>
+            <Text style={styles.quickEditLabel}>
+              {quickEditType === 'limite' ? 'Novo limite do orçamento' : 'Valor atual gasto'}
+            </Text>
+            
             <Input
-              label="Novo Valor Limite"
               value={quickEditValue}
               onChangeText={setQuickEditValue}
               placeholder="0,00"
               keyboardType="numeric"
+              style={styles.quickEditInput}
             />
-          </View>
-
-          <View style={styles.actionButtons}>
-            <Button
-              title="Cancelar"
-              onPress={() => setShowQuickEditModal(false)}
-              variant="secondary"
-              style={styles.actionButton}
-            />
-            <Button
-              title="Salvar"
-              onPress={handleQuickEdit}
-              loading={updating}
-              style={styles.actionButton}
-            />
-          </View>
-        </View>
-      </View>
-    </Modal>
-  )
-
-  // Modal de Estatísticas
-  const StatsModal = () => (
-    <Modal
-      visible={showStatsModal}
-      transparent={true}
-      animationType="slide"
-      onRequestClose={() => setShowStatsModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📊 Estatísticas Detalhadas</Text>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={() => setShowStatsModal(false)}
-            >
-              <Ionicons name="close" size={24} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {budgetsData?.resumo && (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>💰 Resumo Financeiro</Text>
-                
-                <View style={styles.statsGrid}>
-                  <View style={styles.statCard}>
-                    <Text style={styles.statValue}>{formatCurrency(budgetsData.resumo.totalLimite)}</Text>
-                    <Text style={styles.statLabel}>Total Limite</Text>
-                  </View>
-                  
-                  <View style={styles.statCard}>
-                    <Text style={[styles.statValue, { color: theme.error }]}>
-                      {formatCurrency(budgetsData.resumo.totalGasto)}
-                    </Text>
-                    <Text style={styles.statLabel}>Total Gasto</Text>
-                  </View>
-                  
-                  <View style={styles.statCard}>
-                    <Text style={[styles.statValue, { color: theme.success }]}>
-                      {formatCurrency(budgetsData.resumo.totalRestante)}
-                    </Text>
-                    <Text style={styles.statLabel}>Total Restante</Text>
-                  </View>
-                  
-                  <View style={styles.statCard}>
-                    <Text style={styles.statValue}>
-                      {budgetsData.resumo.totalLimite > 0 
-                        ? Math.round((budgetsData.resumo.totalGasto / budgetsData.resumo.totalLimite) * 100)
-                        : 0}%
-                    </Text>
-                    <Text style={styles.statLabel}>% Utilizado</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            {budgetsData?.orcamentos && (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>📋 Orçamentos por Status</Text>
-                
-                <View style={styles.statusStats}>
-                  <View style={styles.statusStatItem}>
-                    <View style={[styles.statusIndicator, { backgroundColor: theme.success }]} />
-                    <Text style={styles.statusStatLabel}>Ativos</Text>
-                    <Text style={styles.statusStatValue}>
-                      {budgetsData.orcamentos.filter(b => b.status === 'ativo').length}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.statusStatItem}>
-                    <View style={[styles.statusIndicator, { backgroundColor: theme.error }]} />
-                    <Text style={styles.statusStatLabel}>Excedidos</Text>
-                    <Text style={styles.statusStatValue}>{budgetsData.resumo?.excedidos || 0}</Text>
-                  </View>
-                  
-                  <View style={styles.statusStatItem}>
-                    <View style={[styles.statusIndicator, { backgroundColor: theme.warning }]} />
-                    <Text style={styles.statusStatLabel}>Em Alerta</Text>
-                    <Text style={styles.statusStatValue}>{budgetsData.resumo?.emAlerta || 0}</Text>
-                  </View>
-                  
-                  <View style={styles.statusStatItem}>
-                    <View style={[styles.statusIndicator, { backgroundColor: theme.textSecondary }]} />
-                    <Text style={styles.statusStatLabel}>Pausados</Text>
-                    <Text style={styles.statusStatValue}>
-                      {budgetsData.orcamentos.filter(b => b.status === 'pausado').length}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-
-            <View style={styles.modalSection}>
-              <Text style={styles.modalSectionTitle}>🔄 Renovação Automática</Text>
+            
+            <View style={styles.quickEditActions}>
+              <Button
+                title="Cancelar"
+                onPress={() => setShowQuickEditModal(false)}
+                variant="secondary"
+                style={styles.quickEditButton}
+              />
               
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Com Renovação Automática:</Text>
-                <Text style={styles.infoValue}>
-                  {budgetsData?.resumo?.comRenovacaoAutomatica || 0} orçamentos
-                </Text>
-              </View>
-              
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Vencendo em 7 dias:</Text>
-                <Text style={[styles.infoValue, { color: theme.warning }]}>
-                  {budgetsData?.resumo?.vencendoEm7Dias || 0} orçamentos
-                </Text>
-              </View>
+              <Button
+                title="Salvar"
+                onPress={handleQuickEdit}
+                style={styles.quickEditButton}
+              />
             </View>
-
-            {/* Categorias mais utilizadas */}
-            {categories.length > 0 && budgetsData?.orcamentos && (
-              <View style={styles.modalSection}>
-                <Text style={styles.modalSectionTitle}>📊 Categorias Mais Utilizadas</Text>
-                
-                {categories.slice(0, 5).map((category, index) => {
-                  const orcamentosCategoria = budgetsData.orcamentos.filter(b => b.categoria === category._id)
-                  const totalGastoCategoria = orcamentosCategoria.reduce((sum, b) => sum + b.valorGasto, 0)
-                  
-                  if (totalGastoCategoria === 0) return null
-                  
-                  return (
-                    <View key={category._id} style={styles.categoryStatItem}>
-                      <View style={styles.categoryStatLeft}>
-                        <View style={[styles.categoryIcon, { backgroundColor: category.cor + '20' }]}>
-                          <Ionicons name={category.icone as any} size={16} color={category.cor} />
-                        </View>
-                        <Text style={styles.categoryStatName}>{category.nome}</Text>
-                      </View>
-                      <Text style={styles.categoryStatValue}>{formatCurrency(totalGastoCategoria)}</Text>
-                    </View>
-                  )
-                })}
-              </View>
-            )}
-          </ScrollView>
+          </View>
         </View>
       </View>
     </Modal>
   )
 
-  // 🔧 STYLES
+  // 🎨 ESTILOS MELHORADOS
   const styles = StyleSheet.create({
     container: {
       flex: 1,
@@ -1181,299 +657,433 @@ export default function BudgetsScreen({ navigation }: any) {
     },
     header: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
+      alignItems: 'center',
       paddingHorizontal: 20,
       paddingVertical: 16,
+      backgroundColor: theme.surface,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
     title: {
       fontSize: 24,
-      fontWeight: '700',
+      fontWeight: 'bold',
       color: theme.text,
     },
     addButton: {
       backgroundColor: theme.primary,
+      borderRadius: 20,
       width: 40,
       height: 40,
-      borderRadius: 20,
-      alignItems: 'center',
       justifyContent: 'center',
+      alignItems: 'center',
+      elevation: 2,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
     },
-    // Summary Card
+    
+    // 📊 SUMMARY CARD COMPACTO
     summaryCard: {
-      margin: 20,
-      borderRadius: 16,
+      marginHorizontal: 16,
+      marginVertical: 12,
+      borderRadius: 12,
       overflow: 'hidden',
+      elevation: 3,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     summaryGradient: {
-      padding: 20,
+      padding: 16,
     },
     summaryHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 16,
-    },
-    summaryTitle: {
-      fontSize: 18,
-      fontWeight: 'bold',
-      color: '#FFFFFF',
-    },
-    statsButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: 'rgba(255, 255, 255, 0.2)',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    summaryContent: {
-      marginBottom: 16,
-    },
-    summaryRow: {
-      flexDirection: 'row',
       marginBottom: 12,
     },
-    summaryItem: {
-      flex: 1,
+    summaryTitleRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-    },
-    summaryLabel: {
-      fontSize: 12,
-      color: 'rgba(255, 255, 255, 0.8)',
       marginBottom: 4,
     },
-    summaryValue: {
+    summaryTitle: {
       fontSize: 16,
       fontWeight: 'bold',
       color: '#FFFFFF',
+      marginLeft: 8,
     },
-    summaryAlerts: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    alertItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: 'rgba(255, 255, 255, 0.15)',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
-      gap: 4,
-    },
-    alertText: {
+    summarySubtitle: {
       fontSize: 12,
       color: '#FFFFFF',
+      opacity: 0.9,
     },
+    summaryStats: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    statItem: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    statDivider: {
+      width: 1,
+      height: 24,
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+      marginHorizontal: 8,
+    },
+    statValue: {
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+      marginBottom: 2,
+    },
+    statLabel: {
+      fontSize: 10,
+      color: '#FFFFFF',
+      opacity: 0.9,
+    },
+    summaryProgress: {
+      marginTop: 4,
+    },
+    progressRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    progressLabel: {
+      fontSize: 11,
+      color: '#FFFFFF',
+      opacity: 0.9,
+    },
+    progressPercent: {
+      fontSize: 11,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+    },
+    progressBar: {
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    
     // Filters
     filtersContainer: {
       flexDirection: 'row',
-      paddingHorizontal: 20,
-      marginBottom: 16,
-      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      backgroundColor: theme.surface,
     },
     filterButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 8,
-      paddingHorizontal: 12,
-      borderRadius: 20,
-      backgroundColor: theme.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      marginRight: 8,
+      borderRadius: 16,
+      backgroundColor: theme.background,
       borderWidth: 1,
       borderColor: theme.border,
-      gap: 6,
     },
     filterButtonActive: {
       backgroundColor: theme.primary,
       borderColor: theme.primary,
     },
     filterButtonText: {
-      fontSize: 14,
+      fontSize: 11,
       color: theme.textSecondary,
+      marginLeft: 4,
       fontWeight: '500',
     },
     filterButtonTextActive: {
       color: '#FFFFFF',
     },
     filterBadge: {
-      minWidth: 20,
-      height: 20,
-      borderRadius: 10,
+      backgroundColor: theme.textSecondary,
+      borderRadius: 8,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      marginLeft: 4,
+      minWidth: 16,
       alignItems: 'center',
-      justifyContent: 'center',
-      paddingHorizontal: 6,
+    },
+    filterBadgeActive: {
+      backgroundColor: '#FFFFFF',
     },
     filterBadgeText: {
-      fontSize: 12,
+      fontSize: 9,
+      color: '#FFFFFF',
       fontWeight: 'bold',
     },
-    // Budget Item
-    budgetItem: {
-      backgroundColor: theme.surface,
-      marginHorizontal: 20,
-      marginBottom: 12,
-      borderRadius: 12,
-      padding: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
+    filterBadgeTextActive: {
+      color: theme.primary,
     },
-    budgetItemPaused: {
-      opacity: 0.7,
+    
+    // 💳 BUDGET ITEMS MELHORADOS
+    budgetItem: {
+      marginHorizontal: 16,
+      marginVertical: 6,
+      borderRadius: 12,
+      overflow: 'hidden',
+      elevation: 2,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+    },
+    budgetGradient: {
+      padding: 14,
+    },
+    budgetContent: {
+      marginBottom: 10,
     },
     budgetHeader: {
       flexDirection: 'row',
-      alignItems: 'flex-start',
       justifyContent: 'space-between',
+      alignItems: 'center',
       marginBottom: 12,
     },
-    budgetInfo: {
+    budgetMainInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    budgetIconContainer: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 8,
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    budgetTitleInfo: {
       flex: 1,
     },
     budgetName: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.text,
+      fontSize: 14,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
       marginBottom: 2,
     },
     budgetCategory: {
-      fontSize: 12,
-      color: theme.textSecondary,
+      fontSize: 11,
+      color: '#FFFFFF',
+      opacity: 0.9,
     },
-    budgetActions: {
-      alignItems: 'flex-end',
+    budgetStatusBadge: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 10,
+      width: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    budgetBody: {
       gap: 8,
     },
-    statusBadge: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: 12,
+    progressContainer: {
       gap: 4,
     },
-    statusText: {
-      fontSize: 10,
-      color: '#FFFFFF',
-      fontWeight: '600',
-    },
-    budgetIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    budgetProgress: {
-      marginBottom: 12,
-    },
-    progressBar: {
-      height: 6,
-      borderRadius: 3,
-    },
-    progressLabels: {
+    progressHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginTop: 6,
+      alignItems: 'center',
     },
-    progressText: {
-      fontSize: 12,
-      color: theme.textSecondary,
+    progressValue: {
+      fontSize: 11,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+    },
+    budgetProgressBar: {
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
     },
     budgetValues: {
+      gap: 3,
+    },
+    valueRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 12,
-    },
-    valueItem: {
       alignItems: 'center',
     },
     valueLabel: {
-      fontSize: 10,
-      color: theme.textSecondary,
-      marginBottom: 2,
+      fontSize: 11,
+      color: '#FFFFFF',
+      opacity: 0.9,
     },
     valueAmount: {
-      fontSize: 14,
+      fontSize: 11,
       fontWeight: '600',
-      color: theme.text,
+      color: '#FFFFFF',
     },
     budgetFooter: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
-      paddingTop: 12,
+      alignItems: 'center',
+      paddingTop: 6,
       borderTopWidth: 1,
-      borderTopColor: theme.border,
+      borderTopColor: 'rgba(255, 255, 255, 0.2)',
     },
-    periodText: {
-      fontSize: 11,
-      color: theme.textSecondary,
-    },
-    budgetTags: {
+    footerInfo: {
       flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
+    footerText: {
+      fontSize: 10,
+      color: '#FFFFFF',
+      opacity: 0.9,
+    },
+    quickActions: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
       gap: 6,
     },
-    tag: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.primary + '20',
-      paddingHorizontal: 6,
-      paddingVertical: 2,
-      borderRadius: 8,
-      gap: 2,
-    },
-    tagText: {
-      fontSize: 10,
-      color: theme.primary,
-      fontWeight: '500',
-    },
-    // Modals
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    quickActionButton: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 12,
+      width: 24,
+      height: 24,
       justifyContent: 'center',
       alignItems: 'center',
     },
-    modalContent: {
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 20,
-      width: '90%',
-      maxHeight: '80%',
+    
+    // Modal Styles (mantidos iguais)
+    modalContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
     },
     modalHeader: {
       flexDirection: 'row',
-      alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 20,
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingVertical: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      backgroundColor: theme.surface,
     },
     modalTitle: {
       fontSize: 18,
-      fontWeight: '600',
+      fontWeight: 'bold',
       color: theme.text,
     },
-    closeButton: {
-      padding: 8,
+    modalContent: {
+      flex: 1,
+      padding: 20,
     },
+    
+    // Details Card
+    detailsCard: {
+      borderRadius: 16,
+      overflow: 'hidden',
+      marginBottom: 24,
+      elevation: 4,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+    },
+    detailsGradient: {
+      padding: 20,
+    },
+    detailsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    detailsIconContainer: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 16,
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 16,
+    },
+    detailsHeaderInfo: {
+      flex: 1,
+    },
+    detailsName: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+      marginBottom: 4,
+    },
+    detailsCategory: {
+      fontSize: 14,
+      color: '#FFFFFF',
+      opacity: 0.9,
+    },
+    detailsStatusBadge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 12,
+    },
+    detailsStatusText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: '#FFFFFF',
+    },
+    detailsProgress: {
+      gap: 8,
+    },
+    detailsProgressBar: {
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    },
+    
+    // Modal Sections
     modalSection: {
       marginBottom: 24,
     },
     modalSectionTitle: {
       fontSize: 16,
-      fontWeight: '600',
+      fontWeight: 'bold',
       color: theme.text,
-      marginBottom: 12,
+      marginBottom: 16,
     },
-    infoRow: {
+    financialGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    financialItem: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      width: (width - 64) / 2,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    financialLabel: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 4,
+    },
+    financialValue: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginBottom: 8,
+    },
+    infoGrid: {
+      gap: 12,
+    },
+    infoItem: {
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
     },
     infoLabel: {
       fontSize: 14,
@@ -1483,159 +1093,68 @@ export default function BudgetsScreen({ navigation }: any) {
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,
-      flex: 1,
-      textAlign: 'right',
     },
-    actionButtons: {
-      flexDirection: 'row',
+    modalActions: {
       gap: 12,
-      marginBottom: 12,
+      paddingBottom: 20,
     },
-    actionButton: {
+    modalButton: {
+      marginHorizontal: 0,
+    },
+    
+    // Quick Edit Modal
+    quickEditOverlay: {
       flex: 1,
-    },
-    // Stats Modal
-    statsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 12,
-    },
-    statCard: {
-      flex: 1,
-      minWidth: '45%',
-      backgroundColor: theme.background,
-      padding: 16,
-      borderRadius: 8,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
       alignItems: 'center',
+      padding: 20,
     },
-    statValue: {
-      fontSize: 18,
+    quickEditModal: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      width: '100%',
+      maxWidth: 400,
+      elevation: 8,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+    },
+    quickEditHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    quickEditTitle: {
+      fontSize: 16,
       fontWeight: 'bold',
       color: theme.text,
-      marginBottom: 4,
     },
-    statLabel: {
-      fontSize: 12,
+    quickEditContent: {
+      padding: 20,
+    },
+    quickEditLabel: {
+      fontSize: 14,
       color: theme.textSecondary,
-      textAlign: 'center',
+      marginBottom: 12,
     },
-    statusStats: {
+    quickEditInput: {
+      marginBottom: 20,
+    },
+    quickEditActions: {
+      flexDirection: 'row',
       gap: 12,
     },
-    statusStatItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingVertical: 8,
-    },
-    statusIndicator: {
-      width: 12,
-      height: 12,
-      borderRadius: 6,
-      marginRight: 12,
-    },
-    statusStatLabel: {
+    quickEditButton: {
       flex: 1,
-      fontSize: 14,
-      color: theme.text,
+      marginHorizontal: 0,
     },
-    statusStatValue: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-    },
-    categoryStatItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    categoryStatLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      flex: 1,
-    },
-    categoryIcon: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: 12,
-    },
-    categoryStatName: {
-      fontSize: 14,
-      color: theme.text,
-      flex: 1,
-    },
-    categoryStatValue: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-    },
-    // History and Transactions
-    historyItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    historyLeft: {
-      flex: 1,
-    },
-    historyAction: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 2,
-    },
-    historyDate: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    historyRight: {
-      alignItems: 'flex-end',
-    },
-    historyValue: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.primary,
-      marginBottom: 2,
-    },
-    historyObservation: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      fontStyle: 'italic',
-    },
-    transactionItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 8,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-    },
-    transactionLeft: {
-      flex: 1,
-    },
-    transactionDescription: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 2,
-    },
-    transactionDate: {
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    transactionValue: {
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    // States
+    
+    // Empty and Loading States
     emptyState: {
       flex: 1,
       alignItems: 'center',
@@ -1668,7 +1187,7 @@ export default function BudgetsScreen({ navigation }: any) {
       backgroundColor: theme.error + '20',
       margin: 20,
       padding: 16,
-      borderRadius: 8,
+      borderRadius: 12,
       borderLeftWidth: 4,
       borderLeftColor: theme.error,
     },
@@ -1680,10 +1199,15 @@ export default function BudgetsScreen({ navigation }: any) {
     retryButton: {
       marginTop: 8,
     },
+    progressInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
   })
 
-  // 🔧 ESTADOS DE LOADING E ERRO
-  if (budgetsLoading && !budgetsData) {
+  // Estados de loading e erro
+  if (loading && budgets.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -1709,92 +1233,11 @@ export default function BudgetsScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
 
-      {/* 🔧 BOTÃO DEBUG TEMPORÁRIO - REMOVER EM PRODUÇÃO */}
-      <View style={{ 
-        backgroundColor: '#FF0000', 
-        margin: 20, 
-        padding: 15, 
-        borderRadius: 8 
-      }}>
-        <Text style={{ color: '#FFFFFF', fontWeight: 'bold', marginBottom: 10 }}>
-          🔧 DEBUG INFO
-        </Text>
-        
-        <TouchableOpacity 
-          style={{ 
-            backgroundColor: '#FFFFFF', 
-            padding: 10, 
-            borderRadius: 5, 
-            marginBottom: 10 
-          }}
-          onPress={() => {
-            console.log('=== MANUAL DEBUG TRIGGER ===')
-            console.log('1. budgetsResponse RAW:')
-            console.log(budgetsResponse)
-            console.log('2. budgetsResponse JSON:')
-            console.log(JSON.stringify(budgetsResponse, null, 2))
-            console.log('3. budgetsData:')
-            console.log(budgetsData)
-            console.log('4. filteredBudgets:')
-            console.log(filteredBudgets)
-            
-            Alert.alert(
-              'Debug Info Detalhado',
-              `
-📡 API Response:
-- Type: ${typeof budgetsResponse}
-- Success: ${budgetsResponse?.success}
-- Has Data: ${!!budgetsResponse?.data}
-
-📊 Data Processing:
-- BudgetsData: ${budgetsData ? 'Found' : 'Missing'}
-- Orcamentos: ${budgetsData?.orcamentos?.length || 0}
-- Is Array: ${Array.isArray(budgetsData?.orcamentos)}
-
-🔍 Filter Results:
-- Selected: ${selectedFilter}
-- Filtered Count: ${filteredBudgets.length}
-
-🚫 Issues:
-- Loading: ${budgetsLoading}
-- Error: ${budgetsError || 'None'}
-
-Ver CONSOLE para logs detalhados!
-              `,
-              [{ text: 'OK' }]
-            )
-          }}
-        >
-          <Text style={{ color: '#000000', textAlign: 'center', fontWeight: 'bold' }}>
-            🐛 DEBUG
-          </Text>
-        </TouchableOpacity>
-
-        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
-          Response: {budgetsResponse ? '✅ Present' : '❌ Missing'}
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
-          Data: {budgetsData ? '✅ Present' : '❌ Missing'}
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
-          Orçamentos: {budgetsData?.orcamentos?.length || 0}
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
-          Filtered: {filteredBudgets.length}
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
-          Loading: {budgetsLoading ? 'true' : 'false'}
-        </Text>
-        <Text style={{ color: '#FFFFFF', fontSize: 12 }}>
-          Error: {budgetsError || 'none'}
-        </Text>
-      </View>
-
-      {/* Errors */}
-      {budgetsError && (
+      {/* Error */}
+      {error && (
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>
-            ❌ Erro ao carregar orçamentos: {budgetsError}
+            ❌ {error}
           </Text>
           <Button
             title="Tentar Novamente"
@@ -1802,17 +1245,6 @@ Ver CONSOLE para logs detalhados!
             variant="secondary"
             style={styles.retryButton}
           />
-        </View>
-      )}
-
-      {categoriesError && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
-            ⚠️ Erro ao carregar categorias: {categoriesError}
-          </Text>
-          <Text style={styles.errorText}>
-            As categorias podem não aparecer corretamente nos orçamentos.
-          </Text>
         </View>
       )}
 
@@ -1875,7 +1307,7 @@ Ver CONSOLE para logs detalhados!
           renderItem={({ item }) => <BudgetItem budget={item} />}
           refreshControl={
             <RefreshControl 
-              refreshing={budgetsLoading || categoriesLoading} 
+              refreshing={loading} 
               onRefresh={refresh} 
             />
           }
@@ -1887,7 +1319,6 @@ Ver CONSOLE para logs detalhados!
       {/* Modals */}
       <BudgetDetailsModal />
       <QuickEditModal />
-      <StatsModal />
     </SafeAreaView>
   )
 }
