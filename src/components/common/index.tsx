@@ -1,329 +1,255 @@
+// src/components/common/index.tsx
+
 import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   TextInput,
-  ActivityIndicator,
   StyleSheet,
+  ActivityIndicator,
   ViewStyle,
   TextStyle,
   TextInputProps,
   TouchableOpacityProps,
+  Alert,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-// Loading Component
-interface LoadingProps {
-  size?: 'small' | 'large';
-  color?: string;
-  text?: string;
-}
-
-export const Loading: React.FC<LoadingProps> = ({ 
-  size = 'large', 
-  color = COLORS.primary, 
-  text 
-}) => (
-  <View style={styles.loadingContainer}>
-    <ActivityIndicator size={size} color={color} />
-    {text && <Text style={styles.loadingText}>{text}</Text>}
-  </View>
-);
-
-// Button Component
+// Interface para Button
 interface ButtonProps extends TouchableOpacityProps {
   title: string;
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
-  size?: 'small' | 'medium' | 'large';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
   loading?: boolean;
-  icon?: keyof typeof Ionicons.glyphMap;
+  icon?: string;
   iconPosition?: 'left' | 'right';
-  gradient?: boolean;
+  fullWidth?: boolean;
 }
 
+// Componente Button
 export const Button: React.FC<ButtonProps> = ({
   title,
   variant = 'primary',
-  size = 'medium',
+  size = 'md',
   loading = false,
   icon,
   iconPosition = 'left',
-  gradient = false,
+  fullWidth = false,
   style,
   disabled,
   ...props
 }) => {
-  // Helper function to get button styles safely - only ViewStyle properties
-  const getButtonVariantStyle = (variant: string): ViewStyle => {
-    const variantMap: Record<string, ViewStyle> = {
-      primary: styles.buttonPrimary,
-      secondary: styles.buttonSecondary,
-      outline: styles.buttonOutline,
-      ghost: styles.buttonGhost,
-    };
-    return variantMap[variant] || {};
-  };
-
-  const getButtonSizeStyle = (size: string): ViewStyle => {
-    const sizeMap: Record<string, ViewStyle> = {
-      small: styles.buttonSmall,
-      medium: styles.buttonMedium,
-      large: styles.buttonLarge,
-    };
-    return sizeMap[size] || {};
-  };
-
-  const getButtonTextVariantStyle = (variant: string): TextStyle => {
-    const variantMap: Record<string, TextStyle> = {
-      primary: styles.buttonTextPrimary,
-      secondary: styles.buttonTextSecondary,
-      outline: styles.buttonTextOutline,
-      ghost: styles.buttonTextGhost,
-    };
-    return variantMap[variant] || {};
-  };
-
-  const getButtonTextSizeStyle = (size: string): TextStyle => {
-    const sizeMap: Record<string, TextStyle> = {
-      small: styles.buttonTextSmall,
-      medium: styles.buttonTextMedium,
-      large: styles.buttonTextLarge,
-    };
-    return sizeMap[size] || {};
-  };
-
-  const buttonViewStyles: ViewStyle[] = [
+  const buttonStyles = [
     styles.button,
-    getButtonVariantStyle(variant),
-    getButtonSizeStyle(size),
-    disabled ? styles.buttonDisabled : {},
+    styles[`button_${variant}`],
+    styles[`button_${size}`],
+    fullWidth && styles.buttonFullWidth,
+    (disabled || loading) && styles.buttonDisabled,
+    style,
   ];
 
-  const textStyles: TextStyle[] = [
+  const textStyles = [
     styles.buttonText,
-    getButtonTextVariantStyle(variant),
-    getButtonTextSizeStyle(size),
-    disabled ? styles.buttonTextDisabled : {},
+    styles[`buttonText_${variant}`],
+    styles[`buttonText_${size}`],
+    (disabled || loading) && styles.buttonTextDisabled,
   ];
 
-  // Combine external style with button view styles
-  const finalButtonStyle: ViewStyle[] = style 
-    ? [...buttonViewStyles, style as ViewStyle] 
-    : buttonViewStyles;
+  const renderIcon = () => {
+    if (loading) {
+      return <ActivityIndicator size="small" color={getIconColor()} />;
+    }
+    if (icon) {
+      return <Ionicons name={icon as any} size={getIconSize()} color={getIconColor()} />;
+    }
+    return null;
+  };
 
-  const content = (
-    <View style={styles.buttonContent}>
-      {loading ? (
-        <ActivityIndicator size="small" color={variant === 'outline' ? COLORS.primary : COLORS.white} />
-      ) : (
-        <>
-          {icon && iconPosition === 'left' && (
-            <Ionicons 
-              name={icon} 
-              size={size === 'small' ? 16 : size === 'large' ? 24 : 20} 
-              color={variant === 'outline' ? COLORS.primary : COLORS.white} 
-              style={styles.buttonIconLeft}
-            />
-          )}
-          <Text style={textStyles}>{title}</Text>
-          {icon && iconPosition === 'right' && (
-            <Ionicons 
-              name={icon} 
-              size={size === 'small' ? 16 : size === 'large' ? 24 : 20} 
-              color={variant === 'outline' ? COLORS.primary : COLORS.white} 
-              style={styles.buttonIconRight}
-            />
-          )}
-        </>
-      )}
-    </View>
-  );
+  const getIconColor = () => {
+    if (disabled || loading) return COLORS.gray400;
+    switch (variant) {
+      case 'primary':
+      case 'danger':
+        return COLORS.white;
+      case 'secondary':
+        return COLORS.white;
+      case 'outline':
+        return COLORS.primary;
+      case 'ghost':
+        return COLORS.primary;
+      default:
+        return COLORS.white;
+    }
+  };
 
-  if (gradient && variant === 'primary' && !disabled) {
-    const gradientViewStyle: ViewStyle = StyleSheet.flatten(buttonViewStyles);
-
-    return (
-      <TouchableOpacity {...props} disabled={disabled || loading} style={style}>
-        <LinearGradient
-          colors={[COLORS.primary, COLORS.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[gradientViewStyle, { borderWidth: 0 }]}
-        >
-          {content}
-        </LinearGradient>
-      </TouchableOpacity>
-    );
-  }
+  const getIconSize = () => {
+    switch (size) {
+      case 'sm': return 16;
+      case 'md': return 20;
+      case 'lg': return 24;
+      default: return 20;
+    }
+  };
 
   return (
-    <TouchableOpacity {...props} style={finalButtonStyle} disabled={disabled || loading}>
-      {content}
+    <TouchableOpacity
+      style={buttonStyles}
+      disabled={disabled || loading}
+      {...props}
+    >
+      <View style={styles.buttonContent}>
+        {icon && iconPosition === 'left' && renderIcon()}
+        {loading && !icon && renderIcon()}
+        <Text style={textStyles}>{title}</Text>
+        {icon && iconPosition === 'right' && renderIcon()}
+      </View>
     </TouchableOpacity>
   );
 };
 
-// Input Component
+// Interface para Input
 interface InputProps extends TextInputProps {
   label?: string;
   error?: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  iconPosition?: 'left' | 'right';
-  onIconPress?: () => void;
+  leftIcon?: string;
+  rightIcon?: string;
+  onRightIconPress?: () => void;
   required?: boolean;
 }
 
+// Componente Input
 export const Input: React.FC<InputProps> = ({
   label,
   error,
-  icon,
-  iconPosition = 'right',
-  onIconPress,
+  leftIcon,
+  rightIcon,
+  onRightIconPress,
   required = false,
   style,
   ...props
-}) => (
-  <View style={styles.inputContainer}>
-    {label && (
-      <Text style={styles.inputLabel}>
-        {label}
-        {required && <Text style={styles.inputRequired}> *</Text>}
-      </Text>
-    )}
-    <View style={[styles.inputWrapper, error && styles.inputWrapperError]}>
-      {icon && iconPosition === 'left' && (
-        <TouchableOpacity onPress={onIconPress} style={styles.inputIconLeft}>
-          <Ionicons name={icon} size={20} color={COLORS.gray500} />
-        </TouchableOpacity>
-      )}
-      <TextInput
-        style={[
-          styles.input,
-          icon && iconPosition === 'left' && styles.inputWithIconLeft,
-          icon && iconPosition === 'right' && styles.inputWithIconRight,
-          style,
-        ]}
-        placeholderTextColor={COLORS.gray400}
-        {...props}
-      />
-      {icon && iconPosition === 'right' && (
-        <TouchableOpacity onPress={onIconPress} style={styles.inputIconRight}>
-          <Ionicons name={icon} size={20} color={COLORS.gray500} />
-        </TouchableOpacity>
-      )}
-    </View>
-    {error && <Text style={styles.inputError}>{error}</Text>}
-  </View>
-);
+}) => {
+  const hasError = !!error;
 
-// Card Component
+  return (
+    <View style={styles.inputContainer}>
+      {label && (
+        <Text style={styles.inputLabel}>
+          {label}
+          {required && <Text style={styles.inputRequired}> *</Text>}
+        </Text>
+      )}
+      <View style={[
+        styles.inputWrapper,
+        hasError && styles.inputWrapperError,
+        style,
+      ]}>
+        {leftIcon && (
+          <Ionicons 
+            name={leftIcon as any} 
+            size={20} 
+            color={hasError ? COLORS.error : COLORS.gray400} 
+            style={styles.inputLeftIcon}
+          />
+        )}
+        <TextInput
+          style={[
+            styles.input,
+            leftIcon && styles.inputWithLeftIcon,
+            rightIcon && styles.inputWithRightIcon,
+          ]}
+          placeholderTextColor={COLORS.gray400}
+          {...props}
+        />
+        {rightIcon && (
+          <TouchableOpacity onPress={onRightIconPress} style={styles.inputRightIcon}>
+            <Ionicons 
+              name={rightIcon as any} 
+              size={20} 
+              color={hasError ? COLORS.error : COLORS.gray400} 
+            />
+          </TouchableOpacity>
+        )}
+      </View>
+      {error && <Text style={styles.inputError}>{error}</Text>}
+    </View>
+  );
+};
+
+// Interface para Card
 interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
-  padding?: keyof typeof SPACING;
+  padding?: boolean;
   shadow?: boolean;
 }
 
-export const Card: React.FC<CardProps> = ({ 
-  children, 
-  style, 
-  padding = 'md',
-  shadow = true 
-}) => (
-  <View style={[
-    styles.card,
-    { padding: SPACING[padding] },
-    shadow && SHADOWS.md,
-    style
-  ]}>
-    {children}
-  </View>
-);
-
-// Empty State Component
-interface EmptyStateProps {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  description?: string;
-  actionText?: string;
-  onAction?: () => void;
-}
-
-export const EmptyState: React.FC<EmptyStateProps> = ({
-  icon,
-  title,
-  description,
-  actionText,
-  onAction,
-}) => (
-  <View style={styles.emptyState}>
-    <View style={styles.emptyStateIcon}>
-      <Ionicons name={icon} size={64} color={COLORS.gray400} />
-    </View>
-    <Text style={styles.emptyStateTitle}>{title}</Text>
-    {description && (
-      <Text style={styles.emptyStateDescription}>{description}</Text>
-    )}
-    {actionText && onAction && (
-      <Button
-        title={actionText}
-        onPress={onAction}
-        variant="outline"
-        style={styles.emptyStateButton}
-      />
-    )}
-  </View>
-);
-
-// Status Badge Component
-interface StatusBadgeProps {
-  status: 'success' | 'warning' | 'error' | 'info';
-  text: string;
-  size?: 'small' | 'medium';
-}
-
-export const StatusBadge: React.FC<StatusBadgeProps> = ({
-  status,
-  text,
-  size = 'medium',
+// Componente Card
+export const Card: React.FC<CardProps> = ({
+  children,
+  style,
+  padding = true,
+  shadow = true,
 }) => {
-  const badgeColors = {
-    success: { bg: COLORS.successLight, text: COLORS.successDark },
-    warning: { bg: COLORS.warningLight, text: COLORS.warningDark },
-    error: { bg: COLORS.errorLight, text: COLORS.errorDark },
-    info: { bg: COLORS.infoLight, text: COLORS.infoDark },
-  };
-
-  // Helper functions to get styles safely
-  const getStatusBadgeSizeStyle = (size: string): ViewStyle => {
-    const sizeMap: Record<string, ViewStyle> = {
-      small: styles.statusBadgeSmall,
-      medium: styles.statusBadgeMedium,
-    };
-    return sizeMap[size] || {};
-  };
-
-  const getStatusBadgeTextSizeStyle = (size: string): TextStyle => {
-    const sizeMap: Record<string, TextStyle> = {
-      small: styles.statusBadgeTextSmall,
-      medium: styles.statusBadgeTextMedium,
-    };
-    return sizeMap[size] || {};
-  };
-
   return (
     <View style={[
-      styles.statusBadge,
-      getStatusBadgeSizeStyle(size),
-      { backgroundColor: badgeColors[status].bg }
+      styles.card,
+      padding && styles.cardPadding,
+      shadow && SHADOWS.md,
+      style,
+    ]}>
+      {children}
+    </View>
+  );
+};
+
+// Interface para Loading
+interface LoadingProps {
+  text?: string;
+  size?: 'small' | 'large';
+  color?: string;
+}
+
+// Componente Loading
+export const Loading: React.FC<LoadingProps> = ({
+  text,
+  size = 'large',
+  color = COLORS.primary,
+}) => {
+  return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator size={size} color={color} />
+      {text && <Text style={styles.loadingText}>{text}</Text>}
+    </View>
+  );
+};
+
+// Interface para Badge
+interface BadgeProps {
+  text: string;
+  variant?: 'success' | 'warning' | 'error' | 'info' | 'neutral';
+  size?: 'sm' | 'md';
+}
+
+// Componente Badge
+export const Badge: React.FC<BadgeProps> = ({
+  text,
+  variant = 'neutral',
+  size = 'md',
+}) => {
+  return (
+    <View style={[
+      styles.badge,
+      styles[`badge_${variant}`],
+      styles[`badge_${size}`],
     ]}>
       <Text style={[
-        styles.statusBadgeText,
-        getStatusBadgeTextSizeStyle(size),
-        { color: badgeColors[status].text }
+        styles.badgeText,
+        styles[`badgeText_${variant}`],
+        styles[`badgeText_${size}`],
       ]}>
         {text}
       </Text>
@@ -331,119 +257,210 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   );
 };
 
-// Divider Component
-interface DividerProps {
-  color?: string;
-  thickness?: number;
-  style?: ViewStyle;
+// Interface para Alert customizado
+interface AlertProps {
+  visible: boolean;
+  title: string;
+  message?: string;
+  onConfirm: () => void;
+  onCancel?: () => void;
+  confirmText?: string;
+  cancelText?: string;
+  type?: 'info' | 'warning' | 'error' | 'success';
 }
 
-export const Divider: React.FC<DividerProps> = ({
-  color = COLORS.gray200,
-  thickness = 1,
-  style,
-}) => (
-  <View style={[{ height: thickness, backgroundColor: color }, style]} />
-);
+// Componente Alert customizado
+export const CustomAlert: React.FC<AlertProps> = ({
+  visible,
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  confirmText = 'OK',
+  cancelText = 'Cancelar',
+  type = 'info',
+}) => {
+  const getIconName = () => {
+    switch (type) {
+      case 'success': return 'checkmark-circle';
+      case 'warning': return 'warning';
+      case 'error': return 'close-circle';
+      default: return 'information-circle';
+    }
+  };
 
+  const getIconColor = () => {
+    switch (type) {
+      case 'success': return COLORS.success;
+      case 'warning': return COLORS.warning;
+      case 'error': return COLORS.error;
+      default: return COLORS.info;
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onCancel}
+    >
+      <View style={styles.alertOverlay}>
+        <View style={styles.alertContainer}>
+          <View style={styles.alertHeader}>
+            <Ionicons 
+              name={getIconName() as any} 
+              size={32} 
+              color={getIconColor()} 
+            />
+            <Text style={styles.alertTitle}>{title}</Text>
+          </View>
+          
+          {message && (
+            <Text style={styles.alertMessage}>{message}</Text>
+          )}
+          
+          <View style={styles.alertButtons}>
+            {onCancel && (
+              <Button
+                title={cancelText}
+                variant="outline"
+                onPress={onCancel}
+                style={styles.alertButton}
+              />
+            )}
+            <Button
+              title={confirmText}
+              onPress={onConfirm}
+              style={styles.alertButton}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Interface para Empty State
+interface EmptyStateProps {
+  icon: string;
+  title: string;
+  description?: string;
+  actionText?: string;
+  onAction?: () => void;
+}
+
+// Componente Empty State
+export const EmptyState: React.FC<EmptyStateProps> = ({
+  icon,
+  title,
+  description,
+  actionText,
+  onAction,
+}) => {
+  return (
+    <View style={styles.emptyState}>
+      <View style={styles.emptyStateIcon}>
+        <Ionicons name={icon as any} size={64} color={COLORS.gray400} />
+      </View>
+      <Text style={styles.emptyStateTitle}>{title}</Text>
+      {description && (
+        <Text style={styles.emptyStateDescription}>{description}</Text>
+      )}
+      {actionText && onAction && (
+        <Button
+          title={actionText}
+          onPress={onAction}
+          style={styles.emptyStateButton}
+        />
+      )}
+    </View>
+  );
+};
+
+// Estilos
 const styles = StyleSheet.create({
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.lg,
-  },
-  loadingText: {
-    marginTop: SPACING.md,
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
-    fontFamily: FONTS.regular,
-  },
-
-  // Button
+  // Button styles
   button: {
     borderRadius: BORDER_RADIUS.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  buttonPrimary: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  buttonSecondary: {
-    backgroundColor: COLORS.secondary,
-    borderColor: COLORS.secondary,
-  },
-  buttonOutline: {
-    backgroundColor: 'transparent',
-    borderColor: COLORS.primary,
-  },
-  buttonGhost: {
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-  },
-  buttonSmall: {
     paddingHorizontal: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  button_primary: {
+    backgroundColor: COLORS.primary,
+  },
+  button_secondary: {
+    backgroundColor: COLORS.secondary,
+  },
+  button_outline: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  button_ghost: {
+    backgroundColor: 'transparent',
+  },
+  button_danger: {
+    backgroundColor: COLORS.error,
+  },
+  button_sm: {
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+  },
+  button_md: {
     paddingVertical: SPACING.sm,
-    minHeight: 36,
+    paddingHorizontal: SPACING.md,
   },
-  buttonMedium: {
-    paddingHorizontal: SPACING.lg,
+  button_lg: {
     paddingVertical: SPACING.md,
-    minHeight: 48,
+    paddingHorizontal: SPACING.lg,
   },
-  buttonLarge: {
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.lg,
-    minHeight: 56,
+  buttonFullWidth: {
+    width: '100%',
   },
   buttonDisabled: {
-    backgroundColor: COLORS.gray200,
-    borderColor: COLORS.gray200,
+    opacity: 0.5,
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: SPACING.xs,
   },
   buttonText: {
     fontFamily: FONTS.medium,
     textAlign: 'center',
   },
-  buttonTextPrimary: {
+  buttonText_primary: {
     color: COLORS.white,
   },
-  buttonTextSecondary: {
+  buttonText_secondary: {
     color: COLORS.white,
   },
-  buttonTextOutline: {
+  buttonText_outline: {
     color: COLORS.primary,
   },
-  buttonTextGhost: {
+  buttonText_ghost: {
     color: COLORS.primary,
   },
-  buttonTextSmall: {
+  buttonText_danger: {
+    color: COLORS.white,
+  },
+  buttonText_sm: {
     fontSize: FONT_SIZES.sm,
   },
-  buttonTextMedium: {
+  buttonText_md: {
     fontSize: FONT_SIZES.md,
   },
-  buttonTextLarge: {
+  buttonText_lg: {
     fontSize: FONT_SIZES.lg,
   },
   buttonTextDisabled: {
     color: COLORS.gray400,
   },
-  buttonIconLeft: {
-    marginRight: SPACING.sm,
-  },
-  buttonIconRight: {
-    marginLeft: SPACING.sm,
-  },
 
-  // Input
+  // Input styles
   inputContainer: {
     marginBottom: SPACING.md,
   },
@@ -460,7 +477,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.gray300,
+    borderColor: COLORS.border,
     borderRadius: BORDER_RADIUS.md,
     backgroundColor: COLORS.white,
   },
@@ -469,40 +486,156 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
     color: COLORS.textPrimary,
-    minHeight: 48,
   },
-  inputWithIconLeft: {
-    paddingLeft: SPACING.sm,
+  inputWithLeftIcon: {
+    paddingLeft: SPACING.xs,
   },
-  inputWithIconRight: {
-    paddingRight: SPACING.sm,
+  inputWithRightIcon: {
+    paddingRight: SPACING.xs,
   },
-  inputIconLeft: {
-    paddingLeft: SPACING.md,
+  inputLeftIcon: {
+    marginLeft: SPACING.sm,
   },
-  inputIconRight: {
-    paddingRight: SPACING.md,
+  inputRightIcon: {
+    paddingHorizontal: SPACING.sm,
   },
   inputError: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
     color: COLORS.error,
     marginTop: SPACING.xs,
     fontFamily: FONTS.regular,
   },
 
-  // Card
+  // Card styles
   card: {
     backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.lg,
     marginBottom: SPACING.md,
   },
+  cardPadding: {
+    padding: SPACING.md,
+  },
 
-  // Empty State
+  // Loading styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  loadingText: {
+    marginTop: SPACING.md,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
+    fontFamily: FONTS.regular,
+    textAlign: 'center',
+  },
+
+  // Badge styles
+  badge: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.full,
+    alignSelf: 'flex-start',
+  },
+  badge_success: {
+    backgroundColor: COLORS.success10,
+  },
+  badge_warning: {
+    backgroundColor: COLORS.warning10,
+  },
+  badge_error: {
+    backgroundColor: COLORS.error10,
+  },
+  badge_info: {
+    backgroundColor: COLORS.primary10,
+  },
+  badge_neutral: {
+    backgroundColor: COLORS.gray100,
+  },
+  badge_sm: {
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+  },
+  badge_md: {
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  badgeText: {
+    fontFamily: FONTS.medium,
+    textAlign: 'center',
+  },
+  badgeText_success: {
+    color: COLORS.success,
+  },
+  badgeText_warning: {
+    color: COLORS.warning,
+  },
+  badgeText_error: {
+    color: COLORS.error,
+  },
+  badgeText_info: {
+    color: COLORS.primary,
+  },
+  badgeText_neutral: {
+    color: COLORS.gray600,
+  },
+  badgeText_sm: {
+    fontSize: FONT_SIZES.xs,
+  },
+  badgeText_md: {
+    fontSize: FONT_SIZES.sm,
+  },
+
+  // Alert styles
+  alertOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+  alertContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    width: '100%',
+    maxWidth: 400,
+    ...SHADOWS.lg,
+  },
+  alertHeader: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  alertTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+  },
+  alertMessage: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+    lineHeight: 24,
+  },
+  alertButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  alertButton: {
+    flex: 1,
+  },
+
+  // Empty State styles
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -513,7 +646,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   emptyStateTitle: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     textAlign: 'center',
@@ -524,36 +657,10 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
     marginBottom: SPACING.lg,
+    lineHeight: 24,
   },
   emptyStateButton: {
     minWidth: 200,
-  },
-
-  // Status Badge
-  statusBadge: {
-    borderRadius: BORDER_RADIUS.full,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-    alignSelf: 'flex-start',
-  },
-  statusBadgeSmall: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 2,
-  },
-  statusBadgeMedium: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs,
-  },
-  statusBadgeText: {
-    fontFamily: FONTS.medium,
-    textAlign: 'center',
-  },
-  statusBadgeTextSmall: {
-    fontSize: FONT_SIZES.xs,
-  },
-  statusBadgeTextMedium: {
-    fontSize: FONT_SIZES.sm,
   },
 });

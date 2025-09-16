@@ -1,97 +1,69 @@
-import Constants from 'expo-constants';
-
-// API Configuration
-export const API_CONFIG = {
-  BASE_URL: __DEV__ 
-    ? 'http://10.0.2.2:5000/api' // Para Android Emulator
-    : 'https://your-production-api.com/api', // Produção
-  TIMEOUT: 10000,
-};
-
-// Para debug - você pode adicionar isso temporariamente
-console.log('API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
-
-// Colors
+// Cores do app
 export const COLORS = {
-  // Primary colors
-  primary: '#667eea',
-  primaryDark: '#5a6fd8',
-  primaryLight: '#8da2f5',
+  // Cores principais
+  primary: '#4CAF50',
+  primaryDark: '#45a049',
+  primaryLight: '#81C784',
+  secondary: '#2196F3',
+  secondaryDark: '#1976D2',
   
-  // Secondary colors
-  secondary: '#764ba2',
-  secondaryDark: '#6a4190',
-  secondaryLight: '#8a5cb4',
+  // Estados
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: '#3B82F6',
   
-  // Accent colors
-  accent: '#f093fb',
-  accentDark: '#ed7ef0',
-  accentLight: '#f5b9fd',
-  
-  // Semantic colors
-  success: '#4CAF50',
-  successLight: '#81C784',
-  successDark: '#388E3C',
-  
-  error: '#F44336',
-  errorLight: '#EF5350',
-  errorDark: '#D32F2F',
-  
-  warning: '#FF9800',
-  warningLight: '#FFB74D',
-  warningDark: '#F57C00',
-  
-  info: '#2196F3',
-  infoLight: '#64B5F6',
-  infoDark: '#1976D2',
-  
-  // Neutral colors
+  // Tons de cinza
   white: '#FFFFFF',
   black: '#000000',
+  gray50: '#F9FAFB',
+  gray100: '#F3F4F6',
+  gray200: '#E5E7EB',
+  gray300: '#D1D5DB',
+  gray400: '#9CA3AF',
+  gray500: '#6B7280',
+  gray600: '#4B5563',
+  gray700: '#374151',
+  gray800: '#1F2937',
+  gray900: '#111827',
   
-  // Gray scale
-  gray50: '#FAFAFA',
-  gray100: '#F5F5F5',
-  gray200: '#EEEEEE',
-  gray300: '#E0E0E0',
-  gray400: '#BDBDBD',
-  gray500: '#9E9E9E',
-  gray600: '#757575',
-  gray700: '#616161',
-  gray800: '#424242',
-  gray900: '#212121',
-  
-  // Background colors
-  background: '#F8F9FA',
+  // Fundos
+  background: '#F8FAFC',
   surface: '#FFFFFF',
+  overlay: 'rgba(0, 0, 0, 0.5)',
   
-  // Text colors
-  textPrimary: '#212121',
-  textSecondary: '#757575',
-  textHint: '#BDBDBD',
-  textOnPrimary: '#FFFFFF',
-  textOnSecondary: '#FFFFFF',
+  // Transações
+  income: '#10B981',
+  expense: '#EF4444',
   
-  // Income/Expense colors
-  income: '#4CAF50',
-  expense: '#F44336',
+  // Bordas
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
   
-  // Chart colors
-  chartColors: [
-    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0',
-    '#9966FF', '#FF9F40', '#FF6384', '#C9CBCF',
-    '#4BC0C0', '#FF6384', '#36A2EB', '#FFCE56'
-  ],
+  // Textos
+  textPrimary: '#111827',
+  textSecondary: '#6B7280',
+  textTertiary: '#9CA3AF',
+  textWhite: '#FFFFFF',
+  
+  // Transparências
+  primary10: 'rgba(76, 175, 80, 0.1)',
+  primary20: 'rgba(76, 175, 80, 0.2)',
+  success10: 'rgba(16, 185, 129, 0.1)',
+  error10: 'rgba(239, 68, 68, 0.1)',
+  warning10: 'rgba(245, 158, 11, 0.1)',
 };
 
-// Typography
+// Fontes
 export const FONTS = {
+  light: 'System',
   regular: 'System',
   medium: 'System',
+  semiBold: 'System',
   bold: 'System',
-  light: 'System',
 };
 
+// Tamanhos de fonte
 export const FONT_SIZES = {
   xs: 12,
   sm: 14,
@@ -99,11 +71,13 @@ export const FONT_SIZES = {
   lg: 18,
   xl: 20,
   '2xl': 24,
-  '3xl': 30,
-  '4xl': 36,
+  '3xl': 28,
+  '4xl': 32,
+  '5xl': 36,
+  '6xl': 42,
 };
 
-// Spacing
+// Espaçamentos
 export const SPACING = {
   xs: 4,
   sm: 8,
@@ -114,169 +88,213 @@ export const SPACING = {
   '3xl': 64,
 };
 
-// Border radius
+// Raios de borda
 export const BORDER_RADIUS = {
+  none: 0,
   sm: 4,
   md: 8,
   lg: 12,
   xl: 16,
-  '2xl': 24,
+  '2xl': 20,
+  '3xl': 24,
   full: 9999,
 };
 
-// Shadows
+// Sombras
 export const SHADOWS = {
   sm: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.18,
-    shadowRadius: 1.0,
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
     elevation: 1,
   },
   md: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.23,
-    shadowRadius: 2.62,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   lg: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.30,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   xl: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.37,
-    shadowRadius: 7.49,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
 };
 
-// Transaction types
-export const TRANSACTION_TYPES = {
-  INCOME: 'income' as const,
-  EXPENSE: 'expense' as const,
+// Configurações da API
+export const API_CONFIG = {
+  BASE_URL: __DEV__ ? 'http://localhost:3000' : 'https://your-api.com',
+  TIMEOUT: 10000,
+  RETRY_ATTEMPTS: 3,
 };
 
-// Goal status
-export const GOAL_STATUS = {
-  ACTIVE: 'active' as const,
-  COMPLETED: 'completed' as const,
-  PAUSED: 'paused' as const,
-};
-
-// Screen dimensions
-export const SCREEN_WIDTH = Constants.screenWidth || 375;
-export const SCREEN_HEIGHT = Constants.screenHeight || 812;
-
-// Common icons
-export const ICONS = {
-  // Navigation icons
-  home: 'home',
-  transactions: 'swap-horizontal',
-  goals: 'target',
-  budgets: 'wallet',
-  reports: 'bar-chart',
-  profile: 'person',
-  
-  // Action icons
-  add: 'add',
-  edit: 'create',
-  delete: 'trash',
-  save: 'checkmark',
-  cancel: 'close',
-  back: 'arrow-back',
-  forward: 'arrow-forward',
-  
-  // Common icons
-  search: 'search',
-  filter: 'filter',
-  menu: 'menu',
-  settings: 'settings',
-  help: 'help-circle',
-  info: 'information-circle',
-  warning: 'warning',
-  error: 'alert-circle',
-  success: 'checkmark-circle',
-  
-  // Financial icons
-  income: 'trending-up',
-  expense: 'trending-down',
-  balance: 'scale',
-  category: 'pricetag',
-  recurring: 'refresh',
-  
-  // Date/Time icons
-  calendar: 'calendar',
-  time: 'time',
-  
-  // UI icons
-  eye: 'eye',
-  eyeOff: 'eye-off',
-  chevronDown: 'chevron-down',
-  chevronUp: 'chevron-up',
-  chevronRight: 'chevron-forward',
-  chevronLeft: 'chevron-back',
-};
-
-// Storage keys
-export const STORAGE_KEYS = {
-  AUTH_TOKEN: '@finance_app:auth_token',
-  USER_DATA: '@finance_app:user_data',
-  SETTINGS: '@finance_app:settings',
-  ONBOARDING: '@finance_app:onboarding_completed',
-};
-
-// Error messages
-export const ERROR_MESSAGES = {
-  NETWORK_ERROR: 'Erro de conexão. Verifique sua internet.',
-  SERVER_ERROR: 'Erro interno do servidor. Tente novamente.',
-  UNAUTHORIZED: 'Sessão expirada. Faça login novamente.',
-  VALIDATION_ERROR: 'Dados inválidos. Verifique os campos.',
-  UNKNOWN_ERROR: 'Erro desconhecido. Tente novamente.',
-};
-
-// Success messages
-export const SUCCESS_MESSAGES = {
-  LOGIN: 'Login realizado com sucesso!',
-  REGISTER: 'Conta criada com sucesso!',
-  LOGOUT: 'Logout realizado com sucesso!',
-  TRANSACTION_CREATED: 'Transação criada com sucesso!',
-  TRANSACTION_UPDATED: 'Transação atualizada com sucesso!',
-  TRANSACTION_DELETED: 'Transação deletada com sucesso!',
-  GOAL_CREATED: 'Meta criada com sucesso!',
-  GOAL_UPDATED: 'Meta atualizada com sucesso!',
-  GOAL_DELETED: 'Meta deletada com sucesso!',
-  BUDGET_CREATED: 'Orçamento criado com sucesso!',
-  BUDGET_UPDATED: 'Orçamento atualizado com sucesso!',
-  BUDGET_DELETED: 'Orçamento deletado com sucesso!',
-};
-
-// Validation rules
+// Configurações de validação
 export const VALIDATION_RULES = {
-  EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-  PASSWORD_MIN_LENGTH: 6,
-  NAME_MIN_LENGTH: 2,
-  AMOUNT_MIN: 0.01,
-  AMOUNT_MAX: 9999999.99,
+  email: {
+    pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+    message: 'Digite um email válido',
+  },
+  password: {
+    minLength: 6,
+    pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+    message: 'Senha deve ter pelo menos 6 caracteres com letra maiúscula, minúscula e número',
+  },
+  amount: {
+    min: 0.01,
+    max: 999999999,
+    message: 'Valor deve estar entre R$ 0,01 e R$ 999.999.999,00',
+  },
+  name: {
+    minLength: 2,
+    maxLength: 50,
+    message: 'Nome deve ter entre 2 e 50 caracteres',
+  },
 };
 
-// Date formats
+// Configurações de paginação
+export const PAGINATION = {
+  DEFAULT_LIMIT: 20,
+  MAX_LIMIT: 100,
+};
+
+// Formatos de data
 export const DATE_FORMATS = {
-  DISPLAY: 'DD/MM/YYYY',
-  DISPLAY_WITH_TIME: 'DD/MM/YYYY HH:mm',
-  API: 'YYYY-MM-DD',
-  API_WITH_TIME: 'YYYY-MM-DDTHH:mm:ss.sssZ',
+  display: 'DD/MM/YYYY',
+  displayWithTime: 'DD/MM/YYYY HH:mm',
+  api: 'YYYY-MM-DD',
+  apiWithTime: 'YYYY-MM-DDTHH:mm:ss.SSSZ',
 };
 
-// Default values
-export const DEFAULT_VALUES = {
-  PAGINATION_LIMIT: 20,
-  CHART_COLORS: COLORS.chartColors,
-  CURRENCY_SYMBOL: 'R$',
-  CURRENCY_LOCALE: 'pt-BR',
+// Configurações de moeda
+export const CURRENCY = {
+  code: 'BRL',
+  symbol: 'R$',
+  precision: 2,
+  separator: ',',
+  delimiter: '.',
+};
+
+// Configurações de notificação
+export const NOTIFICATION_CONFIG = {
+  AUTO_HIDE_DURATION: 3000,
+  MAX_NOTIFICATIONS: 5,
+};
+
+// Categorias padrão
+export const DEFAULT_CATEGORIES = {
+  expense: [
+    { name: 'Alimentação', icon: '🍔', color: '#F59E0B' },
+    { name: 'Transporte', icon: '🚗', color: '#3B82F6' },
+    { name: 'Saúde', icon: '🏥', color: '#EF4444' },
+    { name: 'Educação', icon: '📚', color: '#8B5CF6' },
+    { name: 'Lazer', icon: '🎮', color: '#F97316' },
+    { name: 'Compras', icon: '🛍️', color: '#EC4899' },
+    { name: 'Casa', icon: '🏠', color: '#10B981' },
+    { name: 'Outros', icon: '💰', color: '#6B7280' },
+  ],
+  income: [
+    { name: 'Salário', icon: '💼', color: '#10B981' },
+    { name: 'Freelance', icon: '💻', color: '#3B82F6' },
+    { name: 'Investimentos', icon: '📈', color: '#8B5CF6' },
+    { name: 'Outros', icon: '💰', color: '#6B7280' },
+  ],
+};
+
+// Tipos de meta
+export const GOAL_TYPES = {
+  EMERGENCY_FUND: 'emergency_fund',
+  VACATION: 'vacation',
+  HOUSE: 'house',
+  CAR: 'car',
+  EDUCATION: 'education',
+  RETIREMENT: 'retirement',
+  OTHER: 'other',
+};
+
+// Status de meta
+export const GOAL_STATUS = {
+  ACTIVE: 'active',
+  COMPLETED: 'completed',
+  PAUSED: 'paused',
+};
+
+// Períodos para relatórios
+export const REPORT_PERIODS = {
+  WEEK: 'week',
+  MONTH: 'month',
+  QUARTER: 'quarter',
+  YEAR: 'year',
+  CUSTOM: 'custom',
+};
+
+// Tipos de gráfico
+export const CHART_TYPES = {
+  LINE: 'line',
+  BAR: 'bar',
+  PIE: 'pie',
+  DONUT: 'donut',
+};
+
+// Configurações de performance
+export const PERFORMANCE = {
+  IMAGE_CACHE_SIZE: 100,
+  LIST_INITIAL_BATCH_SIZE: 10,
+  LIST_WINDOW_SIZE: 21,
+  LIST_UPDATE_CELL_BATCH_SIZE: 5,
+};
+
+// URLs úteis
+export const URLS = {
+  PRIVACY_POLICY: 'https://your-app.com/privacy',
+  TERMS_OF_SERVICE: 'https://your-app.com/terms',
+  SUPPORT: 'mailto:support@your-app.com',
+  WEBSITE: 'https://your-app.com',
+};
+
+// Configurações de animação
+export const ANIMATION_CONFIG = {
+  DURATION: {
+    SHORT: 200,
+    MEDIUM: 300,
+    LONG: 500,
+  },
+  EASING: {
+    EASE_IN_OUT: 'ease-in-out',
+    EASE_OUT: 'ease-out',
+    SPRING: 'spring',
+  },
+};
+
+export default {
+  COLORS,
+  FONTS,
+  FONT_SIZES,
+  SPACING,
+  BORDER_RADIUS,
+  SHADOWS,
+  API_CONFIG,
+  VALIDATION_RULES,
+  PAGINATION,
+  DATE_FORMATS,
+  CURRENCY,
+  NOTIFICATION_CONFIG,
+  DEFAULT_CATEGORIES,
+  GOAL_TYPES,
+  GOAL_STATUS,
+  REPORT_PERIODS,
+  CHART_TYPES,
+  PERFORMANCE,
+  URLS,
+  ANIMATION_CONFIG,
 };

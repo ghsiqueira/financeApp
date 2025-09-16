@@ -1,143 +1,350 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { User, AuthResponse } from '../types';
-import { STORAGE_KEYS } from '../constants';
-import apiService from '../services/api';
+import { AuthService } from '../services/AuthService';
+import { User, LoginFormData, RegisterFormData } from '../types';
 
-interface AuthContextData {
+// Estados do Auth
+interface AuthState {
   user: User | null;
-  loading: boolean;
+  token: string | null;
+  isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  error: string | null;
+}
+
+// Ações do Auth
+type AuthAction =
+  | { type: 'AUTH_START' }
+  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string } }
+  | { type: 'AUTH_FAILURE'; payload: string }
+  | { type: 'AUTH_LOGOUT' }
+  | { type: 'AUTH_CLEAR_ERROR' }
+  | { type: 'AUTH_INIT' }
+  | { type: 'AUTH_UPDATE_USER'; payload: User };
+
+// Estado inicial
+const initialState: AuthState = {
+  user: null,
+  token: null,
+  isLoading: true,
+  isAuthenticated: false,
+  error: null,
+};
+
+// Reducer
+const authReducer = (state: AuthState, action: AuthAction): AuthState => {
+  switch (action.type) {
+    case 'AUTH_START':
+      return {
+        ...state,
+        isLoading: true,
+        error: null,
+      };
+
+    case 'AUTH_SUCCESS':
+      return {
+        ...state,
+        user: action.payload.user,
+        token: action.payload.token,
+        isLoading: false,
+        isAuthenticated: true,
+        error: null,
+      };
+
+    case 'AUTH_FAILURE':
+      return {
+        ...state,
+        user: null,
+        token: null,
+        isLoading: false,
+        isAuthenticated: false,
+        error: action.payload,
+      };
+
+    case 'AUTH_LOGOUT':
+      return {
+        ...state,
+        user: null,
+        token: null,
+        isLoading: false,
+        isAuthenticated: false,
+        error: null,
+      };
+
+    case 'AUTH_CLEAR_ERROR':
+      return {
+        ...state,
+        error: null,
+      };
+
+    case 'AUTH_INIT':
+      return {
+        ...state,
+        isLoading: false,
+      };
+
+    case 'AUTH_UPDATE_USER':
+      return {
+        ...state,
+        user: action.payload,
+      };
+
+    default:
+      return state;
+  }
+};
+
+// Interface do Context
+interface AuthContextType extends AuthState {
+  login: (credentials: LoginFormData) => Promise<void>;
+  register: (userData: RegisterFormData) => Promise<void>;
   logout: () => Promise<void>;
-  updateUser: (userData: Partial<User>) => void;
+  forgotPassword: (email: string) => Promise<void>;
+  updateProfile: (userData: Partial<User>) => Promise<void>;
+  clearError: () => void;
 }
 
+// Context
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Hook para usar o context
+export const useAuth = (): AuthContextType => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth deve ser usado dentro de AuthProvider');
+  }
+  return context;
+};
+
+// Chaves do AsyncStorage
+const STORAGE_KEYS = {
+  TOKEN: '@FinanceApp:token',
+  USER: '@FinanceApp:user',
+};
+
+// Provider
 interface AuthProviderProps {
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
-// Exportar o AuthContext
-export const AuthContext = createContext<AuthContextData>({} as AuthContextData);
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [state, dispatch] = useReducer(authReducer, initialState);
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
+  // Inicializar auth ao carregar o app
   useEffect(() => {
-    loadStoredAuth();
+    initializeAuth();
   }, []);
 
-  const loadStoredAuth = async () => {
+  // Função para inicializar autenticação
+  const initializeAuth = async (): Promise<void> => {
     try {
-      const [token, userData] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN),
-        AsyncStorage.getItem(STORAGE_KEYS.USER_DATA),
+      const [storedToken, storedUser] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.TOKEN),
+        AsyncStorage.getItem(STORAGE_KEYS.USER),
       ]);
 
-      if (token && userData) {
-        setUser(JSON.parse(userData));
+      if (storedToken && storedUser) {
+        const user = JSON.parse(storedUser);
         
         // Verificar se o token ainda é válido
         try {
-          const response = await apiService.getProfile();
-          if (response.success && response.data) {
-            setUser(response.data);
-            await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.data));
+          const isValid = await AuthService.validateToken(storedToken);
+          if (isValid) {
+            dispatch({
+              type: 'AUTH_SUCCESS',
+              payload: { user, token: storedToken },
+            });
+          } else {
+            // Token inválido, limpar dados
+            await clearStoredData();
+            dispatch({ type: 'AUTH_INIT' });
           }
         } catch (error) {
-          // Token inválido, fazer logout
-          await logout();
+          // Erro na validação, limpar dados
+          await clearStoredData();
+          dispatch({ type: 'AUTH_INIT' });
+        }
+      } else {
+        dispatch({ type: 'AUTH_INIT' });
+      }
+    } catch (error) {
+      console.error('Erro ao inicializar auth:', error);
+      dispatch({ type: 'AUTH_INIT' });
+    }
+  };
+
+  // Função para limpar dados armazenados
+  const clearStoredData = async (): Promise<void> => {
+    try {
+      await Promise.all([
+        AsyncStorage.removeItem(STORAGE_KEYS.TOKEN),
+        AsyncStorage.removeItem(STORAGE_KEYS.USER),
+      ]);
+    } catch (error) {
+      console.error('Erro ao limpar dados:', error);
+    }
+  };
+
+  // Função para armazenar dados
+  const storeAuthData = async (user: User, token: string): Promise<void> => {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token),
+        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user)),
+      ]);
+    } catch (error) {
+      console.error('Erro ao armazenar dados:', error);
+      throw new Error('Erro ao salvar dados de autenticação');
+    }
+  };
+
+  // Login
+  const login = async (credentials: LoginFormData): Promise<void> => {
+    dispatch({ type: 'AUTH_START' });
+    
+    try {
+      const response = await AuthService.login(credentials);
+      
+      if (response.success) {
+        await storeAuthData(response.user, response.token);
+        dispatch({
+          type: 'AUTH_SUCCESS',
+          payload: { user: response.user, token: response.token },
+        });
+      } else {
+        dispatch({
+          type: 'AUTH_FAILURE',
+          payload: response.message || 'Erro no login',
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          'Erro de conexão. Tente novamente.';
+      
+      dispatch({
+        type: 'AUTH_FAILURE',
+        payload: errorMessage,
+      });
+    }
+  };
+
+  // Registro
+  const register = async (userData: RegisterFormData): Promise<void> => {
+    dispatch({ type: 'AUTH_START' });
+    
+    try {
+      const response = await AuthService.register(userData);
+      
+      if (response.success) {
+        await storeAuthData(response.user, response.token);
+        dispatch({
+          type: 'AUTH_SUCCESS',
+          payload: { user: response.user, token: response.token },
+        });
+      } else {
+        dispatch({
+          type: 'AUTH_FAILURE',
+          payload: response.message || 'Erro no registro',
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          'Erro de conexão. Tente novamente.';
+      
+      dispatch({
+        type: 'AUTH_FAILURE',
+        payload: errorMessage,
+      });
+    }
+  };
+
+  // Logout
+  const logout = async (): Promise<void> => {
+    try {
+      // Tentar fazer logout no servidor (opcional)
+      if (state.token) {
+        try {
+          await AuthService.logout();
+        } catch (error) {
+          // Ignorar erro do servidor no logout
+          console.warn('Erro no logout do servidor:', error);
         }
       }
+      
+      // Limpar dados locais
+      await clearStoredData();
+      dispatch({ type: 'AUTH_LOGOUT' });
     } catch (error) {
-      console.error('Erro ao carregar dados de autenticação:', error);
-      await logout();
-    } finally {
-      setLoading(false);
+      console.error('Erro no logout:', error);
+      // Mesmo com erro, fazer logout local
+      await clearStoredData();
+      dispatch({ type: 'AUTH_LOGOUT' });
     }
   };
 
-  const login = async (email: string, password: string) => {
+  // Esqueci a senha
+  const forgotPassword = async (email: string): Promise<void> => {
+    dispatch({ type: 'AUTH_START' });
+    
     try {
-      const response: AuthResponse = await apiService.login(email, password);
+      await AuthService.forgotPassword(email);
+      dispatch({ type: 'AUTH_INIT' });
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          'Erro ao enviar email de recuperação';
       
-      if (response.success && response.token && response.user) {
-        // Salvar token e dados do usuário
-        await Promise.all([
-          AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.token),
-          AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user)),
-        ]);
+      dispatch({
+        type: 'AUTH_FAILURE',
+        payload: errorMessage,
+      });
+    }
+  };
 
-        setUser(response.user);
+  // Atualizar perfil
+  const updateProfile = async (userData: Partial<User>): Promise<void> => {
+    try {
+      const response = await AuthService.updateProfile(userData);
+      
+      if (response.success) {
+        const updatedUser = { ...state.user!, ...response.user };
+        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+        dispatch({
+          type: 'AUTH_UPDATE_USER',
+          payload: updatedUser,
+        });
       } else {
-        throw new Error(response.message || 'Erro no login');
+        throw new Error(response.message || 'Erro ao atualizar perfil');
       }
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao fazer login');
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          'Erro ao atualizar perfil';
+      throw new Error(errorMessage);
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
-    try {
-      const response: AuthResponse = await apiService.register(name, email, password);
-      
-      if (response.success && response.token && response.user) {
-        // Salvar token e dados do usuário
-        await Promise.all([
-          AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, response.token),
-          AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(response.user)),
-        ]);
-
-        setUser(response.user);
-      } else {
-        throw new Error(response.message || 'Erro no registro');
-      }
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao criar conta');
-    }
+  // Limpar erro
+  const clearError = (): void => {
+    dispatch({ type: 'AUTH_CLEAR_ERROR' });
   };
 
-  const logout = async () => {
-    try {
-      await AsyncStorage.multiRemove([
-        STORAGE_KEYS.AUTH_TOKEN,
-        STORAGE_KEYS.USER_DATA,
-      ]);
-      setUser(null);
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-    }
-  };
-
-  const updateUser = (userData: Partial<User>) => {
-    if (user) {
-      const updatedUser = { ...user, ...userData };
-      setUser(updatedUser);
-      AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(updatedUser));
-    }
-  };
-
-  const value: AuthContextData = {
-    user,
-    loading,
-    isAuthenticated: !!user,
+  // Valor do context
+  const value: AuthContextType = {
+    ...state,
     login,
     register,
     logout,
-    updateUser,
+    forgotPassword,
+    updateProfile,
+    clearError,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  
-  if (!context) {
-    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
-  }
-  
-  return context;
-}
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};

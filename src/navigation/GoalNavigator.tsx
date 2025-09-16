@@ -1,17 +1,26 @@
+// src/navigation/GoalNavigator.tsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { GoalListScreen } from '../screens/goals/GoalListScreen';
-import { CreateGoalScreen } from '../screens/goals/CreateGoalScreen';
-import { EditGoalScreen } from '../screens/goals/EditGoalScreen';
-import { GoalDetailScreen } from '../screens/goals/GoalDetailScreen';
-import { GoalStackParamList } from './types';
+import { 
+  GoalListScreen,
+  CreateGoalScreen,
+  EditGoalScreen,
+  GoalDetailScreen 
+} from '../screens/PlaceholderScreens';
 import { COLORS, FONTS } from '../constants';
 
-const Stack = createNativeStackNavigator<GoalStackParamList>();
+export type GoalStackParamList = {
+  GoalList: undefined;
+  CreateGoal: undefined;
+  EditGoal: { goalId: string };
+  GoalDetails: { goalId: string };
+};
+
+const GoalStack = createNativeStackNavigator<GoalStackParamList>();
 
 export const GoalNavigator: React.FC = () => {
   return (
-    <Stack.Navigator
+    <GoalStack.Navigator
       screenOptions={{
         headerStyle: {
           backgroundColor: COLORS.primary,
@@ -22,26 +31,26 @@ export const GoalNavigator: React.FC = () => {
         },
       }}
     >
-      <Stack.Screen 
+      <GoalStack.Screen 
         name="GoalList" 
         component={GoalListScreen}
         options={{ title: 'Metas' }}
       />
-      <Stack.Screen 
+      <GoalStack.Screen 
         name="CreateGoal" 
         component={CreateGoalScreen}
         options={{ title: 'Nova Meta' }}
       />
-      <Stack.Screen 
+      <GoalStack.Screen 
         name="EditGoal" 
         component={EditGoalScreen}
         options={{ title: 'Editar Meta' }}
       />
-      <Stack.Screen 
-        name="GoalDetail" 
+      <GoalStack.Screen 
+        name="GoalDetails" 
         component={GoalDetailScreen}
         options={{ title: 'Detalhes da Meta' }}
       />
-    </Stack.Navigator>
+    </GoalStack.Navigator>
   );
 };
