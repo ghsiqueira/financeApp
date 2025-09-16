@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   header: {
-    paddingTop: SPACING['2xl'],
+    paddingTop: SPACING.xxl,
     paddingBottom: SPACING.xl,
     alignItems: 'center',
   },
@@ -244,7 +244,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   appName: {
-    fontSize: FONT_SIZES['3xl'],
+    fontSize: FONT_SIZES.xxxl, // Usar xxxl em vez de '3xl'
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     marginBottom: SPACING.xs,

@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
   },
   header: {
-    paddingTop: SPACING['2xl'],
+    paddingTop: SPACING.xxl,
     paddingBottom: SPACING.xl,
     alignItems: 'center',
   },
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
     fontSize: 40,
   },
   title: {
-    fontSize: FONT_SIZES['2xl'],
+    fontSize: FONT_SIZES.xxl, // Usar xxl em vez de '2xl'
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     marginBottom: SPACING.sm,

@@ -1,428 +1,281 @@
-// src/services/GoalService.ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_CONFIG } from '../constants';
-import { 
-  Goal, 
-  CreateGoalData, 
-  ApiResponse, 
-  PaginatedResponse,
-  GoalStats 
-} from '../types';
+// src/services/GoalService.ts - CÓDIGO COMPLETO
+import apiService from './api';
+import { Goal as TypesGoal, CreateGoalData as TypesCreateGoalData, GoalStats } from '../types';
 
-class GoalServiceClass {
-  private baseURL: string;
+// Usar tipos do arquivo types/index.ts para compatibilidade
+export type Goal = TypesGoal;
+export type CreateGoalData = TypesCreateGoalData;
 
-  constructor() {
-    this.baseURL = API_CONFIG.BASE_URL;
+// Interface para update que inclui campos adicionais
+export interface UpdateGoalData extends Partial<CreateGoalData> {
+  currentAmount?: number;
+  status?: 'active' | 'completed' | 'paused';
+}
+
+export interface GoalFilters {
+  category?: string;
+  isCompleted?: boolean;
+  status?: 'active' | 'completed' | 'paused';
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+// Interface GoalsResponse com propriedade success
+export interface GoalsResponse {
+  success: boolean;
+  data: Goal[];
+  pagination: {
+    current: number;
+    pages: number;
+    total: number;
+  };
+  message?: string;
+}
+
+export class GoalService {
+  private static readonly BASE_PATH = '/goals';
+
+  /**
+   * Mapear Goal da API para compatibilidade (se necessário)
+   */
+  private static mapGoal(apiGoal: TypesGoal): Goal {
+    return apiGoal;
   }
 
-  // Função auxiliar para obter token
-  private async getAuthToken(): Promise<string | null> {
+  /**
+   * Buscar todas as metas do usuário
+   */
+  static async getGoals(
+    page: number = 1,
+    limit: number = 20,
+    filters: GoalFilters = {}
+  ): Promise<GoalsResponse> {
     try {
-      return await AsyncStorage.getItem('@FinanceApp:token');
+      const status = filters.isCompleted ? 'completed' : 'active';
+      const response = await apiService.getGoals(status, page, limit);
+      
+      const goalsData = response.data || [];
+      
+      return {
+        success: true,
+        data: Array.isArray(goalsData) ? goalsData.map(this.mapGoal) : [],
+        pagination: response.pagination || { current: 1, pages: 1, total: 0 }
+      };
     } catch (error) {
-      console.error('Erro ao obter token:', error);
-      return null;
+      console.error('Erro ao buscar metas:', error);
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: error instanceof Error ? error.message : 'Erro ao buscar metas'
+      };
     }
   }
 
-  // Função auxiliar para fazer requisições autenticadas
-  private async request<T = any>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T> {
-    const token = await this.getAuthToken();
-    const url = `${this.baseURL}${endpoint}`;
-    
-    const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-        ...options.headers,
-      },
-      ...options,
-    };
-
-    // Criar AbortController para timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
-    config.signal = controller.signal;
-
+  /**
+   * Buscar uma meta específica
+   */
+  static async getGoalById(id: string): Promise<Goal> {
     try {
-      const response = await fetch(url, config);
-      clearTimeout(timeoutId);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP ${response.status}`);
+      const response = await apiService.getGoal(id);
+      
+      if (!response.data) {
+        throw new Error('Meta não encontrada');
       }
-
-      return data;
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        throw new Error('Tempo limite da requisição excedido');
-      }
+      
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao buscar meta:', error);
       throw error;
     }
   }
 
-  // Criar meta
-  async createGoal(goalData: CreateGoalData): Promise<Goal> {
+  /**
+   * Criar nova meta
+   */
+  static async createGoal(goalData: CreateGoalData): Promise<Goal> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>('/api/goals', {
-        method: 'POST',
-        body: JSON.stringify(goalData),
-      });
-
-      if (!response.success) {
+      const response = await apiService.createGoal(goalData);
+      
+      if (!response.data) {
         throw new Error('Erro ao criar meta');
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao criar meta');
-    }
-  }
-
-  // Listar metas
-  async getGoals(filters?: { 
-    status?: 'active' | 'completed' | 'paused';
-    page?: number;
-    limit?: number;
-  }): Promise<PaginatedResponse<Goal[]>> {
-    try {
-      const queryParams = new URLSearchParams();
       
-      if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) {
-            queryParams.append(key, String(value));
-          }
-        });
-      }
-
-      const endpoint = `/api/goals${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await this.request<PaginatedResponse<Goal[]>>(endpoint);
-
-      return response;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar metas');
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao criar meta:', error);
+      throw error;
     }
   }
 
-  // Obter meta por ID
-  async getGoalById(id: string): Promise<Goal> {
+  /**
+   * Atualizar meta existente
+   */
+  static async updateGoal(id: string, goalData: UpdateGoalData): Promise<Goal> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}`);
-
-      if (!response.success) {
-        throw new Error('Meta não encontrada');
+      const { status, currentAmount, ...apiUpdateData } = goalData;
+      
+      let response;
+      if (status || currentAmount !== undefined) {
+        response = await apiService.updateGoal(id, goalData as any);
+      } else {
+        response = await apiService.updateGoal(id, apiUpdateData);
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar meta');
-    }
-  }
-
-  // Atualizar meta
-  async updateGoal(id: string, goalData: Partial<CreateGoalData>): Promise<Goal> {
-    try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(goalData),
-      });
-
-      if (!response.success) {
+      
+      if (!response.data) {
         throw new Error('Erro ao atualizar meta');
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao atualizar meta');
+      
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao atualizar meta:', error);
+      throw error;
     }
   }
 
-  // Deletar meta
-  async deleteGoal(id: string): Promise<void> {
+  /**
+   * Deletar meta
+   */
+  static async deleteGoal(id: string): Promise<void> {
     try {
-      const response = await this.request<ApiResponse>(`/api/goals/${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao deletar meta');
-      }
+      await apiService.deleteGoal(id);
+    } catch (error) {
+      console.error('Erro ao deletar meta:', error);
+      throw error;
     }
   }
 
-  // Adicionar valor à meta
-  async addToGoal(id: string, amount: number): Promise<Goal> {
+  /**
+   * Adicionar valor à meta
+   */
+  static async addToGoal(id: string, amount: number): Promise<Goal> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}/add`, {
-        method: 'POST',
-        body: JSON.stringify({ amount }),
-      });
-
-      if (!response.success) {
+      const response = await apiService.addAmountToGoal(id, amount);
+      
+      if (!response.data) {
         throw new Error('Erro ao adicionar valor à meta');
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao adicionar valor à meta');
+      
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao adicionar valor à meta:', error);
+      throw error;
     }
   }
 
-  // Remover valor da meta
-  async removeFromGoal(id: string, amount: number): Promise<Goal> {
+  /**
+   * Obter estatísticas das metas
+   */
+  static async getGoalStats(): Promise<GoalStats> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}/remove`, {
-        method: 'POST',
-        body: JSON.stringify({ amount }),
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao remover valor da meta');
+      const response = await apiService.getGoalStats();
+      
+      if (!response.data) {
+        return {
+          active: { count: 0, totalTarget: 0, totalCurrent: 0 },
+          completed: { count: 0, totalTarget: 0, totalCurrent: 0 },
+          paused: { count: 0, totalTarget: 0, totalCurrent: 0 },
+          total: { count: 0, totalTarget: 0, totalCurrent: 0, progress: 0 }
+        };
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao remover valor da meta');
+      
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas das metas:', error);
+      throw error;
     }
   }
 
-  // Pausar meta
-  async pauseGoal(id: string): Promise<Goal> {
+  /**
+   * Pausar meta
+   */
+  static async pauseGoal(id: string): Promise<Goal> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}/pause`, {
-        method: 'POST',
-      });
-
-      if (!response.success) {
+      const response = await apiService.updateGoal(id, { status: 'paused' } as any);
+      
+      if (!response.data) {
         throw new Error('Erro ao pausar meta');
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao pausar meta');
+      
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao pausar meta:', error);
+      throw error;
     }
   }
 
-  // Reativar meta
-  async resumeGoal(id: string): Promise<Goal> {
+  /**
+   * Retomar meta
+   */
+  static async resumeGoal(id: string): Promise<Goal> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}/resume`, {
-        method: 'POST',
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao reativar meta');
+      const response = await apiService.updateGoal(id, { status: 'active' } as any);
+      
+      if (!response.data) {
+        throw new Error('Erro ao retomar meta');
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao reativar meta');
+      
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao retomar meta:', error);
+      throw error;
     }
   }
 
-  // Marcar meta como concluída
-  async completeGoal(id: string): Promise<Goal> {
+  /**
+   * Marcar meta como concluída
+   */
+  static async completeGoal(id: string): Promise<Goal> {
     try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}/complete`, {
-        method: 'POST',
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao completar meta');
+      const response = await apiService.updateGoal(id, { status: 'completed' } as any);
+      
+      if (!response.data) {
+        throw new Error('Erro ao concluir meta');
       }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao completar meta');
+      
+      return this.mapGoal(response.data);
+    } catch (error) {
+      console.error('Erro ao concluir meta:', error);
+      throw error;
     }
   }
 
-  // Obter metas ativas (para dashboard)
-  async getActiveGoals(limit: number = 10): Promise<Goal[]> {
+  /**
+   * Obter metas ativas (método auxiliar para HomeScreen)
+   */
+  static async getActiveGoals(limit: number = 10): Promise<Goal[]> {
     try {
-      const response = await this.request<{ success: boolean; goals: Goal[] }>(`/api/goals/active?limit=${limit}`);
-
-      if (!response.success) {
-        throw new Error('Erro ao carregar metas ativas');
-      }
-
-      return response.goals;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar metas ativas');
+      const response = await this.getGoals(1, limit, { status: 'active' });
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar metas ativas:', error);
+      return [];
     }
   }
 
-  // Obter estatísticas das metas
-  async getGoalStats(): Promise<GoalStats> {
+  /**
+   * Obter metas recentes (método auxiliar)
+   */
+  static async getRecentGoals(limit: number = 5): Promise<Goal[]> {
     try {
-      const response = await this.request<{ success: boolean; stats: GoalStats }>('/api/goals/stats/overview');
-
-      if (!response.success) {
-        throw new Error('Erro ao carregar estatísticas');
-      }
-
-      return response.stats;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar estatísticas das metas');
+      const response = await this.getGoals(1, limit);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar metas recentes:', error);
+      return [];
     }
   }
 
-  // Calcular projeção de meta
-  async calculateGoalProjection(id: string): Promise<{
-    projectedCompletionDate: string;
-    monthlyTargetAdjusted: number;
-    isOnTrack: boolean;
-    recommendedMonthlyAmount: number;
-  }> {
+  /**
+   * Obter metas por status
+   */
+  static async getGoalsByStatus(status: 'active' | 'completed' | 'paused', limit: number = 20): Promise<Goal[]> {
     try {
-      const response = await this.request<{
-        success: boolean;
-        projection: {
-          projectedCompletionDate: string;
-          monthlyTargetAdjusted: number;
-          isOnTrack: boolean;
-          recommendedMonthlyAmount: number;
-        };
-      }>(`/api/goals/${id}/projection`);
-
-      if (!response.success) {
-        throw new Error('Erro ao calcular projeção');
-      }
-
-      return response.projection;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao calcular projeção da meta');
-    }
-  }
-
-  // Duplicar meta
-  async duplicateGoal(id: string, newTitle: string): Promise<Goal> {
-    try {
-      const response = await this.request<{ success: boolean; goal: Goal }>(`/api/goals/${id}/duplicate`, {
-        method: 'POST',
-        body: JSON.stringify({ newTitle }),
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao duplicar meta');
-      }
-
-      return response.goal;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao duplicar meta');
-    }
-  }
-
-  // Obter histórico de progresso da meta
-  async getGoalHistory(id: string): Promise<{
-    date: string;
-    amount: number;
-    type: 'add' | 'remove';
-    description?: string;
-  }[]> {
-    try {
-      const response = await this.request<{
-        success: boolean;
-        history: {
-          date: string;
-          amount: number;
-          type: 'add' | 'remove';
-          description?: string;
-        }[];
-      }>(`/api/goals/${id}/history`);
-
-      if (!response.success) {
-        throw new Error('Erro ao carregar histórico');
-      }
-
-      return response.history;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar histórico da meta');
-    }
-  }
-
-  // Exportar metas
-  async exportGoals(format: 'csv' | 'excel' = 'csv'): Promise<string> {
-    try {
-      const response = await this.request<{ success: boolean; downloadUrl: string }>(`/api/goals/export?format=${format}`);
-
-      if (!response.success) {
-        throw new Error('Erro ao exportar metas');
-      }
-
-      return response.downloadUrl;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao exportar metas');
-    }
-  }
-
-  // Verificar se meta pode ser deletada
-  async canDeleteGoal(id: string): Promise<{ canDelete: boolean; reason?: string }> {
-    try {
-      const response = await this.request<{
-        success: boolean;
-        canDelete: boolean;
-        reason?: string;
-      }>(`/api/goals/${id}/can-delete`);
-
-      if (!response.success) {
-        throw new Error('Erro ao verificar meta');
-      }
-
-      return { canDelete: response.canDelete, reason: response.reason };
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao verificar se meta pode ser deletada');
-    }
-  }
-
-  // Obter metas por período
-  async getGoalsByPeriod(startDate: string, endDate: string): Promise<Goal[]> {
-    try {
-      const response = await this.request<{ success: boolean; goals: Goal[] }>(`/api/goals/period?startDate=${startDate}&endDate=${endDate}`);
-
-      if (!response.success) {
-        throw new Error('Erro ao carregar metas do período');
-      }
-
-      return response.goals;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar metas do período');
-    }
-  }
-
-  // Recalcular meta baseado em novo prazo
-  async recalculateGoal(id: string, newEndDate: string): Promise<{
-    newMonthlyTarget: number;
-    adjustedTargetAmount?: number;
-  }> {
-    try {
-      const response = await this.request<{
-        success: boolean;
-        newMonthlyTarget: number;
-        adjustedTargetAmount?: number;
-      }>(`/api/goals/${id}/recalculate`, {
-        method: 'POST',
-        body: JSON.stringify({ newEndDate }),
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao recalcular meta');
-      }
-
-      return {
-        newMonthlyTarget: response.newMonthlyTarget,
-        adjustedTargetAmount: response.adjustedTargetAmount,
-      };
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao recalcular meta');
+      const response = await this.getGoals(1, limit, { status });
+      return response.data;
+    } catch (error) {
+      console.error(`Erro ao buscar metas ${status}:`, error);
+      return [];
     }
   }
 }
-
-export const GoalService = new GoalServiceClass();

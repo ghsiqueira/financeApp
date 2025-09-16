@@ -1,12 +1,16 @@
-// src/services/CategoryService.ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/services/CategoryService.ts - CÓDIGO COMPLETO
 import { API_CONFIG } from '../constants';
 import { 
   Category, 
-  CreateCategoryData, 
-  ApiResponse, 
-  PaginatedResponse 
+  CreateCategoryData,
+  ApiResponse
 } from '../types';
+
+interface CategoryFilters {
+  type?: 'income' | 'expense';
+  includeDefault?: boolean;
+  isActive?: boolean;
+}
 
 class CategoryServiceClass {
   private baseURL: string;
@@ -15,34 +19,21 @@ class CategoryServiceClass {
     this.baseURL = API_CONFIG.BASE_URL;
   }
 
-  // Função auxiliar para obter token
-  private async getAuthToken(): Promise<string | null> {
-    try {
-      return await AsyncStorage.getItem('@FinanceApp:token');
-    } catch (error) {
-      console.error('Erro ao obter token:', error);
-      return null;
-    }
-  }
-
-  // Função auxiliar para fazer requisições autenticadas
+  // Função auxiliar para fazer requisições
   private async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = await this.getAuthToken();
     const url = `${this.baseURL}${endpoint}`;
     
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,
     };
 
-    // Criar AbortController para timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
     config.signal = controller.signal;
@@ -65,57 +56,59 @@ class CategoryServiceClass {
     }
   }
 
-  // Criar categoria personalizada
-  async createCategory(categoryData: CreateCategoryData): Promise<Category> {
+  // Obter token de autenticação
+  private async getAuthToken(): Promise<string | null> {
     try {
-      const response = await this.request<{ success: boolean; category: Category }>('/api/categories', {
-        method: 'POST',
-        body: JSON.stringify(categoryData),
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao criar categoria');
-      }
-
-      return response.category;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao criar categoria');
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      return await AsyncStorage.getItem('@FinanceApp:token');
+    } catch (error) {
+      return null;
     }
   }
 
   // Listar categorias
-  async getCategories(filters?: { 
-    type?: 'income' | 'expense';
-    includeDefault?: boolean;
-    page?: number;
-    limit?: number;
-  }): Promise<PaginatedResponse<Category[]>> {
+  async getCategories(filters?: CategoryFilters): Promise<ApiResponse<Category[]>> {
     try {
       const queryParams = new URLSearchParams();
       
       if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null) {
-            queryParams.append(key, String(value));
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value.toString());
           }
         });
       }
 
       const endpoint = `/api/categories${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await this.request<PaginatedResponse<Category[]>>(endpoint);
+      const response = await this.request<{ success: boolean; categories: Category[] }>(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
-      return response;
+      return {
+        success: true,
+        data: response.categories || []
+      };
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar categorias');
+      return {
+        success: false,
+        data: [],
+        message: error.message || 'Erro ao carregar categorias'
+      };
     }
   }
 
   // Obter categoria por ID
   async getCategoryById(id: string): Promise<Category> {
     try {
-      const response = await this.request<{ success: boolean; category: Category }>(`/api/categories/${id}`);
+      const response = await this.request<{ success: boolean; category: Category }>(`/api/categories/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
-      if (!response.success) {
+      if (!response.success || !response.category) {
         throw new Error('Categoria não encontrada');
       }
 
@@ -125,15 +118,39 @@ class CategoryServiceClass {
     }
   }
 
+  // Criar categoria
+  async createCategory(categoryData: CreateCategoryData): Promise<Category> {
+    try {
+      const response = await this.request<{ success: boolean; category: Category }>('/api/categories', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+        body: JSON.stringify(categoryData),
+      });
+
+      if (!response.success || !response.category) {
+        throw new Error('Erro ao criar categoria');
+      }
+
+      return response.category;
+    } catch (error: any) {
+      throw new Error(error.message || 'Erro ao criar categoria');
+    }
+  }
+
   // Atualizar categoria
   async updateCategory(id: string, categoryData: Partial<CreateCategoryData>): Promise<Category> {
     try {
       const response = await this.request<{ success: boolean; category: Category }>(`/api/categories/${id}`, {
         method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
         body: JSON.stringify(categoryData),
       });
 
-      if (!response.success) {
+      if (!response.success || !response.category) {
         throw new Error('Erro ao atualizar categoria');
       }
 
@@ -146,8 +163,11 @@ class CategoryServiceClass {
   // Deletar categoria
   async deleteCategory(id: string): Promise<void> {
     try {
-      const response = await this.request<ApiResponse>(`/api/categories/${id}`, {
+      const response = await this.request<{ success: boolean }>(`/api/categories/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
       });
 
       if (!response.success) {
@@ -158,92 +178,109 @@ class CategoryServiceClass {
     }
   }
 
-  // Obter categorias mais usadas
-  async getMostUsedCategories(limit: number = 10, type?: 'income' | 'expense'): Promise<Category[]> {
+  // Obter categorias de receita
+  async getIncomeCategories(): Promise<Category[]> {
     try {
-      const queryParams = new URLSearchParams();
-      queryParams.append('limit', limit.toString());
-      if (type) {
-        queryParams.append('type', type);
-      }
-
-      const response = await this.request<{ success: boolean; categories: Category[] }>(`/api/categories/most-used?${queryParams.toString()}`);
-
-      if (!response.success) {
-        throw new Error('Erro ao carregar categorias mais usadas');
-      }
-
-      return response.categories;
+      const response = await this.getCategories({ type: 'income', includeDefault: true });
+      return response.data || [];
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar categorias mais usadas');
+      console.error('Erro ao buscar categorias de receita:', error);
+      return [];
+    }
+  }
+
+  // Obter categorias de despesa
+  async getExpenseCategories(): Promise<Category[]> {
+    try {
+      const response = await this.getCategories({ type: 'expense', includeDefault: true });
+      return response.data || [];
+    } catch (error: any) {
+      console.error('Erro ao buscar categorias de despesa:', error);
+      return [];
+    }
+  }
+
+  // Obter estatísticas de uso das categorias
+  async getCategoryStats(): Promise<{
+    mostUsed: Category[];
+    leastUsed: Category[];
+    totalTransactions: number;
+  }> {
+    try {
+      const response = await this.request<{
+        success: boolean;
+        stats: {
+          mostUsed: Category[];
+          leastUsed: Category[];
+          totalTransactions: number;
+        };
+      }>('/api/categories/stats', {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
+
+      if (!response.success || !response.stats) {
+        throw new Error('Erro ao carregar estatísticas das categorias');
+      }
+
+      return response.stats;
+    } catch (error: any) {
+      console.error('Erro ao buscar estatísticas das categorias:', error);
+      return {
+        mostUsed: [],
+        leastUsed: [],
+        totalTransactions: 0,
+      };
     }
   }
 
   // Verificar se categoria pode ser deletada
-  async canDeleteCategory(id: string): Promise<{ canDelete: boolean; reason?: string; usage: { transactions: number; budgets: number } }> {
+  async canDeleteCategory(id: string): Promise<{ canDelete: boolean; reason?: string }> {
     try {
       const response = await this.request<{
         success: boolean;
         canDelete: boolean;
         reason?: string;
-        usage: { transactions: number; budgets: number };
-      }>(`/api/categories/${id}/usage`);
+      }>(`/api/categories/${id}/can-delete`, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
       if (!response.success) {
         throw new Error('Erro ao verificar categoria');
       }
 
-      return {
-        canDelete: response.canDelete,
-        reason: response.reason,
-        usage: response.usage
-      };
+      return { canDelete: response.canDelete, reason: response.reason };
     } catch (error: any) {
       throw new Error(error.message || 'Erro ao verificar se categoria pode ser deletada');
     }
   }
 
-  // Obter estatísticas de gastos por categoria
-  async getCategorySpendingStats(filters?: {
-    startDate?: string;
-    endDate?: string;
-    type?: 'income' | 'expense';
-  }): Promise<{
-    category: Category;
-    totalAmount: number;
-    transactionCount: number;
-    percentage: number;
-    averageAmount: number;
-  }[]> {
+  // Obter ícones disponíveis
+  async getAvailableIcons(): Promise<{ all: string[]; categories: Record<string, string[]> }> {
     try {
-      const queryParams = new URLSearchParams();
-      
-      if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            queryParams.append(key, value.toString());
-          }
-        });
-      }
-
       const response = await this.request<{
         success: boolean;
-        stats: {
-          category: Category;
-          totalAmount: number;
-          transactionCount: number;
-          percentage: number;
-          averageAmount: number;
-        }[];
-      }>(`/api/categories/spending-stats${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
+        icons: { all: string[]; categories: Record<string, string[]> };
+      }>('/api/categories/icons/available');
 
-      if (!response.success) {
-        throw new Error('Erro ao carregar estatísticas');
+      if (!response.success || !response.icons) {
+        throw new Error('Erro ao carregar ícones disponíveis');
       }
 
-      return response.stats;
+      return response.icons;
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar estatísticas por categoria');
+      // Fallback com ícones padrão
+      console.error('Erro ao buscar ícones disponíveis:', error);
+      return {
+        all: ['🍔', '🚗', '🏠', '💰', '📚', '🎮', '🛍️', '🏥', '✈️', '💡'],
+        categories: {
+          expense: ['🍔', '🚗', '🏠', '🛍️', '🏥', '🎮', '📚'],
+          income: ['💰', '💼', '📈', '🎯'],
+        },
+      };
     }
   }
 
@@ -252,10 +289,13 @@ class CategoryServiceClass {
     try {
       const response = await this.request<{ success: boolean; category: Category }>(`/api/categories/${id}/duplicate`, {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
         body: JSON.stringify({ newName }),
       });
 
-      if (!response.success) {
+      if (!response.success || !response.category) {
         throw new Error('Erro ao duplicar categoria');
       }
 
@@ -265,133 +305,84 @@ class CategoryServiceClass {
     }
   }
 
-  // Obter sugestões de categorias baseadas em descrição
-  async suggestCategory(description: string, type: 'income' | 'expense'): Promise<Category[]> {
-    try {
-      const response = await this.request<{ success: boolean; suggestions: Category[] }>('/api/categories/suggest', {
-        method: 'POST',
-        body: JSON.stringify({ description, type }),
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao obter sugestões');
-      }
-
-      return response.suggestions;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao obter sugestões de categoria');
-    }
-  }
-
   // Mesclar categorias
-  async mergeCategories(sourceId: string, targetId: string): Promise<{ 
-    mergedTransactions: number; 
-    mergedBudgets: number; 
-    targetCategory: Category; 
-  }> {
+  async mergeCategories(sourceId: string, targetId: string): Promise<Category> {
     try {
-      const response = await this.request<{
-        success: boolean;
-        mergedTransactions: number;
-        mergedBudgets: number;
-        targetCategory: Category;
-      }>('/api/categories/merge', {
+      const response = await this.request<{ success: boolean; category: Category }>('/api/categories/merge', {
         method: 'POST',
-        body: JSON.stringify({ sourceId, targetId }),
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          sourceId,
+          targetId,
+        }),
       });
 
-      if (!response.success) {
+      if (!response.success || !response.category) {
         throw new Error('Erro ao mesclar categorias');
       }
 
-      return {
-        mergedTransactions: response.mergedTransactions,
-        mergedBudgets: response.mergedBudgets,
-        targetCategory: response.targetCategory,
-      };
+      return response.category;
     } catch (error: any) {
       throw new Error(error.message || 'Erro ao mesclar categorias');
     }
   }
 
-  // Exportar categorias
-  async exportCategories(format: 'csv' | 'excel' = 'csv'): Promise<string> {
+  // Obter gastos por categoria em um período
+  async getCategorySpending(
+    startDate?: string,
+    endDate?: string,
+    type?: 'income' | 'expense'
+  ): Promise<{
+    category: Category;
+    amount: number;
+    count: number;
+    percentage: number;
+  }[]> {
     try {
-      const response = await this.request<{ success: boolean; downloadUrl: string }>(`/api/categories/export?format=${format}`);
+      const queryParams = new URLSearchParams();
+      if (startDate) queryParams.append('startDate', startDate);
+      if (endDate) queryParams.append('endDate', endDate);
+      if (type) queryParams.append('type', type);
 
-      if (!response.success) {
-        throw new Error('Erro ao exportar categorias');
-      }
-
-      return response.downloadUrl;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao exportar categorias');
-    }
-  }
-
-  // Importar categorias
-  async importCategories(file: FormData): Promise<{ imported: number; skipped: number; errors: string[] }> {
-    try {
-      const token = await this.getAuthToken();
-      const url = `${this.baseURL}/api/categories/import`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-        },
-        body: file,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Erro na importação');
-      }
-
-      return data;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao importar categorias');
-    }
-  }
-
-  // Restaurar categorias padrão
-  async restoreDefaultCategories(): Promise<{ restored: number; categories: Category[] }> {
-    try {
+      const endpoint = `/api/categories/spending${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
       const response = await this.request<{
         success: boolean;
-        restored: number;
-        categories: Category[];
-      }>('/api/categories/restore-defaults', {
-        method: 'POST',
+        spending: {
+          category: Category;
+          amount: number;
+          count: number;
+          percentage: number;
+        }[];
+      }>(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
       });
 
-      if (!response.success) {
-        throw new Error('Erro ao restaurar categorias padrão');
+      if (!response.success || !response.spending) {
+        throw new Error('Erro ao carregar gastos por categoria');
       }
 
-      return {
-        restored: response.restored,
-        categories: response.categories,
-      };
+      return response.spending;
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao restaurar categorias padrão');
+      console.error('Erro ao buscar gastos por categoria:', error);
+      return [];
     }
   }
 
-  // Reordenar categorias
-  async reorderCategories(categoryIds: string[]): Promise<void> {
+  // Criar categoria padrão se não existir
+  async ensureDefaultCategories(): Promise<void> {
     try {
-      const response = await this.request<ApiResponse>('/api/categories/reorder', {
+      await this.request('/api/categories/ensure-defaults', {
         method: 'POST',
-        body: JSON.stringify({ categoryIds }),
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
       });
-
-      if (!response.success) {
-        throw new Error('Erro ao reordenar categorias');
-      }
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao reordenar categorias');
+      console.error('Erro ao garantir categorias padrão:', error);
     }
   }
 }

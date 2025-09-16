@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { TransactionService } from '../services/TransactionService';
-import { GoalService } from '../services/GoalService';
+import { GoalService, GoalsResponse } from '../services/GoalService'; // Importar GoalsResponse corrigida
 import { BudgetService } from '../services/BudgetService';
 import { CategoryService } from '../services/CategoryService';
 import { 
@@ -137,10 +137,13 @@ export const useGoals = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await GoalService.getGoals();
+      const response: GoalsResponse = await GoalService.getGoals(); // Usar tipo correto
       
       if (response.success && response.data) {
         setGoals(response.data);
+      } else if (!response.success) {
+        setError(response.message || 'Erro ao carregar metas');
+        setGoals([]);
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar metas');

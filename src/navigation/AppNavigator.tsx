@@ -5,12 +5,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { HomeScreen } from '../screens/main/HomeScreen';
-import { 
-  LoginScreen, 
-  RegisterScreen, 
-  ForgotPasswordScreen,
-  ReportsScreen,
-} from '../screens/PlaceholderScreens';
+import { LoginScreen } from '../screens/auth/LoginScreen';
+import { RegisterScreen } from '../screens/auth/RegisterScreen';
+import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
+import { ReportsScreen } from '../screens/PlaceholderScreens';
 import { TransactionNavigator } from './TransactionNavigator';
 import { GoalNavigator } from './GoalNavigator';
 import { BudgetNavigator } from './BudgetNavigator';

@@ -1,184 +1,241 @@
+// src/utils/storageUtils.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { STORAGE_KEYS } from '../constants';
 
 /**
- * Salva dados no AsyncStorage com tratamento de erro
+ * Utilitários para gerenciar dados no AsyncStorage
  */
-export const saveToStorage = async (key: string, value: any): Promise<boolean> => {
+
+// Tipos
+export interface StorageItem<T = any> {
+  key: string;
+  value: T;
+  timestamp: number;
+}
+
+/**
+ * Salvar item no AsyncStorage
+ */
+export const setStorageItem = async <T>(key: string, value: T): Promise<void> => {
   try {
-    const jsonValue = JSON.stringify(value);
+    const item: StorageItem<T> = {
+      key,
+      value,
+      timestamp: Date.now(),
+    };
+    
+    const jsonValue = JSON.stringify(item);
     await AsyncStorage.setItem(key, jsonValue);
-    return true;
   } catch (error) {
-    console.error(`Erro ao salvar ${key} no storage:`, error);
-    return false;
+    console.error(`Erro ao salvar item ${key}:`, error);
+    throw error;
   }
 };
 
 /**
- * Recupera dados do AsyncStorage com tratamento de erro
+ * Recuperar item do AsyncStorage
  */
-export const getFromStorage = async <T>(key: string): Promise<T | null> => {
+export const getStorageItem = async <T>(key: string): Promise<T | null> => {
   try {
     const jsonValue = await AsyncStorage.getItem(key);
-    return jsonValue != null ? JSON.parse(jsonValue) : null;
+    
+    if (jsonValue === null) {
+      return null;
+    }
+    
+    const item: StorageItem<T> = JSON.parse(jsonValue);
+    return item.value;
   } catch (error) {
-    console.error(`Erro ao recuperar ${key} do storage:`, error);
+    console.error(`Erro ao recuperar item ${key}:`, error);
     return null;
   }
 };
 
 /**
- * Remove item do AsyncStorage
+ * Remover item do AsyncStorage
  */
-export const removeFromStorage = async (key: string): Promise<boolean> => {
+export const removeStorageItem = async (key: string): Promise<void> => {
   try {
     await AsyncStorage.removeItem(key);
-    return true;
   } catch (error) {
-    console.error(`Erro ao remover ${key} do storage:`, error);
+    console.error(`Erro ao remover item ${key}:`, error);
+    throw error;
+  }
+};
+
+/**
+ * Verificar se item existe no AsyncStorage
+ */
+export const hasStorageItem = async (key: string): Promise<boolean> => {
+  try {
+    const item = await AsyncStorage.getItem(key);
+    return item !== null;
+  } catch (error) {
+    console.error(`Erro ao verificar item ${key}:`, error);
     return false;
   }
 };
 
 /**
- * Remove múltiplos itens do AsyncStorage
+ * Limpar todos os dados do AsyncStorage (usar com cuidado)
  */
-export const removeMultipleFromStorage = async (keys: string[]): Promise<boolean> => {
+export const clearAllStorage = async (): Promise<void> => {
   try {
+    // Convertemos readonly string[] para string[] usando spread operator
+    const keys: string[] = [...Object.values(STORAGE_KEYS)];
     await AsyncStorage.multiRemove(keys);
-    return true;
   } catch (error) {
-    console.error('Erro ao remover múltiplos itens do storage:', error);
-    return false;
+    console.error('Erro ao limpar storage:', error);
+    throw error;
   }
 };
 
 /**
- * Verifica se uma chave existe no AsyncStorage
+ * Obter múltiplos itens do AsyncStorage
  */
-export const existsInStorage = async (key: string): Promise<boolean> => {
+export const getMultipleStorageItems = async <T>(keys: string[]): Promise<Array<T | null>> => {
   try {
-    const value = await AsyncStorage.getItem(key);
-    return value !== null;
-  } catch (error) {
-    console.error(`Erro ao verificar existência de ${key} no storage:`, error);
-    return false;
-  }
-};
-
-/**
- * Obtém todas as chaves do AsyncStorage
- */
-export const getAllStorageKeys = async (): Promise<string[]> => {
-  try {
-    return await AsyncStorage.getAllKeys();
-  } catch (error) {
-    console.error('Erro ao obter todas as chaves do storage:', error);
-    return [];
-  }
-};
-
-/**
- * Limpa todo o AsyncStorage
- */
-export const clearAllStorage = async (): Promise<boolean> => {
-  try {
-    await AsyncStorage.clear();
-    return true;
-  } catch (error) {
-    console.error('Erro ao limpar todo o storage:', error);
-    return false;
-  }
-};
-
-/**
- * Salva configurações do usuário
- */
-export const saveUserSettings = async (settings: any): Promise<boolean> => {
-  return await saveToStorage('@user_settings', settings);
-};
-
-/**
- * Recupera configurações do usuário
- */
-export const getUserSettings = async (): Promise<any | null> => {
-  return await getFromStorage('@user_settings');
-};
-
-/**
- * Salva dados de cache com timestamp
- */
-export const saveCacheData = async (key: string, data: any, expirationHours: number = 24): Promise<boolean> => {
-  const cacheData = {
-    data,
-    timestamp: Date.now(),
-    expiresAt: Date.now() + (expirationHours * 60 * 60 * 1000)
-  };
-  
-  return await saveToStorage(`@cache_${key}`, cacheData);
-};
-
-/**
- * Recupera dados de cache verificando se não expirou
- */
-export const getCacheData = async <T>(key: string): Promise<T | null> => {
-  const cacheData = await getFromStorage<{
-    data: T;
-    timestamp: number;
-    expiresAt: number;
-  }>(`@cache_${key}`);
-  
-  if (!cacheData) return null;
-  
-  // Verifica se o cache expirou
-  if (Date.now() > cacheData.expiresAt) {
-    await removeFromStorage(`@cache_${key}`);
-    return null;
-  }
-  
-  return cacheData.data;
-};
-
-/**
- * Remove cache expirado
- */
-export const cleanExpiredCache = async (): Promise<void> => {
-  try {
-    const allKeys = await getAllStorageKeys();
-    const cacheKeys = allKeys.filter(key => key.startsWith('@cache_'));
+    const items = await AsyncStorage.multiGet(keys);
     
-    for (const key of cacheKeys) {
-      const cacheData = await getFromStorage<{
-        expiresAt: number;
-      }>(key);
-      
-      if (cacheData && Date.now() > cacheData.expiresAt) {
-        await removeFromStorage(key);
+    return items.map(([key, value]) => {
+      if (value === null) {
+        return null;
       }
-    }
+      
+      try {
+        const item: StorageItem<T> = JSON.parse(value);
+        return item.value;
+      } catch (error) {
+        console.error(`Erro ao parsear item ${key}:`, error);
+        return null;
+      }
+    });
   } catch (error) {
-    console.error('Erro ao limpar cache expirado:', error);
+    console.error('Erro ao recuperar múltiplos itens:', error);
+    throw error;
   }
 };
 
 /**
- * Obtém tamanho estimado do storage em bytes
+ * Salvar múltiplos itens no AsyncStorage
+ */
+export const setMultipleStorageItems = async <T>(items: Array<{ key: string; value: T }>): Promise<void> => {
+  try {
+    const keyValuePairs: [string, string][] = items.map(({ key, value }) => {
+      const item: StorageItem<T> = {
+        key,
+        value,
+        timestamp: Date.now(),
+      };
+      
+      return [key, JSON.stringify(item)];
+    });
+    
+    await AsyncStorage.multiSet(keyValuePairs);
+  } catch (error) {
+    console.error('Erro ao salvar múltiplos itens:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obter o tamanho dos dados armazenados (em bytes aproximadamente)
  */
 export const getStorageSize = async (): Promise<number> => {
   try {
-    const allKeys = await getAllStorageKeys();
-    let totalSize = 0;
+    const keys = await AsyncStorage.getAllKeys();
+    const items = await AsyncStorage.multiGet(keys);
     
-    for (const key of allKeys) {
-      const value = await AsyncStorage.getItem(key);
+    let totalSize = 0;
+    items.forEach(([key, value]) => {
       if (value) {
-        totalSize += new Blob([value]).size;
+        totalSize += key.length + value.length;
       }
-    }
+    });
     
     return totalSize;
   } catch (error) {
     console.error('Erro ao calcular tamanho do storage:', error);
     return 0;
   }
+};
+
+/**
+ * Exportar dados do AsyncStorage (para backup)
+ */
+export const exportStorageData = async (): Promise<Record<string, any>> => {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const items = await AsyncStorage.multiGet(keys);
+    
+    const exportData: Record<string, any> = {};
+    
+    items.forEach(([key, value]) => {
+      if (value) {
+        try {
+          const item: StorageItem = JSON.parse(value);
+          exportData[key] = item;
+        } catch (error) {
+          console.warn(`Erro ao parsear item ${key} durante export:`, error);
+        }
+      }
+    });
+    
+    return exportData;
+  } catch (error) {
+    console.error('Erro ao exportar dados:', error);
+    throw error;
+  }
+};
+
+/**
+ * Importar dados para o AsyncStorage (para restore)
+ */
+export const importStorageData = async (data: Record<string, StorageItem>): Promise<void> => {
+  try {
+    const keyValuePairs: [string, string][] = Object.entries(data).map(([key, item]) => {
+      return [key, JSON.stringify(item)];
+    });
+    
+    await AsyncStorage.multiSet(keyValuePairs);
+  } catch (error) {
+    console.error('Erro ao importar dados:', error);
+    throw error;
+  }
+};
+
+/**
+ * Funções específicas para dados de autenticação
+ */
+export const AuthStorage = {
+  async saveToken(token: string): Promise<void> {
+    await setStorageItem(STORAGE_KEYS.TOKEN, token);
+  },
+
+  async getToken(): Promise<string | null> {
+    return await getStorageItem<string>(STORAGE_KEYS.TOKEN);
+  },
+
+  async removeToken(): Promise<void> {
+    await removeStorageItem(STORAGE_KEYS.TOKEN);
+  },
+
+  async saveUser(user: any): Promise<void> {
+    await setStorageItem(STORAGE_KEYS.USER, user);
+  },
+
+  async getUser(): Promise<any | null> {
+    return await getStorageItem(STORAGE_KEYS.USER);
+  },
+
+  async removeUser(): Promise<void> {
+    await removeStorageItem(STORAGE_KEYS.USER);
+  },
+
+  async clearAuth(): Promise<void> {
+    await Promise.all([
+      removeStorageItem(STORAGE_KEYS.TOKEN),
+      removeStorageItem(STORAGE_KEYS.USER),
+    ]);
+  },
 };

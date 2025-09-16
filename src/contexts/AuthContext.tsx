@@ -1,10 +1,16 @@
+// src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AuthService } from '../services/AuthService';
-import { User, LoginFormData, RegisterFormData } from '../types';
+import { STORAGE_KEYS, ERROR_MESSAGES } from '../constants';
+import { User as TypesUser } from '../types'; // Importar o tipo do arquivo de tipos
 
-// Estados do Auth
-interface AuthState {
+// Usar o tipo User do arquivo types/index.ts
+export type User = TypesUser & {
+  updatedAt: string; // Adicionar apenas o campo que falta
+};
+
+export interface AuthState {
   user: User | null;
   token: string | null;
   isLoading: boolean;
@@ -12,15 +18,17 @@ interface AuthState {
   error: string | null;
 }
 
-// Ações do Auth
-type AuthAction =
-  | { type: 'AUTH_START' }
-  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string } }
-  | { type: 'AUTH_FAILURE'; payload: string }
-  | { type: 'AUTH_LOGOUT' }
-  | { type: 'AUTH_CLEAR_ERROR' }
-  | { type: 'AUTH_INIT' }
-  | { type: 'AUTH_UPDATE_USER'; payload: User };
+export interface LoginFormData {
+  email: string;
+  password: string;
+}
+
+export interface RegisterFormData {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string; // Adicionado para compatibilidade
+}
 
 // Estado inicial
 const initialState: AuthState = {
@@ -31,10 +39,19 @@ const initialState: AuthState = {
   error: null,
 };
 
+// Actions
+type AuthAction =
+  | { type: 'AUTH_LOADING' }
+  | { type: 'AUTH_SUCCESS'; payload: { user: User; token: string } }
+  | { type: 'AUTH_ERROR'; payload: string }
+  | { type: 'AUTH_LOGOUT' }
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'UPDATE_USER'; payload: User };
+
 // Reducer
 const authReducer = (state: AuthState, action: AuthAction): AuthState => {
   switch (action.type) {
-    case 'AUTH_START':
+    case 'AUTH_LOADING':
       return {
         ...state,
         isLoading: true,
@@ -51,7 +68,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         error: null,
       };
 
-    case 'AUTH_FAILURE':
+    case 'AUTH_ERROR':
       return {
         ...state,
         user: null,
@@ -71,19 +88,13 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         error: null,
       };
 
-    case 'AUTH_CLEAR_ERROR':
+    case 'CLEAR_ERROR':
       return {
         ...state,
         error: null,
       };
 
-    case 'AUTH_INIT':
-      return {
-        ...state,
-        isLoading: false,
-      };
-
-    case 'AUTH_UPDATE_USER':
+    case 'UPDATE_USER':
       return {
         ...state,
         user: action.payload,
@@ -104,8 +115,8 @@ interface AuthContextType extends AuthState {
   clearError: () => void;
 }
 
-// Context
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Context - EXPORTADO CORRETAMENTE
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Hook para usar o context
 export const useAuth = (): AuthContextType => {
@@ -114,12 +125,6 @@ export const useAuth = (): AuthContextType => {
     throw new Error('useAuth deve ser usado dentro de AuthProvider');
   }
   return context;
-};
-
-// Chaves do AsyncStorage
-const STORAGE_KEYS = {
-  TOKEN: '@FinanceApp:token',
-  USER: '@FinanceApp:user',
 };
 
 // Provider
@@ -150,189 +155,182 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           const isValid = await AuthService.validateToken(storedToken);
           if (isValid) {
+            // Adicionar updatedAt ao usuário se não existir
+            const userWithUpdatedAt: User = {
+              ...user,
+              updatedAt: user.updatedAt || new Date().toISOString(),
+            };
+            
             dispatch({
               type: 'AUTH_SUCCESS',
-              payload: { user, token: storedToken },
+              payload: { user: userWithUpdatedAt, token: storedToken },
             });
           } else {
             // Token inválido, limpar dados
-            await clearStoredData();
-            dispatch({ type: 'AUTH_INIT' });
+            await clearStoredAuth();
+            dispatch({ type: 'AUTH_LOGOUT' });
           }
         } catch (error) {
-          // Erro na validação, limpar dados
-          await clearStoredData();
-          dispatch({ type: 'AUTH_INIT' });
+          // Erro ao validar token, limpar dados
+          await clearStoredAuth();
+          dispatch({ type: 'AUTH_LOGOUT' });
         }
       } else {
-        dispatch({ type: 'AUTH_INIT' });
+        dispatch({ type: 'AUTH_LOGOUT' });
       }
     } catch (error) {
       console.error('Erro ao inicializar auth:', error);
-      dispatch({ type: 'AUTH_INIT' });
+      dispatch({ type: 'AUTH_LOGOUT' });
     }
   };
 
   // Função para limpar dados armazenados
-  const clearStoredData = async (): Promise<void> => {
+  const clearStoredAuth = async (): Promise<void> => {
     try {
       await Promise.all([
         AsyncStorage.removeItem(STORAGE_KEYS.TOKEN),
         AsyncStorage.removeItem(STORAGE_KEYS.USER),
       ]);
     } catch (error) {
-      console.error('Erro ao limpar dados:', error);
-    }
-  };
-
-  // Função para armazenar dados
-  const storeAuthData = async (user: User, token: string): Promise<void> => {
-    try {
-      await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token),
-        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user)),
-      ]);
-    } catch (error) {
-      console.error('Erro ao armazenar dados:', error);
-      throw new Error('Erro ao salvar dados de autenticação');
+      console.error('Erro ao limpar dados de auth:', error);
     }
   };
 
   // Login
   const login = async (credentials: LoginFormData): Promise<void> => {
-    dispatch({ type: 'AUTH_START' });
-    
     try {
+      dispatch({ type: 'AUTH_LOADING' });
+
       const response = await AuthService.login(credentials);
       
-      if (response.success) {
-        await storeAuthData(response.user, response.token);
-        dispatch({
-          type: 'AUTH_SUCCESS',
-          payload: { user: response.user, token: response.token },
-        });
-      } else {
-        dispatch({
-          type: 'AUTH_FAILURE',
-          payload: response.message || 'Erro no login',
-        });
-      }
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || 
-                          error?.message || 
-                          'Erro de conexão. Tente novamente.';
+      // Garantir que o usuário tenha updatedAt
+      const userWithUpdatedAt: User = {
+        ...response.user,
+        updatedAt: response.user.updatedAt || new Date().toISOString(),
+      };
       
+      // Salvar no AsyncStorage
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token),
+        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userWithUpdatedAt)),
+      ]);
+
       dispatch({
-        type: 'AUTH_FAILURE',
-        payload: errorMessage,
+        type: 'AUTH_SUCCESS',
+        payload: { user: userWithUpdatedAt, token: response.token },
       });
+    } catch (error: any) {
+      const errorMessage = error.message || ERROR_MESSAGES.UNKNOWN_ERROR;
+      dispatch({ type: 'AUTH_ERROR', payload: errorMessage });
+      throw error;
     }
   };
 
   // Registro
   const register = async (userData: RegisterFormData): Promise<void> => {
-    dispatch({ type: 'AUTH_START' });
-    
     try {
+      dispatch({ type: 'AUTH_LOADING' });
+
       const response = await AuthService.register(userData);
       
-      if (response.success) {
-        await storeAuthData(response.user, response.token);
-        dispatch({
-          type: 'AUTH_SUCCESS',
-          payload: { user: response.user, token: response.token },
-        });
-      } else {
-        dispatch({
-          type: 'AUTH_FAILURE',
-          payload: response.message || 'Erro no registro',
-        });
-      }
-    } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || 
-                          error?.message || 
-                          'Erro de conexão. Tente novamente.';
+      // Garantir que o usuário tenha updatedAt
+      const userWithUpdatedAt: User = {
+        ...response.user,
+        updatedAt: response.user.updatedAt || new Date().toISOString(),
+      };
       
+      // Salvar no AsyncStorage
+      await Promise.all([
+        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token),
+        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userWithUpdatedAt)),
+      ]);
+
       dispatch({
-        type: 'AUTH_FAILURE',
-        payload: errorMessage,
+        type: 'AUTH_SUCCESS',
+        payload: { user: userWithUpdatedAt, token: response.token },
       });
+    } catch (error: any) {
+      const errorMessage = error.message || ERROR_MESSAGES.UNKNOWN_ERROR;
+      dispatch({ type: 'AUTH_ERROR', payload: errorMessage });
+      throw error;
     }
   };
 
   // Logout
   const logout = async (): Promise<void> => {
     try {
-      // Tentar fazer logout no servidor (opcional)
+      // Chamar logout no servidor (se necessário)
       if (state.token) {
-        try {
-          await AuthService.logout();
-        } catch (error) {
-          // Ignorar erro do servidor no logout
-          console.warn('Erro no logout do servidor:', error);
-        }
+        await AuthService.logout();
       }
-      
-      // Limpar dados locais
-      await clearStoredData();
-      dispatch({ type: 'AUTH_LOGOUT' });
     } catch (error) {
-      console.error('Erro no logout:', error);
-      // Mesmo com erro, fazer logout local
-      await clearStoredData();
+      console.error('Erro ao fazer logout no servidor:', error);
+    } finally {
+      // Limpar dados locais sempre
+      await clearStoredAuth();
       dispatch({ type: 'AUTH_LOGOUT' });
     }
   };
 
   // Esqueci a senha
   const forgotPassword = async (email: string): Promise<void> => {
-    dispatch({ type: 'AUTH_START' });
-    
     try {
       await AuthService.forgotPassword(email);
-      dispatch({ type: 'AUTH_INIT' });
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || 
-                          error?.message || 
-                          'Erro ao enviar email de recuperação';
-      
-      dispatch({
-        type: 'AUTH_FAILURE',
-        payload: errorMessage,
-      });
+      const errorMessage = error.message || ERROR_MESSAGES.UNKNOWN_ERROR;
+      throw new Error(errorMessage);
     }
   };
 
   // Atualizar perfil
   const updateProfile = async (userData: Partial<User>): Promise<void> => {
     try {
+      if (!state.user) {
+        throw new Error('Usuário não autenticado');
+      }
+
       const response = await AuthService.updateProfile(userData);
       
-      if (response.success) {
-        const updatedUser = { ...state.user!, ...response.user };
-        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-        dispatch({
-          type: 'AUTH_UPDATE_USER',
-          payload: updatedUser,
-        });
+      // Verificar se a resposta contém o usuário atualizado
+      let updatedUser: User;
+      if (response && typeof response === 'object' && 'user' in response) {
+        // Se a resposta tem a propriedade user
+        updatedUser = {
+          ...response.user,
+          updatedAt: new Date().toISOString(), // Garantir que tenha updatedAt
+        } as User;
+      } else if (response && typeof response === 'object') {
+        // Se a resposta é o próprio usuário ou dados de update - CORREÇÃO DO SPREAD
+        updatedUser = {
+          ...state.user,
+          ...(response as Partial<User>), // Cast explícito para evitar erro de spread
+          updatedAt: new Date().toISOString(), // Garantir que tenha updatedAt
+        };
       } else {
-        throw new Error(response.message || 'Erro ao atualizar perfil');
+        // Fallback: apenas atualizar o timestamp
+        updatedUser = {
+          ...state.user,
+          updatedAt: new Date().toISOString(),
+        };
       }
+      
+      // Atualizar no AsyncStorage
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
+      
+      dispatch({ type: 'UPDATE_USER', payload: updatedUser });
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.message || 
-                          error?.message || 
-                          'Erro ao atualizar perfil';
+      const errorMessage = error.message || ERROR_MESSAGES.UNKNOWN_ERROR;
       throw new Error(errorMessage);
     }
   };
 
   // Limpar erro
   const clearError = (): void => {
-    dispatch({ type: 'AUTH_CLEAR_ERROR' });
+    dispatch({ type: 'CLEAR_ERROR' });
   };
 
-  // Valor do context
-  const value: AuthContextType = {
+  // Value do context
+  const contextValue: AuthContextType = {
     ...state,
     login,
     register,
@@ -343,7 +341,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

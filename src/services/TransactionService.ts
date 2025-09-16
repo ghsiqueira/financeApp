@@ -1,13 +1,11 @@
-// src/services/TransactionService.ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// src/services/TransactionService.ts - CÓDIGO COMPLETO
 import { API_CONFIG } from '../constants';
 import { 
   Transaction, 
   CreateTransactionData, 
-  ApiResponse, 
-  PaginatedResponse, 
-  TransactionFilters,
-  FinancialSummary 
+  TransactionFilters, 
+  PaginatedResponse,
+  FinancialSummary
 } from '../types';
 
 class TransactionServiceClass {
@@ -17,34 +15,21 @@ class TransactionServiceClass {
     this.baseURL = API_CONFIG.BASE_URL;
   }
 
-  // Função auxiliar para obter token
-  private async getAuthToken(): Promise<string | null> {
-    try {
-      return await AsyncStorage.getItem('@FinanceApp:token');
-    } catch (error) {
-      console.error('Erro ao obter token:', error);
-      return null;
-    }
-  }
-
-  // Função auxiliar para fazer requisições autenticadas
+  // Função auxiliar para fazer requisições
   private async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const token = await this.getAuthToken();
     const url = `${this.baseURL}${endpoint}`;
     
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,
     };
 
-    // Criar AbortController para timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), API_CONFIG.TIMEOUT);
     config.signal = controller.signal;
@@ -67,25 +52,17 @@ class TransactionServiceClass {
     }
   }
 
-  // Criar transação
-  async createTransaction(transactionData: CreateTransactionData): Promise<Transaction> {
+  // Obter token de autenticação
+  private async getAuthToken(): Promise<string | null> {
     try {
-      const response = await this.request<{ success: boolean; transaction: Transaction }>('/api/transactions', {
-        method: 'POST',
-        body: JSON.stringify(transactionData),
-      });
-
-      if (!response.success) {
-        throw new Error('Erro ao criar transação');
-      }
-
-      return response.transaction;
-    } catch (error: any) {
-      throw new Error(error.message || 'Erro ao criar transação');
+      const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+      return await AsyncStorage.getItem('@FinanceApp:token');
+    } catch (error) {
+      return null;
     }
   }
 
-  // Listar transações com filtros
+  // Listar transações
   async getTransactions(filters?: TransactionFilters): Promise<PaginatedResponse<Transaction[]>> {
     try {
       const queryParams = new URLSearchParams();
@@ -99,20 +76,37 @@ class TransactionServiceClass {
       }
 
       const endpoint = `/api/transactions${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await this.request<PaginatedResponse<Transaction[]>>(endpoint);
+      const response = await this.request<PaginatedResponse<Transaction[]>>(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
-      return response;
+      return {
+        success: true,
+        data: response.data || [],
+        pagination: response.pagination || { current: 1, pages: 1, total: 0 }
+      };
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar transações');
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: error.message || 'Erro ao carregar transações'
+      };
     }
   }
 
   // Obter transação por ID
   async getTransactionById(id: string): Promise<Transaction> {
     try {
-      const response = await this.request<{ success: boolean; transaction: Transaction }>(`/api/transactions/${id}`);
+      const response = await this.request<{ success: boolean; transaction: Transaction }>(`/api/transactions/${id}`, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
-      if (!response.success) {
+      if (!response.success || !response.transaction) {
         throw new Error('Transação não encontrada');
       }
 
@@ -122,15 +116,39 @@ class TransactionServiceClass {
     }
   }
 
+  // Criar transação
+  async createTransaction(transactionData: CreateTransactionData): Promise<Transaction> {
+    try {
+      const response = await this.request<{ success: boolean; transaction: Transaction }>('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+        body: JSON.stringify(transactionData),
+      });
+
+      if (!response.success || !response.transaction) {
+        throw new Error('Erro ao criar transação');
+      }
+
+      return response.transaction;
+    } catch (error: any) {
+      throw new Error(error.message || 'Erro ao criar transação');
+    }
+  }
+
   // Atualizar transação
   async updateTransaction(id: string, transactionData: Partial<CreateTransactionData>): Promise<Transaction> {
     try {
       const response = await this.request<{ success: boolean; transaction: Transaction }>(`/api/transactions/${id}`, {
         method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
         body: JSON.stringify(transactionData),
       });
 
-      if (!response.success) {
+      if (!response.success || !response.transaction) {
         throw new Error('Erro ao atualizar transação');
       }
 
@@ -143,8 +161,11 @@ class TransactionServiceClass {
   // Deletar transação
   async deleteTransaction(id: string): Promise<void> {
     try {
-      const response = await this.request<ApiResponse>(`/api/transactions/${id}`, {
+      const response = await this.request<{ success: boolean }>(`/api/transactions/${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
       });
 
       if (!response.success) {
@@ -155,29 +176,23 @@ class TransactionServiceClass {
     }
   }
 
-  // Obter resumo financeiro
-  async getFinancialSummary(filters?: { startDate?: string; endDate?: string }): Promise<FinancialSummary> {
+  // Duplicar transação
+  async duplicateTransaction(id: string): Promise<Transaction> {
     try {
-      const queryParams = new URLSearchParams();
-      
-      if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
-            queryParams.append(key, value.toString());
-          }
-        });
+      const response = await this.request<{ success: boolean; transaction: Transaction }>(`/api/transactions/${id}/duplicate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
+
+      if (!response.success || !response.transaction) {
+        throw new Error('Erro ao duplicar transação');
       }
 
-      const endpoint = `/api/transactions/summary${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await this.request<{ success: boolean; summary: FinancialSummary }>(endpoint);
-
-      if (!response.success) {
-        throw new Error('Erro ao carregar resumo');
-      }
-
-      return response.summary;
+      return response.transaction;
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar resumo financeiro');
+      throw new Error(error.message || 'Erro ao duplicar transação');
     }
   }
 
@@ -195,7 +210,11 @@ class TransactionServiceClass {
       }
 
       const endpoint = `/api/transactions/by-category${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-      const response = await this.request<{ success: boolean; data: any[] }>(endpoint);
+      const response = await this.request<{ success: boolean; data: any[] }>(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
       if (!response.success) {
         throw new Error('Erro ao carregar dados por categoria');
@@ -207,42 +226,81 @@ class TransactionServiceClass {
     }
   }
 
-  // Obter transações recentes
-  async getRecentTransactions(limit: number = 10): Promise<Transaction[]> {
+  // Obter transações recentes (método auxiliar para HomeScreen)
+  async getRecentTransactions(limit: number = 5): Promise<Transaction[]> {
     try {
-      const response = await this.request<{ success: boolean; transactions: Transaction[] }>(`/api/transactions/recent?limit=${limit}`);
+      const response = await this.getTransactions({
+        page: 1,
+        limit: limit
+      });
 
-      if (!response.success) {
-        throw new Error('Erro ao carregar transações recentes');
+      if (response.success && response.data) {
+        return response.data;
       }
-
-      return response.transactions;
+      return [];
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao carregar transações recentes');
+      console.error('Erro ao buscar transações recentes:', error);
+      return [];
     }
   }
 
-  // Duplicar transação
-  async duplicateTransaction(id: string): Promise<Transaction> {
+  // Obter resumo financeiro (método auxiliar para HomeScreen)
+  async getFinancialSummary(): Promise<FinancialSummary> {
     try {
-      const response = await this.request<{ success: boolean; transaction: Transaction }>(`/api/transactions/${id}/duplicate`, {
-        method: 'POST',
-      });
+      // Tentar buscar do endpoint específico primeiro
+      try {
+        const response = await this.request<{ success: boolean; summary: FinancialSummary }>('/api/transactions/summary', {
+          headers: {
+            'Authorization': `Bearer ${await this.getAuthToken()}`,
+          },
+        });
 
-      if (!response.success) {
-        throw new Error('Erro ao duplicar transação');
+        if (response.success && response.summary) {
+          return response.summary;
+        }
+      } catch (apiError) {
+        // Se não tiver endpoint específico, calcular com base nas transações
+        console.log('Endpoint de summary não disponível, calculando localmente...');
       }
 
-      return response.transaction;
+      // Fallback: calcular com base nas transações recentes
+      const transactions = await this.getRecentTransactions(1000); // Buscar mais transações para cálculo
+      
+      const income = transactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      const expense = transactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + t.amount, 0);
+      
+      return {
+        income,
+        expense,
+        balance: income - expense,
+        incomeCount: transactions.filter(t => t.type === 'income').length,
+        expenseCount: transactions.filter(t => t.type === 'expense').length,
+      };
     } catch (error: any) {
-      throw new Error(error.message || 'Erro ao duplicar transação');
+      console.error('Erro ao buscar resumo financeiro:', error);
+      return {
+        income: 0,
+        expense: 0,
+        balance: 0,
+        incomeCount: 0,
+        expenseCount: 0,
+      };
     }
   }
 
   // Obter estatísticas mensais
   async getMonthlyStats(year: number): Promise<any[]> {
     try {
-      const response = await this.request<{ success: boolean; stats: any[] }>(`/api/transactions/monthly-stats?year=${year}`);
+      const response = await this.request<{ success: boolean; stats: any[] }>(`/api/transactions/monthly-stats?year=${year}`, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
       if (!response.success) {
         throw new Error('Erro ao carregar estatísticas');
@@ -269,7 +327,11 @@ class TransactionServiceClass {
       }
 
       const endpoint = `/api/transactions/export?${queryParams.toString()}`;
-      const response = await this.request<{ success: boolean; downloadUrl: string }>(endpoint);
+      const response = await this.request<{ success: boolean; downloadUrl: string }>(endpoint, {
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
+      });
 
       if (!response.success) {
         throw new Error('Erro ao exportar transações');
@@ -312,6 +374,9 @@ class TransactionServiceClass {
     try {
       const response = await this.request<{ success: boolean; duplicates: Transaction[] }>('/api/transactions/check-duplicates', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
         body: JSON.stringify(transactionData),
       });
 
@@ -330,6 +395,9 @@ class TransactionServiceClass {
     try {
       const response = await this.request<{ success: boolean; processed: number }>('/api/transactions/process-recurring', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await this.getAuthToken()}`,
+        },
       });
 
       if (!response.success) {
