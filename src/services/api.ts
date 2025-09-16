@@ -1,3 +1,4 @@
+// src/services/api.ts
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_CONFIG, STORAGE_KEYS, ERROR_MESSAGES } from '../constants';
@@ -39,64 +40,7 @@ class ApiService {
   private setupInterceptors() {
     // Request interceptor para adicionar token de autenticação
     this.api.interceptors.request.use(
-      async getCategory(id: string): Promise<ApiResponse<Category>> {
-    return this.handleRequest(() =>
-      this.api.get(`/categories/${id}`)
-    );
-  }
-
-  async createCategory(data: CreateCategoryData): Promise<ApiResponse<Category>> {
-    return this.handleRequest(() =>
-      this.api.post('/categories', data)
-    );
-  }
-
-  async updateCategory(id: string, data: Partial<CreateCategoryData>): Promise<ApiResponse<Category>> {
-    return this.handleRequest(() =>
-      this.api.put(`/categories/${id}`, data)
-    );
-  }
-
-  async deleteCategory(id: string): Promise<ApiResponse> {
-    return this.handleRequest(() =>
-      this.api.delete(`/categories/${id}`)
-    );
-  }
-
-  async getCategorySpending(startDate?: string, endDate?: string, type?: 'income' | 'expense'): Promise<ApiResponse<CategorySpendingData[]>> {
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    if (type) params.append('type', type);
-
-    return this.handleRequest(() =>
-      this.api.get(`/categories/stats/spending?${params.toString()}`)
-    );
-  }
-
-  async getAvailableIcons(): Promise<ApiResponse<{ all: string[]; categories: Record<string, string[]> }>> {
-    return this.handleRequest(() =>
-      this.api.get('/categories/icons/available')
-    );
-  }
-
-  // Utils
-  async testConnection(): Promise<boolean> {
-    try {
-      const response = await this.api.get('/');
-      return response.status === 200;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  // Get API instance for custom requests
-  getApiInstance(): AxiosInstance {
-    return this.api;
-  }
-}
-
-export default new ApiService(); (config) => {
+      async (config) => {
         const token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
@@ -324,4 +268,61 @@ export default new ApiService(); (config) => {
     );
   }
 
-  async
+  async getCategory(id: string): Promise<ApiResponse<Category>> {
+    return this.handleRequest(() =>
+      this.api.get(`/categories/${id}`)
+    );
+  }
+
+  async createCategory(data: CreateCategoryData): Promise<ApiResponse<Category>> {
+    return this.handleRequest(() =>
+      this.api.post('/categories', data)
+    );
+  }
+
+  async updateCategory(id: string, data: Partial<CreateCategoryData>): Promise<ApiResponse<Category>> {
+    return this.handleRequest(() =>
+      this.api.put(`/categories/${id}`, data)
+    );
+  }
+
+  async deleteCategory(id: string): Promise<ApiResponse> {
+    return this.handleRequest(() =>
+      this.api.delete(`/categories/${id}`)
+    );
+  }
+
+  async getCategorySpending(startDate?: string, endDate?: string, type?: 'income' | 'expense'): Promise<ApiResponse<CategorySpendingData[]>> {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    if (type) params.append('type', type);
+
+    return this.handleRequest(() =>
+      this.api.get(`/categories/stats/spending?${params.toString()}`)
+    );
+  }
+
+  async getAvailableIcons(): Promise<ApiResponse<{ all: string[]; categories: Record<string, string[]> }>> {
+    return this.handleRequest(() =>
+      this.api.get('/categories/icons/available')
+    );
+  }
+
+  // Utils
+  async testConnection(): Promise<boolean> {
+    try {
+      const response = await this.api.get('/');
+      return response.status === 200;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  // Get API instance for custom requests
+  getApiInstance(): AxiosInstance {
+    return this.api;
+  }
+}
+
+export default new ApiService();

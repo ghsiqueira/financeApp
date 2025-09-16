@@ -56,20 +56,63 @@ export const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const buttonStyle = [
+  // Helper function to get button styles safely - only ViewStyle properties
+  const getButtonVariantStyle = (variant: string): ViewStyle => {
+    const variantMap: Record<string, ViewStyle> = {
+      primary: styles.buttonPrimary,
+      secondary: styles.buttonSecondary,
+      outline: styles.buttonOutline,
+      ghost: styles.buttonGhost,
+    };
+    return variantMap[variant] || {};
+  };
+
+  const getButtonSizeStyle = (size: string): ViewStyle => {
+    const sizeMap: Record<string, ViewStyle> = {
+      small: styles.buttonSmall,
+      medium: styles.buttonMedium,
+      large: styles.buttonLarge,
+    };
+    return sizeMap[size] || {};
+  };
+
+  const getButtonTextVariantStyle = (variant: string): TextStyle => {
+    const variantMap: Record<string, TextStyle> = {
+      primary: styles.buttonTextPrimary,
+      secondary: styles.buttonTextSecondary,
+      outline: styles.buttonTextOutline,
+      ghost: styles.buttonTextGhost,
+    };
+    return variantMap[variant] || {};
+  };
+
+  const getButtonTextSizeStyle = (size: string): TextStyle => {
+    const sizeMap: Record<string, TextStyle> = {
+      small: styles.buttonTextSmall,
+      medium: styles.buttonTextMedium,
+      large: styles.buttonTextLarge,
+    };
+    return sizeMap[size] || {};
+  };
+
+  const buttonViewStyles: ViewStyle[] = [
     styles.button,
-    styles[`button${variant.charAt(0).toUpperCase() + variant.slice(1)}`],
-    styles[`button${size.charAt(0).toUpperCase() + size.slice(1)}`],
-    disabled && styles.buttonDisabled,
-    style,
+    getButtonVariantStyle(variant),
+    getButtonSizeStyle(size),
+    disabled ? styles.buttonDisabled : {},
   ];
 
-  const textStyle = [
+  const textStyles: TextStyle[] = [
     styles.buttonText,
-    styles[`buttonText${variant.charAt(0).toUpperCase() + variant.slice(1)}`],
-    styles[`buttonText${size.charAt(0).toUpperCase() + size.slice(1)}`],
-    disabled && styles.buttonTextDisabled,
+    getButtonTextVariantStyle(variant),
+    getButtonTextSizeStyle(size),
+    disabled ? styles.buttonTextDisabled : {},
   ];
+
+  // Combine external style with button view styles
+  const finalButtonStyle: ViewStyle[] = style 
+    ? [...buttonViewStyles, style as ViewStyle] 
+    : buttonViewStyles;
 
   const content = (
     <View style={styles.buttonContent}>
@@ -85,7 +128,7 @@ export const Button: React.FC<ButtonProps> = ({
               style={styles.buttonIconLeft}
             />
           )}
-          <Text style={textStyle}>{title}</Text>
+          <Text style={textStyles}>{title}</Text>
           {icon && iconPosition === 'right' && (
             <Ionicons 
               name={icon} 
@@ -100,13 +143,15 @@ export const Button: React.FC<ButtonProps> = ({
   );
 
   if (gradient && variant === 'primary' && !disabled) {
+    const gradientViewStyle: ViewStyle = StyleSheet.flatten(buttonViewStyles);
+
     return (
-      <TouchableOpacity {...props} disabled={disabled || loading} style={[styles.button, style]}>
+      <TouchableOpacity {...props} disabled={disabled || loading} style={style}>
         <LinearGradient
           colors={[COLORS.primary, COLORS.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[buttonStyle, { borderWidth: 0 }]}
+          style={[gradientViewStyle, { borderWidth: 0 }]}
         >
           {content}
         </LinearGradient>
@@ -115,7 +160,7 @@ export const Button: React.FC<ButtonProps> = ({
   }
 
   return (
-    <TouchableOpacity {...props} style={buttonStyle} disabled={disabled || loading}>
+    <TouchableOpacity {...props} style={finalButtonStyle} disabled={disabled || loading}>
       {content}
     </TouchableOpacity>
   );
@@ -252,15 +297,32 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     info: { bg: COLORS.infoLight, text: COLORS.infoDark },
   };
 
+  // Helper functions to get styles safely
+  const getStatusBadgeSizeStyle = (size: string): ViewStyle => {
+    const sizeMap: Record<string, ViewStyle> = {
+      small: styles.statusBadgeSmall,
+      medium: styles.statusBadgeMedium,
+    };
+    return sizeMap[size] || {};
+  };
+
+  const getStatusBadgeTextSizeStyle = (size: string): TextStyle => {
+    const sizeMap: Record<string, TextStyle> = {
+      small: styles.statusBadgeTextSmall,
+      medium: styles.statusBadgeTextMedium,
+    };
+    return sizeMap[size] || {};
+  };
+
   return (
     <View style={[
       styles.statusBadge,
-      styles[`statusBadge${size.charAt(0).toUpperCase() + size.slice(1)}`],
+      getStatusBadgeSizeStyle(size),
       { backgroundColor: badgeColors[status].bg }
     ]}>
       <Text style={[
         styles.statusBadgeText,
-        styles[`statusBadgeText${size.charAt(0).toUpperCase() + size.slice(1)}`],
+        getStatusBadgeTextSizeStyle(size),
         { color: badgeColors[status].text }
       ]}>
         {text}

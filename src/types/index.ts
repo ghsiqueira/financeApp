@@ -16,6 +16,7 @@ export interface AuthResponse {
 // Transaction types
 export interface Transaction {
   _id: string;
+  id: string; // Adicionado para compatibilidade
   userId: string;
   description: string;
   amount: number;
@@ -43,8 +44,10 @@ export interface CreateTransactionData {
 // Goal types
 export interface Goal {
   _id: string;
+  id: string; // Adicionado para compatibilidade
   userId: string;
   title: string;
+  name: string; // Adicionado para compatibilidade (mesmo valor que title)
   description?: string;
   targetAmount: number;
   currentAmount: number;
@@ -70,10 +73,12 @@ export interface CreateGoalData {
 // Budget types
 export interface Budget {
   _id: string;
+  id: string; // Adicionado para compatibilidade
   userId: string;
   name: string;
   category: Category;
   monthlyLimit: number;
+  amount: number; // Adicionado para compatibilidade (mesmo valor que monthlyLimit)
   spent: number;
   month: number;
   year: number;
@@ -98,6 +103,7 @@ export interface CreateBudgetData {
 // Category types
 export interface Category {
   _id: string;
+  id: string; // Adicionado para compatibilidade
   name: string;
   icon: string;
   color: string;
@@ -167,6 +173,34 @@ export interface GoalStats {
   total: { count: number; totalTarget: number; totalCurrent: number; progress: number };
 }
 
+// Hook types
+export interface UseTransactionsState {
+  transactions: Transaction[];
+  loading: boolean;
+  error: string | null;
+  pagination: {
+    current: number;
+    pages: number;
+    total: number;
+  };
+}
+
+// Chart data types
+export interface ChartData {
+  labels: string[];
+  datasets: {
+    data: number[];
+    colors?: string[];
+  }[];
+}
+
+export interface CategorySpendingData {
+  category: Category;
+  amount: number;
+  count: number;
+  percentage: number;
+}
+
 // Navigation types
 export type RootStackParamList = {
   Auth: undefined;
@@ -206,6 +240,19 @@ export type BudgetStackParamList = {
   BudgetDetails: { budgetId: string };
 };
 
+export type CategoryStackParamList = {
+  CategoryList: undefined;
+  CreateCategory: undefined;
+  EditCategory: { categoryId: string };
+};
+
+export type ProfileStackParamList = {
+  Profile: undefined;
+  Settings: undefined;
+  EditProfile: undefined;
+  Categories: undefined;
+};
+
 // Form types
 export interface LoginFormData {
   email: string;
@@ -232,23 +279,6 @@ export interface TransactionFilters {
   isRecurring?: boolean;
   page?: number;
   limit?: number;
-}
-
-// Chart data types
-export interface ChartData {
-  labels: string[];
-  datasets: {
-    data: number[];
-    colors?: string[];
-  }[];
-}
-
-export interface CategorySpendingData {
-  category: Category;
-  total: number;
-  count: number;
-  avg: number;
-  percentage: number;
 }
 
 // Notification types

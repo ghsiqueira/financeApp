@@ -3,10 +3,13 @@ import Constants from 'expo-constants';
 // API Configuration
 export const API_CONFIG = {
   BASE_URL: __DEV__ 
-    ? 'http://localhost:5000/api' // Desenvolvimento
+    ? 'http://10.0.2.2:5000/api' // Para Android Emulator
     : 'https://your-production-api.com/api', // Produção
   TIMEOUT: 10000,
 };
+
+// Para debug - você pode adicionar isso temporariamente
+console.log('API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL);
 
 // Colors
 export const COLORS = {

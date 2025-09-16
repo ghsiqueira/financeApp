@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-// Estrutura de pastas para o frontend
 const folders = [
   'src',
   'src/components',
