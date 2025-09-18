@@ -54,6 +54,8 @@ export interface Goal {
   currentAmount: number;
   startDate: string;
   endDate: string;
+  targetDate: string; // Adicionado para compatibilidade (mesmo valor que endDate)
+  category?: string; // Adicionado para compatibilidade
   monthlyTarget: number;
   status: 'active' | 'completed' | 'paused';
   progress?: number;
@@ -67,8 +69,11 @@ export interface CreateGoalData {
   title: string;
   description?: string;
   targetAmount: number;
-  startDate: string;
-  endDate: string;
+  currentAmount?: number; // Adicionado para compatibilidade
+  startDate?: string; // Opcional para compatibilidade
+  endDate?: string; // Opcional para compatibilidade  
+  targetDate: string; // Adicionado para compatibilidade (será mapeado para endDate)
+  category?: string; // Adicionado para compatibilidade
 }
 
 // Budget types

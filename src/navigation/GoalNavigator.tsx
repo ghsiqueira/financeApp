@@ -6,7 +6,7 @@ import {
   CreateGoalScreen,
   EditGoalScreen,
   GoalDetailScreen 
-} from '../screens/PlaceholderScreens';
+} from '../screens/goals';
 import { COLORS, FONTS } from '../constants';
 
 export type GoalStackParamList = {
@@ -49,7 +49,10 @@ export const GoalNavigator: React.FC = () => {
       <GoalStack.Screen 
         name="GoalDetails" 
         component={GoalDetailScreen}
-        options={{ title: 'Detalhes da Meta' }}
+        options={{ 
+          title: 'Detalhes da Meta',
+          headerShown: false // O GoalDetailScreen tem header customizado
+        }}
       />
     </GoalStack.Navigator>
   );
