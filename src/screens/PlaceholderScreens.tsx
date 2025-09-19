@@ -79,11 +79,6 @@ export const EditProfileScreen: React.FC = () => (
   <BasicScreen title="Editar Perfil" />
 );
 
-// Telas de transações
-export const TransactionListScreen: React.FC = () => (
-  <BasicScreen title="Transações" subtitle="Histórico de todas suas transações" />
-);
-
 export const EditTransactionScreen: React.FC = () => (
   <BasicScreen title="Editar Transação" />
 );

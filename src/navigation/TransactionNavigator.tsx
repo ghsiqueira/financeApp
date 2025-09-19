@@ -1,12 +1,11 @@
-// src/navigation/TransactionNavigator.tsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { TransactionListScreen } from '../screens/transactions/TransactionListScreen'; // USAR A TELA REAL
+import { CreateTransactionScreen } from '../screens/transactions/CreateTransactionScreen';
 import { 
-  TransactionListScreen,
   EditTransactionScreen,
   TransactionDetailScreen
 } from '../screens/PlaceholderScreens';
-import { CreateTransactionScreen } from '../screens/transactions/CreateTransactionScreen';
 import { COLORS, FONTS } from '../constants';
 
 export type TransactionStackParamList = {
@@ -21,6 +20,7 @@ const TransactionStack = createNativeStackNavigator<TransactionStackParamList>()
 export const TransactionNavigator: React.FC = () => {
   return (
     <TransactionStack.Navigator
+      initialRouteName="TransactionList" // DEFINIR TELA INICIAL
       screenOptions={{
         headerStyle: {
           backgroundColor: COLORS.primary,

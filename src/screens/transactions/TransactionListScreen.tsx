@@ -1,5 +1,5 @@
-// src/screens/transactions/TransactionListScreen.tsx
-import React, { useEffect, useState } from 'react';
+// src/screens/transactions/TransactionListScreen.tsx - VERSÃO COMPLETA COM DEBUG
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,16 +11,46 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useTransactions } from '../../hooks/useTransactions';
+import { TransactionService } from '../../services/TransactionService';
+import apiService from '../../services/api';
 import { Loading, Card } from '../../components/common';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
-import { formatCurrency, formatDate } from '../../utils';
 import { Transaction } from '../../types';
 
 interface TransactionListScreenProps {
   navigation: any;
 }
+
+// Função para formatar currency
+const formatCurrency = (value: number): string => {
+  if (isNaN(value) || value === null || value === undefined) {
+    return 'R$ 0,00';
+  }
+  
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+};
+
+// Função para formatar data
+const formatDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  } catch {
+    return 'Data inválida';
+  }
+};
 
 export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ navigation }) => {
   const {
@@ -33,20 +63,76 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
     loadMore,
     hasMore,
     isEmpty,
+    pagination,
   } = useTransactions();
 
   // State local para controlar o refresh
   const [refreshing, setRefreshing] = useState(false);
 
-  // Carregar transações na inicialização
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  // FUNÇÃO DE DEBUG TEMPORÁRIA
+  const debugAPI = async () => {
+    console.log('=== INICIANDO DEBUG COMPLETO ===');
+    
+    try {
+      // 1. Teste direto do apiService
+      console.log('1. Testando apiService.getTransactions...');
+      const apiResponse = await apiService.getTransactions({});
+      console.log('📡 Resposta do apiService:', JSON.stringify(apiResponse, null, 2));
+
+      // 2. Teste do TransactionService
+      console.log('2. Testando TransactionService.getTransactions...');
+      const serviceResponse = await TransactionService.getTransactions({});
+      console.log('🔧 Resposta do TransactionService:', JSON.stringify(serviceResponse, null, 2));
+
+      // 3. Teste de transações recentes
+      console.log('3. Testando TransactionService.getRecentTransactions...');
+      const recentResponse = await TransactionService.getRecentTransactions(5);
+      console.log('📋 Transações recentes:', JSON.stringify(recentResponse, null, 2));
+
+      // 4. Verificar estado atual do hook
+      console.log('4. Estado atual do hook:');
+      console.log('- transactions:', transactions.length, transactions);
+      console.log('- loading:', loading);
+      console.log('- error:', error);
+      console.log('- pagination:', pagination);
+      console.log('- isEmpty:', isEmpty);
+      console.log('- hasMore:', hasMore);
+
+      // 5. Testar criação de transação
+      console.log('5. Testando criação de transação...');
+      const testTransaction = {
+        description: 'Teste Debug',
+        amount: 100,
+        type: 'expense' as const,
+        category: 'test',
+        date: new Date().toISOString(),
+        isRecurring: false,
+      };
+      
+      const createResponse = await TransactionService.createTransaction(testTransaction);
+      console.log('➕ Resposta da criação:', JSON.stringify(createResponse, null, 2));
+
+    } catch (err: any) {
+      console.error('❌ Erro no debug:', err);
+      Alert.alert('Erro no Debug', err.message);
+    }
+    
+    console.log('=== FIM DEBUG ===');
+  };
+
+  // Carregar transações quando a tela recebe foco
+  useFocusEffect(
+    useCallback(() => {
+      console.log('🔄 TransactionListScreen ganhou foco, carregando transações...');
+      fetchTransactions();
+    }, [fetchTransactions])
+  );
 
   // Função para refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
+      console.log('🔃 Fazendo refresh das transações...');
       await refresh();
     } finally {
       setRefreshing(false);
@@ -96,11 +182,14 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
       <Card style={styles.transactionCard}>
         <View style={styles.transactionHeader}>
           <View style={styles.transactionInfo}>
-            <View style={styles.categoryIcon}>
+            <View style={[
+              styles.categoryIcon,
+              { backgroundColor: item.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
+            ]}>
               <Ionicons
-                name="pricetag"
+                name={item.type === 'income' ? 'arrow-up' : 'arrow-down'}
                 size={24}
-                color={item.category?.color || COLORS.gray400}
+                color={item.type === 'income' ? COLORS.success : COLORS.error}
               />
             </View>
             <View style={styles.transactionDetails}>
@@ -187,6 +276,23 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
     );
   };
 
+  // Renderizar erro
+  const renderError = () => {
+    if (!error) return null;
+
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => fetchTransactions()}
+        >
+          <Text style={styles.retryText}>Tentar Novamente</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   // Se está carregando e não tem transações
   if (loading && transactions.length === 0) {
     return (
@@ -218,22 +324,40 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
         </TouchableOpacity>
       </View>
 
+      {/* BOTÃO DE DEBUG TEMPORÁRIO - REMOVER DEPOIS */}
+      <TouchableOpacity
+        style={styles.debugButton}
+        onPress={debugAPI}
+      >
+        <Text style={styles.debugButtonText}>
+          DEBUG: Testar API
+        </Text>
+      </TouchableOpacity>
+
+      {/* Info do estado atual */}
+      <View style={styles.debugInfo}>
+        <Text style={styles.debugText}>
+          Transações: {transactions.length} | Loading: {loading ? 'SIM' : 'NÃO'} | Error: {error || 'NENHUM'}
+        </Text>
+      </View>
+
+      {/* Erro */}
+      {renderError()}
+
       {/* Lista de transações ou estado vazio */}
-      {isEmpty ? (
+      {isEmpty && !loading ? (
         renderEmptyState()
       ) : (
         <FlatList
           data={transactions}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.id || item._id}
           renderItem={renderTransactionItem}
           contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
               colors={[COLORS.primary]}
-              tintColor={COLORS.primary}
             />
           }
           onEndReached={() => {
@@ -243,20 +367,8 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
           }}
           onEndReachedThreshold={0.1}
           ListFooterComponent={renderFooter}
+          showsVerticalScrollIndicator={false}
         />
-      )}
-
-      {/* Mostrar erro se houver */}
-      {error && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => fetchTransactions()}
-          >
-            <Text style={styles.retryText}>Tentar Novamente</Text>
-          </TouchableOpacity>
-        </View>
       )}
     </SafeAreaView>
   );
@@ -273,22 +385,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
+    backgroundColor: COLORS.primary,
   },
   title: {
-    fontSize: FONT_SIZES['2xl'],
+    fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.white,
   },
   addButton: {
-    backgroundColor: COLORS.primary,
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primaryDark,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  debugButton: {
+    backgroundColor: 'red',
+    padding: 10,
+    margin: 10,
+    borderRadius: 5,
+    alignItems: 'center',
+  },
+  debugButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  debugInfo: {
+    backgroundColor: 'yellow',
+    padding: 8,
+    marginHorizontal: 10,
+    borderRadius: 5,
+  },
+  debugText: {
+    color: 'black',
+    fontSize: 12,
+    textAlign: 'center',
   },
   listContainer: {
     padding: SPACING.md,
@@ -314,7 +447,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.gray100,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.md,

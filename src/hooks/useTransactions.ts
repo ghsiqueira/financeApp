@@ -1,9 +1,8 @@
-// src/hooks/useTransactions.ts
+// src/hooks/useTransactions.ts - VERSÃO CORRIGIDA
 import { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
-import apiService from '../services/api';
-import { Transaction, TransactionFilters, CreateTransactionData, PaginatedResponse } from '../types';
-import { mapTransaction } from '../utils';
+import { TransactionService } from '../services/TransactionService';
+import { Transaction, TransactionFilters, CreateTransactionData } from '../types';
 
 // Interface para o estado do hook
 interface UseTransactionsState {
@@ -33,20 +32,26 @@ export const useTransactions = (initialFilters?: TransactionFilters) => {
   const [state, setState] = useState<UseTransactionsState>(initialState);
   const [filters, setFilters] = useState<TransactionFilters>(initialFilters || {});
 
-  // Função para buscar transações
+  // Função para buscar transações - CORRIGIDA
   const fetchTransactions = useCallback(async (newFilters?: TransactionFilters, append = false) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
       const filtersToUse = newFilters || filters;
-      const response: PaginatedResponse<Transaction[]> = await apiService.getTransactions(filtersToUse);
+      console.log('🔍 Buscando transações com filtros:', filtersToUse);
+      
+      // Usar TransactionService em vez de apiService diretamente
+      const response = await TransactionService.getTransactions(filtersToUse);
+      
+      console.log('📊 Resposta recebida:', response);
 
       if (response.success && response.data) {
-        const mappedTransactions = response.data.map(mapTransaction);
+        // response.data já é um array de Transaction[] processado pelo TransactionService
+        const transactions = Array.isArray(response.data) ? response.data : [];
         
         setState(prev => ({
           ...prev,
-          transactions: append ? [...prev.transactions, ...mappedTransactions] : mappedTransactions,
+          transactions: append ? [...prev.transactions, ...transactions] : transactions,
           pagination: response.pagination || prev.pagination,
           loading: false,
           error: null,
@@ -59,6 +64,7 @@ export const useTransactions = (initialFilters?: TransactionFilters) => {
         }));
       }
     } catch (error: any) {
+      console.error('❌ Erro ao buscar transações:', error);
       setState(prev => ({
         ...prev,
         loading: false,
@@ -72,10 +78,10 @@ export const useTransactions = (initialFilters?: TransactionFilters) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      const response = await apiService.createTransaction(data);
+      const response = await TransactionService.createTransaction(data);
 
       if (response.success && response.data) {
-        const newTransaction = mapTransaction(response.data);
+        const newTransaction = response.data;
         
         setState(prev => ({
           ...prev,
@@ -103,10 +109,10 @@ export const useTransactions = (initialFilters?: TransactionFilters) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      const response = await apiService.updateTransaction(id, data);
+      const response = await TransactionService.updateTransaction(id, data);
 
       if (response.success && response.data) {
-        const updatedTransaction = mapTransaction(response.data);
+        const updatedTransaction = response.data;
         
         setState(prev => ({
           ...prev,
@@ -136,7 +142,7 @@ export const useTransactions = (initialFilters?: TransactionFilters) => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      const response = await apiService.deleteTransaction(id);
+      const response = await TransactionService.deleteTransaction(id);
 
       if (response.success) {
         setState(prev => ({

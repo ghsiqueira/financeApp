@@ -176,6 +176,8 @@ class ApiService {
 
   // TRANSACTION ENDPOINTS
   async getTransactions(filters?: any): Promise<ApiResponse<{ data: Transaction[]; pagination: any }>> {
+    console.log('🌐 apiService.getTransactions chamado com:', filters);
+    
     const params = new URLSearchParams();
     if (filters) {
       Object.keys(filters).forEach(key => {
@@ -185,9 +187,15 @@ class ApiService {
       });
     }
 
-    return this.handleRequest(() =>
+    console.log('🔗 URL params:', params.toString());
+    console.log('🌍 URL completa:', `${this.baseURL}/transactions?${params.toString()}`);
+
+    const result = await this.handleRequest(() =>
       this.api.get(`/transactions?${params.toString()}`)
     );
+    
+    console.log('📡 Resposta do handleRequest:', JSON.stringify(result, null, 2));
+    return result;
   }
 
   async getTransaction(id: string): Promise<ApiResponse<Transaction>> {

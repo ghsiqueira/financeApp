@@ -47,9 +47,49 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [activeGoals, setActiveGoals] = useState<Goal[]>([]);
   const [currentBudgets, setCurrentBudgets] = useState<Budget[]>([]);
 
-  // Carregar dados iniciais
+  // Função para formatar valor monetário - VERSÃO CORRIGIDA
+  const formatCurrency = (value: number | undefined | null): string => {
+    // Verificar se o valor é válido
+    if (value === null || value === undefined || isNaN(Number(value))) {
+      return 'R$ 0,00';
+    }
+    
+    const numericValue = Number(value);
+    
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(numericValue);
+  };
+
+  // FUNÇÕES DE NAVEGAÇÃO CORRIGIDAS
+  const handleSeeAllTransactions = () => {
+    navigation.navigate('Transactions', {
+      screen: 'TransactionList'
+    }); // Vai direto para TransactionList (tela inicial)
+  };
+
+  const handleCreateTransaction = () => {
+    navigation.navigate('Transactions', { 
+      screen: 'CreateTransaction' 
+    });
+  };
+
+  const handleViewTransaction = (transactionId: string) => {
+    navigation.navigate('Transactions', {
+      screen: 'TransactionDetails',
+      params: { transactionId }
+    });
+  };
+
+  // Carregar dados iniciais - VERSÃO MELHORADA
   const loadData = useCallback(async () => {
     try {
+      setLoading(true);
+      console.log('🔄 Carregando dados do HomeScreen...');
+      
       const [summaryData, transactions, goals, budgets] = await Promise.all([
         TransactionService.getFinancialSummary(),
         TransactionService.getRecentTransactions(5),
@@ -57,13 +97,53 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         BudgetService.getCurrentBudgets(3),
       ]);
 
-      setSummary(summaryData);
-      setRecentTransactions(transactions);
-      setActiveGoals(goals);
-      setCurrentBudgets(budgets);
+      console.log('📊 Dados recebidos:', {
+        summary: summaryData,
+        transactions: transactions?.length,
+        goals: goals?.length,
+        budgets: budgets?.length
+      });
+
+      // Garantir que summary não é null e tem valores válidos
+      const safeSummary = summaryData || {
+        income: 0,
+        expense: 0,
+        incomeCount: 0,
+        expenseCount: 0,
+        balance: 0,
+      };
+
+      // Validar cada valor do summary
+      const validatedSummary = {
+        income: isNaN(Number(safeSummary.income)) ? 0 : Number(safeSummary.income),
+        expense: isNaN(Number(safeSummary.expense)) ? 0 : Number(safeSummary.expense),
+        incomeCount: isNaN(Number(safeSummary.incomeCount)) ? 0 : Number(safeSummary.incomeCount),
+        expenseCount: isNaN(Number(safeSummary.expenseCount)) ? 0 : Number(safeSummary.expenseCount),
+        balance: 0, // Será calculado abaixo
+      };
+
+      // Calcular balance manualmente
+      validatedSummary.balance = validatedSummary.income - validatedSummary.expense;
+
+      setSummary(validatedSummary);
+      setRecentTransactions(transactions || []);
+      setActiveGoals(goals || []);
+      setCurrentBudgets(budgets || []);
     } catch (error: any) {
-      console.error('Erro ao carregar dados:', error);
+      console.error('❌ Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados. Tente novamente.');
+      
+      // Definir valores padrão em caso de erro
+      setSummary({
+        income: 0,
+        expense: 0,
+        incomeCount: 0,
+        expenseCount: 0,
+        balance: 0,
+      });
+      setRecentTransactions([]);
+      setActiveGoals([]);
+      setCurrentBudgets([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -82,14 +162,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     setRefreshing(true);
     loadData();
   }, [loadData]);
-
-  // Função para formatar valor monetário
-  const formatCurrency = (value: number): string => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
-  };
 
   // Função para obter cor do saldo
   const getBalanceColor = (balance: number): string => {
@@ -123,7 +195,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <View style={[styles.summaryIcon, { backgroundColor: COLORS.success10 }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: COLORS.success + '20' }]}>
               <Ionicons name="arrow-up" size={20} color={COLORS.success} />
             </View>
             <View style={styles.summaryDetails}>
@@ -138,7 +210,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </View>
 
           <View style={styles.summaryItem}>
-            <View style={[styles.summaryIcon, { backgroundColor: COLORS.error10 }]}>
+            <View style={[styles.summaryIcon, { backgroundColor: COLORS.error + '20' }]}>
               <Ionicons name="arrow-down" size={20} color={COLORS.error} />
             </View>
             <View style={styles.summaryDetails}>
@@ -163,7 +235,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         icon: 'add-circle',
         label: 'Nova Transação',
         color: COLORS.primary,
-        onPress: () => navigation.navigate('Transactions', { screen: 'CreateTransaction' }),
+        onPress: handleCreateTransaction, // NAVEGAÇÃO CORRIGIDA
       },
       {
         icon: 'flag',
@@ -212,7 +284,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Transações Recentes</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Transactions')}>
+          <TouchableOpacity onPress={handleSeeAllTransactions}>
             <Text style={styles.seeAllText}>Ver todas</Text>
           </TouchableOpacity>
         </View>
@@ -224,7 +296,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               title="Nenhuma transação"
               description="Comece criando sua primeira transação"
               actionText="Criar Transação"
-              onAction={() => navigation.navigate('Transactions', { screen: 'CreateTransaction' })}
+              onAction={handleCreateTransaction} // NAVEGAÇÃO CORRIGIDA
             />
           </Card>
         ) : (
@@ -232,15 +304,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Card key={transaction._id} style={styles.transactionCard}>
               <TouchableOpacity
                 style={styles.transactionItem}
-                onPress={() => navigation.navigate('Transactions', {
-                  screen: 'TransactionDetails',
-                  params: { transactionId: transaction._id }
-                })}
+                onPress={() => handleViewTransaction(transaction._id)} // NAVEGAÇÃO CORRIGIDA
               >
                 <View style={styles.transactionLeft}>
                   <View style={[
                     styles.transactionIcon,
-                    { backgroundColor: transaction.type === 'income' ? COLORS.success10 : COLORS.error10 }
+                    { backgroundColor: transaction.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
                   ]}>
                     <Ionicons
                       name={transaction.type === 'income' ? 'arrow-up' : 'arrow-down'}
@@ -253,7 +322,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                       {transaction.description}
                     </Text>
                     <Text style={styles.transactionCategory}>
-                      {transaction.category.name}
+                      {transaction.category?.name || 'Sem categoria'}
                     </Text>
                     <Text style={styles.transactionDate}>
                       {new Date(transaction.date).toLocaleDateString('pt-BR')}

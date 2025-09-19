@@ -1,4 +1,4 @@
-// src/services/TransactionService.ts - VERSÃO CORRIGIDA COM TIPOS CORRETOS
+// src/services/TransactionService.ts - VERSÃO FINAL CORRIGIDA
 import apiService from './api';
 import { Transaction, CreateTransactionData, FinancialSummary, TransactionFilters, PaginatedResponse, ApiResponse } from '../types';
 
@@ -96,24 +96,120 @@ export class TransactionService {
   }
 
   /**
-   * Buscar todas as transações do usuário
+   * Verificar duplicatas de transação
    */
-  static async getTransactions(filters: TransactionFilters = {}): Promise<PaginatedResponse<Transaction[]>> {
+  static async checkDuplicates(transactionData: CreateTransactionData): Promise<Transaction[]> {
     try {
-      const response = await apiService.getTransactions(filters);
+      // Filtros para buscar transações similares
+      const filters = {
+        description: transactionData.description.trim(),
+        amount: transactionData.amount,
+        type: transactionData.type,
+        category: transactionData.category,
+        // Buscar transações dos últimos 30 dias para verificar duplicatas
+        startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+        endDate: new Date().toISOString(),
+      };
+
+      const response = await this.getTransactions(filters);
       
       if (response.success && response.data) {
-        const transactionsData = response.data.data || response.data;
-        const paginationData = response.data.pagination || { current: 1, pages: 1, total: 0 };
-        
-        return {
-          success: true,
-          data: Array.isArray(transactionsData) ? 
-            transactionsData.map(t => this.mapTransaction(t)) : [],
-          pagination: paginationData,
-        };
+        // Filtrar apenas transações que são realmente similares
+        const duplicates = response.data.filter((transaction: Transaction) => {
+          const isSameDescription = transaction.description?.toLowerCase().trim() === 
+            transactionData.description.toLowerCase().trim();
+          const isSameAmount = Math.abs(transaction.amount - transactionData.amount) < 0.01;
+          const isSameType = transaction.type === transactionData.type;
+          const isSameCategory = 
+            (typeof transaction.category === 'string' && transaction.category === transactionData.category) ||
+            (typeof transaction.category === 'object' && 
+             (transaction.category._id === transactionData.category || 
+              transaction.category.id === transactionData.category));
+          
+          return isSameDescription && isSameAmount && isSameType && isSameCategory;
+        });
+
+        return duplicates;
       }
       
+      return [];
+    } catch (error: any) {
+      console.error('❌ Erro ao verificar duplicatas:', error);
+      // Em caso de erro, retorna array vazio para não bloquear a criação
+      return [];
+    }
+  }
+
+  /**
+   * Buscar todas as transações do usuário - VERSÃO CORRIGIDA
+   */
+  static async getTransactions(filters: TransactionFilters = {}): Promise<TransactionsResponse> {
+    try {
+      console.log('🔍 TransactionService.getTransactions chamado com filtros:', filters);
+      
+      const response = await apiService.getTransactions(filters);
+      console.log('📡 Resposta bruta da API:', JSON.stringify(response, null, 2));
+      
+      if (response.success && response.data) {
+        // Verificar se response.data tem a estrutura esperada
+        const responseData = response.data as any;
+        
+        // A estrutura pode ser response.data.data.data ou response.data.data
+        let apiData: any;
+        let transactionsData: any[];
+        let paginationData: any;
+
+        if (responseData.data && responseData.data.data) {
+          // Caso: response.data.data.data (estrutura aninhada)
+          apiData = responseData.data;
+          transactionsData = apiData.data;
+          paginationData = apiData.pagination;
+        } else if (responseData.data && Array.isArray(responseData.data)) {
+          // Caso: response.data.data é diretamente o array
+          transactionsData = responseData.data;
+          paginationData = responseData.pagination || { current: 1, pages: 1, total: responseData.data.length };
+        } else if (Array.isArray(responseData)) {
+          // Caso: response.data é diretamente o array
+          transactionsData = responseData;
+          paginationData = { current: 1, pages: 1, total: responseData.length };
+        } else {
+          console.log('⚠️ Estrutura de dados não reconhecida:', responseData);
+          return {
+            success: false,
+            data: [],
+            pagination: { current: 1, pages: 1, total: 0 },
+            message: 'Estrutura de dados não reconhecida'
+          };
+        }
+        
+        console.log('📊 Dados das transações extraídos:', transactionsData);
+        console.log('🔢 Tipo dos dados:', typeof transactionsData, Array.isArray(transactionsData));
+        console.log('📄 Dados de paginação:', paginationData);
+        
+        if (Array.isArray(transactionsData)) {
+          const mappedTransactions = transactionsData.map(t => this.mapTransaction(t));
+          console.log('✅ Transações mapeadas:', mappedTransactions.length, 'transações');
+          if (mappedTransactions.length > 0) {
+            console.log('🔍 Primeira transação mapeada:', mappedTransactions[0]);
+          }
+          
+          return {
+            success: true,
+            data: mappedTransactions,
+            pagination: paginationData || { current: 1, pages: 1, total: mappedTransactions.length },
+          };
+        } else {
+          console.log('⚠️ transactionsData não é um array:', transactionsData);
+          return {
+            success: false,
+            data: [],
+            pagination: { current: 1, pages: 1, total: 0 },
+            message: 'Dados não são um array'
+          };
+        }
+      }
+      
+      console.log('⚠️ Resposta não contém dados válidos');
       return {
         success: false,
         data: [],
@@ -238,13 +334,39 @@ export class TransactionService {
    */
   static async getFinancialSummary(month?: number, year?: number): Promise<FinancialSummary> {
     try {
+      console.log('🔍 Buscando resumo financeiro...');
       const response = await apiService.getFinancialSummary(month, year);
       
+      console.log('📊 Resposta da API (resumo):', JSON.stringify(response, null, 2));
+      
       if (response.success && response.data) {
-        return response.data;
+        // Verificar estrutura da resposta (pode ser aninhada como nas transações)
+        let summaryData = response.data as any;
+        
+        // Se tiver response.data.data, usar esse nível
+        if (summaryData.data) {
+          summaryData = summaryData.data;
+        }
+        
+        console.log('📈 Dados do resumo extraídos:', summaryData);
+        
+        // Garantir que todos os valores são números válidos
+        const summary: FinancialSummary = {
+          income: isNaN(Number(summaryData.income)) ? 0 : Number(summaryData.income),
+          expense: isNaN(Number(summaryData.expense)) ? 0 : Number(summaryData.expense),
+          incomeCount: isNaN(Number(summaryData.incomeCount)) ? 0 : Number(summaryData.incomeCount),
+          expenseCount: isNaN(Number(summaryData.expenseCount)) ? 0 : Number(summaryData.expenseCount),
+          balance: 0, // Será calculado abaixo
+        };
+        
+        // Calcular balance manualmente para garantir precisão
+        summary.balance = summary.income - summary.expense;
+        
+        console.log('✅ Resumo processado:', summary);
+        return summary;
       }
       
-      // Retornar resumo vazio baseado no tipo FinancialSummary correto
+      console.log('⚠️ Resposta da API não contém dados válidos, retornando resumo vazio');
       return {
         income: 0,
         expense: 0,
@@ -269,13 +391,35 @@ export class TransactionService {
    */
   static async getRecentTransactions(limit: number = 5): Promise<Transaction[]> {
     try {
+      console.log('🔍 Buscando transações recentes, limite:', limit);
       const response = await apiService.getRecentTransactions(limit);
       
+      console.log('📊 Resposta da API (recentes):', JSON.stringify(response, null, 2));
+      
       if (response.success && response.data) {
-        return Array.isArray(response.data) ? 
-          response.data.map(t => this.mapTransaction(t)) : [];
+        let transactionsData = response.data as any;
+        
+        // Verificar se tem estrutura aninhada
+        if (transactionsData.data) {
+          transactionsData = transactionsData.data;
+        }
+        
+        // Se ainda tem .data (response.data.data.data)
+        if (transactionsData.data) {
+          transactionsData = transactionsData.data;
+        }
+        
+        console.log('📋 Dados das transações recentes extraídos:', transactionsData);
+        console.log('🔢 É array?', Array.isArray(transactionsData));
+        
+        if (Array.isArray(transactionsData)) {
+          const mappedTransactions = transactionsData.map((t: any) => this.mapTransaction(t));
+          console.log('✅ Transações recentes mapeadas:', mappedTransactions.length);
+          return mappedTransactions;
+        }
       }
       
+      console.log('⚠️ Nenhuma transação recente encontrada');
       return [];
     } catch (error: any) {
       console.error('❌ Erro ao buscar transações recentes:', error);
