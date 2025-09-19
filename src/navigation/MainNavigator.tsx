@@ -1,4 +1,4 @@
-// src/navigation/MainNavigator.tsx - VERSÃO COM NAVEGAÇÃO CORRIGIDA
+// src/navigation/MainNavigator.tsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -9,8 +9,6 @@ import { HomeScreen } from '../screens/main/HomeScreen';
 import { TransactionListScreen } from '../screens/transactions/TransactionListScreen';
 import { GoalListScreen } from '../screens/goals/GoalListScreen';
 import { BudgetListScreen } from '../screens/budgets/BudgetListScreen';
-// import { ReportsScreen } from '../screens/reports/ReportsScreen';
-// import { ProfileScreen } from '../screens/profile/ProfileScreen';
 
 import { COLORS, FONTS, FONT_SIZES } from '../constants';
 import { MainTabParamList } from '../types';
@@ -18,7 +16,6 @@ import { MainTabParamList } from '../types';
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator();
 
-// Tela temporária para as seções não implementadas
 const PlaceholderScreen = ({ title }: { title: string }) => {
   return (
     <div style={{

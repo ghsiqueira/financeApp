@@ -1,13 +1,11 @@
-// src/services/BudgetService.ts - VERSÃO COMPLETA CORRIGIDA
+// src/services/BudgetService.ts - VERSÃO CORRIGIDA COM TIPOS CORRETOS
 import apiService from './api';
 import { Budget, CreateBudgetData } from '../types';
-import { safeApiCall, getMockData } from '../utils/apiUtils';
 
 // Interface para update que inclui campos adicionais
 export interface UpdateBudgetData extends Partial<CreateBudgetData> {
   spent?: number;
   isActive?: boolean;
-  monthlyLimit?: number;
 }
 
 export interface BudgetFilters {
@@ -60,9 +58,9 @@ export class BudgetService {
       month: apiBudget.month || new Date().getMonth() + 1,
       year: apiBudget.year || new Date().getFullYear(),
       isActive: apiBudget.isActive !== undefined ? apiBudget.isActive : true,
-      userId: apiBudget.userId || '',
       createdAt: apiBudget.createdAt || new Date().toISOString(),
       updatedAt: apiBudget.updatedAt || new Date().toISOString(),
+      userId: apiBudget.userId || '',
     };
   }
 
@@ -101,7 +99,7 @@ export class BudgetService {
     return {
       name: data.name,
       category: data.category,
-      monthlyLimit: data.monthlyLimit,
+      monthlyLimit: data.monthlyLimit, // Usar monthlyLimit em vez de amount
       month: data.month,
       year: data.year,
     };
@@ -115,228 +113,235 @@ export class BudgetService {
     limit: number = 20,
     filters: BudgetFilters = {}
   ): Promise<BudgetsResponse> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getBudgets(
-          filters.month,
-          filters.year,
-          filters.isActive
-        );
-        
-        const budgetsData = response.data || [];
+    try {
+      const response = await apiService.getBudgets(page, limit, filters);
+      
+      if (response.success && response.data) {
+        const budgetsData = response.data.data || response.data;
+        const paginationData = response.data.pagination || { current: 1, pages: 1, total: 0 };
         
         return {
           success: true,
           data: Array.isArray(budgetsData) ? 
-            budgetsData.map((budget: any) => this.mapBudget(budget)) : [],
-          pagination: response.pagination || {
-            current: page,
-            pages: 1,
-            total: Array.isArray(budgetsData) ? budgetsData.length : 0,
-          },
+            budgetsData.map(b => this.mapBudget(b)) : [],
+          pagination: paginationData,
         };
-      },
-      {
-        success: true,
-        data: (getMockData('budgets') as any[]).map((budget: any) => this.mapBudget(budget)),
-        pagination: { current: 1, pages: 1, total: 0 },
       }
-    );
+      
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: response.message || 'Erro ao carregar orçamentos'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar orçamentos:', error);
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: error.message || 'Erro ao carregar orçamentos'
+      };
+    }
   }
 
   /**
    * Buscar orçamento por ID
    */
   static async getBudget(id: string): Promise<BudgetResponse> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getBudget(id);
+    try {
+      const response = await apiService.getBudget(id);
+      
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data ? this.mapBudget(response.data) : undefined,
+          data: this.mapBudget(response.data),
         };
-      },
-      {
-        success: true,
-        data: this.mapBudget((getMockData('budgets') as any[])[0]),
       }
-    );
+      
+      return {
+        success: false,
+        message: response.message || 'Orçamento não encontrado'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar orçamento:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao carregar orçamento'
+      };
+    }
   }
 
   /**
    * Criar novo orçamento
    */
   static async createBudget(data: CreateBudgetData): Promise<BudgetResponse> {
-    return safeApiCall(
-      async () => {
-        const mappedData = this.mapCreateData(data);
-        const response = await apiService.createBudget(mappedData);
+    try {
+      const mappedData = this.mapCreateData(data);
+      const response = await apiService.createBudget(mappedData);
+      
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data ? this.mapBudget(response.data) : undefined,
+          data: this.mapBudget(response.data),
         };
-      },
-      {
-        success: true,
-        data: this.mapBudget({
-          _id: Date.now().toString(),
-          ...this.mapCreateData(data),
-          spent: 0,
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }),
       }
-    );
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao criar orçamento'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao criar orçamento:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao criar orçamento'
+      };
+    }
   }
 
   /**
    * Atualizar orçamento
    */
-  static async updateBudget(id: string, data: UpdateBudgetData): Promise<Budget> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.updateBudget(id, data);
-        return this.mapBudget(response.data);
-      },
-      this.mapBudget({
-        _id: id,
-        ...data,
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async updateBudget(id: string, data: UpdateBudgetData): Promise<BudgetResponse> {
+    try {
+      const response = await apiService.updateBudget(id, data);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: this.mapBudget(response.data),
+        };
+      }
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao atualizar orçamento'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao atualizar orçamento:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao atualizar orçamento'
+      };
+    }
   }
 
   /**
    * Deletar orçamento
    */
-  static async deleteBudget(id: string): Promise<void> {
-    return safeApiCall(
-      async () => {
-        await apiService.deleteBudget(id);
-      },
-      undefined
-    );
+  static async deleteBudget(id: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await apiService.deleteBudget(id);
+      
+      return {
+        success: response.success,
+        message: response.message || 'Orçamento deletado com sucesso'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao deletar orçamento:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao deletar orçamento'
+      };
+    }
   }
 
   /**
-   * Ajustar limite do orçamento - MÉTODO NECESSÁRIO PARA O HOOK
+   * Ajustar limite do orçamento
    */
-  static async adjustBudgetLimit(id: string, newLimit: number): Promise<Budget> {
-    return safeApiCall(
-      async () => {
-        const updateData: UpdateBudgetData = { monthlyLimit: newLimit };
-        const response = await apiService.updateBudget(id, updateData);
-        return this.mapBudget(response.data);
-      },
-      this.mapBudget({
-        _id: id,
-        monthlyLimit: newLimit,
-        amount: newLimit,
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async adjustBudgetLimit(id: string, newLimit: number): Promise<BudgetResponse> {
+    try {
+      const updateData: UpdateBudgetData = { 
+        monthlyLimit: newLimit // Usar monthlyLimit em vez de amount
+      };
+      return await this.updateBudget(id, updateData);
+    } catch (error: any) {
+      console.error('❌ Erro ao ajustar limite do orçamento:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao ajustar limite do orçamento'
+      };
+    }
   }
 
   /**
    * Buscar orçamentos atuais (método para HomeScreen)
    */
   static async getCurrentBudgets(limit: number = 5): Promise<Budget[]> {
-    return safeApiCall(
-      async () => {
-        const currentDate = new Date();
-        const response = await this.getBudgets(1, limit, {
-          month: currentDate.getMonth() + 1,
-          year: currentDate.getFullYear(),
-          isActive: true
-        });
-
-        if (response.success && response.data) {
-          return response.data;
-        }
-        return [];
-      },
-      (getMockData('budgets') as any[]).slice(0, limit).map((budget: any) => this.mapBudget(budget))
-    );
+    try {
+      const response = await apiService.getCurrentBudgets(limit);
+      
+      if (response.success && response.data) {
+        return Array.isArray(response.data) ? 
+          response.data.map(b => this.mapBudget(b)) : [];
+      }
+      
+      return [];
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar orçamentos atuais:', error);
+      return [];
+    }
   }
 
   /**
    * Buscar resumo dos orçamentos
    */
-  static async getBudgetSummary(month?: number, year?: number) {
-    return safeApiCall(
-      async () => {
-        const currentDate = new Date();
-        const targetMonth = month || (currentDate.getMonth() + 1);
-        const targetYear = year || currentDate.getFullYear();
-        
-        const response = await this.getBudgets(1, 50, {
-          month: targetMonth,
-          year: targetYear,
-          isActive: true
-        });
-        
-        if (response.success) {
-          const budgets = response.data;
-          const totals = budgets.reduce((acc, budget) => {
-            acc.budget += budget.monthlyLimit || 0;
-            acc.spent += budget.spent || 0;
-            acc.totalBudgets += 1;
-            if ((budget.spent || 0) > (budget.monthlyLimit || 0)) {
-              acc.overBudgetCount += 1;
-            }
-            return acc;
-          }, {
-            budget: 0,
-            spent: 0,
-            remaining: 0,
-            usage: 0,
-            overBudgetCount: 0,
-            totalBudgets: 0,
-          });
+  static async getBudgetSummary(month?: number, year?: number): Promise<any> {
+    try {
+      const currentDate = new Date();
+      const filters: BudgetFilters = {
+        month: month || currentDate.getMonth() + 1,
+        year: year || currentDate.getFullYear(),
+        isActive: true
+      };
 
-          totals.remaining = totals.budget - totals.spent;
-          totals.usage = totals.budget > 0 ? (totals.spent / totals.budget) * 100 : 0;
-
-          return {
-            success: true,
-            data: {
-              budgets,
-              totals,
-              period: {
-                month: targetMonth,
-                year: targetYear,
-              },
-            }
-          };
-        } else {
-          return {
-            success: false,
-            message: response.message || 'Erro ao buscar resumo'
-          };
-        }
-      },
-      {
-        success: true,
-        data: {
-          budgets: (getMockData('budgets') as any[]).map((b: any) => this.mapBudget(b)),
-          totals: {
-            budget: 1100,
-            spent: 630,
-            remaining: 470,
-            usage: 57.27,
-            overBudgetCount: 0,
-            totalBudgets: 2,
-          },
-          period: {
-            month: new Date().getMonth() + 1,
-            year: new Date().getFullYear(),
-          },
-        }
+      const response = await this.getBudgets(1, 100, filters);
+      
+      if (response.success && response.data) {
+        const budgets = response.data;
+        
+        return {
+          totalBudgets: budgets.length,
+          totalLimit: budgets.reduce((sum, b) => sum + (b.monthlyLimit || 0), 0),
+          totalSpent: budgets.reduce((sum, b) => sum + (b.spent || 0), 0),
+          overBudgetCount: budgets.filter(b => b.isOverBudget).length,
+          budgets: budgets.slice(0, 5) // Top 5 para resumo
+        };
       }
-    );
+      
+      return {
+        totalBudgets: 0,
+        totalLimit: 0,
+        totalSpent: 0,
+        overBudgetCount: 0,
+        budgets: []
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar resumo dos orçamentos:', error);
+      return {
+        totalBudgets: 0,
+        totalLimit: 0,
+        totalSpent: 0,
+        overBudgetCount: 0,
+        budgets: []
+      };
+    }
+  }
+
+  /**
+   * Ativar/Desativar orçamento
+   */
+  static async toggleBudgetStatus(id: string, isActive: boolean): Promise<BudgetResponse> {
+    try {
+      const updateData: UpdateBudgetData = { isActive };
+      return await this.updateBudget(id, updateData);
+    } catch (error: any) {
+      console.error('❌ Erro ao alterar status do orçamento:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao alterar status do orçamento'
+      };
+    }
   }
 }
-
-// Exportar tipos
-export { Budget, CreateBudgetData };

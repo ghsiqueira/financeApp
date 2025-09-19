@@ -1,7 +1,6 @@
-// src/services/TransactionService.ts - VERSÃO LIMPA E FUNCIONAL
+// src/services/TransactionService.ts - VERSÃO CORRIGIDA COM TIPOS CORRETOS
 import apiService from './api';
-import { Transaction, CreateTransactionData, FinancialSummary, TransactionFilters, PaginatedResponse } from '../types';
-import { safeApiCall, getMockData } from '../utils/apiUtils';
+import { Transaction, CreateTransactionData, FinancialSummary, TransactionFilters, PaginatedResponse, ApiResponse } from '../types';
 
 // Interface para update que inclui campos adicionais
 export interface UpdateTransactionData extends Partial<CreateTransactionData> {
@@ -88,7 +87,7 @@ export class TransactionService {
       description: data.description,
       amount: data.amount,
       type: data.type,
-      category: data.category,
+      category: data.category, // Manter como string conforme o tipo
       date: data.date || new Date().toISOString(),
       isRecurring: data.isRecurring || false,
       recurringDay: data.recurringDay,
@@ -100,272 +99,224 @@ export class TransactionService {
    * Buscar todas as transações do usuário
    */
   static async getTransactions(filters: TransactionFilters = {}): Promise<PaginatedResponse<Transaction[]>> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getTransactions(filters);
-        const transactionsData = response.data || [];
+    try {
+      const response = await apiService.getTransactions(filters);
+      
+      if (response.success && response.data) {
+        const transactionsData = response.data.data || response.data;
+        const paginationData = response.data.pagination || { current: 1, pages: 1, total: 0 };
         
         return {
           success: true,
           data: Array.isArray(transactionsData) ? 
-            transactionsData.map(transaction => this.mapTransaction(transaction)) : [],
-          pagination: response.pagination || {
-            current: filters.page || 1,
-            pages: 1,
-            total: Array.isArray(transactionsData) ? transactionsData.length : 0,
-          },
+            transactionsData.map(t => this.mapTransaction(t)) : [],
+          pagination: paginationData,
         };
-      },
-      {
-        success: true,
-        data: (getMockData('transactions') as any[]).map(transaction => this.mapTransaction(transaction)),
-        pagination: { current: 1, pages: 1, total: 0 },
       }
-    );
+      
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: response.message || 'Erro ao carregar transações'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar transações:', error);
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: error.message || 'Erro ao carregar transações'
+      };
+    }
   }
 
   /**
    * Buscar transação por ID
    */
   static async getTransaction(id: string): Promise<TransactionResponse> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getTransaction(id);
+    try {
+      const response = await apiService.getTransaction(id);
+      
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data ? this.mapTransaction(response.data) : undefined,
+          data: this.mapTransaction(response.data),
         };
-      },
-      {
-        success: true,
-        data: this.mapTransaction((getMockData('transactions') as any[])[0]),
       }
-    );
+      
+      return {
+        success: false,
+        message: response.message || 'Transação não encontrada'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar transação:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao carregar transação'
+      };
+    }
   }
 
   /**
    * Criar nova transação
    */
   static async createTransaction(data: CreateTransactionData): Promise<TransactionResponse> {
-    return safeApiCall(
-      async () => {
-        const mappedData = this.mapCreateData(data);
-        const response = await apiService.createTransaction(mappedData);
+    try {
+      const mappedData = this.mapCreateData(data);
+      const response = await apiService.createTransaction(mappedData);
+      
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data ? this.mapTransaction(response.data) : undefined,
+          data: this.mapTransaction(response.data),
         };
-      },
-      {
-        success: true,
-        data: this.mapTransaction({
-          _id: Date.now().toString(),
-          ...this.mapCreateData(data),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }),
       }
-    );
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao criar transação'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao criar transação:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao criar transação'
+      };
+    }
   }
 
   /**
    * Atualizar transação
    */
-  static async updateTransaction(id: string, data: UpdateTransactionData): Promise<Transaction> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.updateTransaction(id, data);
-        return this.mapTransaction(response.data);
-      },
-      this.mapTransaction({
-        _id: id,
-        ...data,
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async updateTransaction(id: string, data: UpdateTransactionData): Promise<TransactionResponse> {
+    try {
+      const response = await apiService.updateTransaction(id, data);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: this.mapTransaction(response.data),
+        };
+      }
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao atualizar transação'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao atualizar transação:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao atualizar transação'
+      };
+    }
   }
 
   /**
    * Deletar transação
    */
-  static async deleteTransaction(id: string): Promise<void> {
-    return safeApiCall(
-      async () => {
-        await apiService.deleteTransaction(id);
-      },
-      undefined
-    );
+  static async deleteTransaction(id: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await apiService.deleteTransaction(id);
+      
+      return {
+        success: response.success,
+        message: response.message || 'Transação deletada com sucesso'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao deletar transação:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao deletar transação'
+      };
+    }
   }
 
   /**
-   * Buscar resumo financeiro - MÉTODO NECESSÁRIO PARA O HOMESCREEN
+   * Buscar resumo financeiro
    */
-  static async getFinancialSummary(): Promise<FinancialSummary> {
-    return safeApiCall(
-      async () => {
-        const transactionsResponse = await this.getTransactions({ 
-          page: 1, 
-          limit: 1000
-        });
-        
-        if (transactionsResponse.success && transactionsResponse.data) {
-          const transactions = transactionsResponse.data;
-          
-          const summary: FinancialSummary = {
-            income: 0,
-            expense: 0,
-            incomeCount: 0,
-            expenseCount: 0,
-            balance: 0,
-          };
-
-          transactions.forEach(transaction => {
-            if (transaction.type === 'income') {
-              summary.income += transaction.amount;
-              summary.incomeCount++;
-            } else {
-              summary.expense += transaction.amount;
-              summary.expenseCount++;
-            }
-          });
-
-          summary.balance = summary.income - summary.expense;
-          return summary;
-        }
-        
-        throw new Error('Não foi possível calcular resumo');
-      },
-      {
-        income: 5000,
-        expense: 3500,
-        incomeCount: 15,
-        expenseCount: 42,
-        balance: 1500,
+  static async getFinancialSummary(month?: number, year?: number): Promise<FinancialSummary> {
+    try {
+      const response = await apiService.getFinancialSummary(month, year);
+      
+      if (response.success && response.data) {
+        return response.data;
       }
-    );
+      
+      // Retornar resumo vazio baseado no tipo FinancialSummary correto
+      return {
+        income: 0,
+        expense: 0,
+        incomeCount: 0,
+        expenseCount: 0,
+        balance: 0,
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar resumo financeiro:', error);
+      return {
+        income: 0,
+        expense: 0,
+        incomeCount: 0,
+        expenseCount: 0,
+        balance: 0,
+      };
+    }
   }
 
   /**
-   * Buscar transações recentes - MÉTODO NECESSÁRIO PARA O HOMESCREEN
+   * Buscar transações recentes
    */
   static async getRecentTransactions(limit: number = 5): Promise<Transaction[]> {
-    return safeApiCall(
-      async () => {
-        const response = await this.getTransactions({ 
-          page: 1, 
-          limit,
-        });
-        
-        if (response.success && response.data) {
-          return response.data.slice(0, limit);
-        }
-        
-        throw new Error('Não foi possível buscar transações recentes');
-      },
-      (getMockData('transactions') as any[]).slice(0, limit).map(transaction => this.mapTransaction(transaction))
-    );
-  }
-
-  /**
-   * Duplicar transação - MÉTODO NECESSÁRIO PARA O HOOK
-   */
-  static async duplicateTransaction(id: string): Promise<Transaction> {
-    return safeApiCall(
-      async () => {
-        const originalResponse = await this.getTransaction(id);
-        if (originalResponse.success && originalResponse.data) {
-          const original = originalResponse.data;
-          const duplicateData: CreateTransactionData = {
-            description: `${original.description} (cópia)`,
-            amount: original.amount,
-            type: original.type,
-            category: original.category._id,
-            date: new Date().toISOString(),
-            isRecurring: original.isRecurring,
-            recurringDay: original.recurringDay,
-          };
-          
-          const createResponse = await this.createTransaction(duplicateData);
-          if (createResponse.success && createResponse.data) {
-            return createResponse.data;
-          }
-        }
-        
-        throw new Error('Não foi possível duplicar transação');
-      },
-      this.mapTransaction({
-        _id: Date.now().toString(),
-        description: 'Transação duplicada',
-        amount: 100,
-        type: 'expense',
-        category: { name: 'Outros' },
-        date: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-    );
-  }
-
-  /**
-   * Buscar estatísticas das transações
-   */
-  static async getTransactionStats(): Promise<any> {
-    return safeApiCall(
-      async () => {
-        const response = await this.getTransactions({ page: 1, limit: 1000 });
-        
-        if (response.success && response.data) {
-          const transactions = response.data;
-          
-          const stats = {
-            totalTransactions: transactions.length,
-            totalIncome: transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0),
-            totalExpense: transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0),
-            averageTransaction: transactions.length > 0 ? transactions.reduce((sum, t) => sum + t.amount, 0) / transactions.length : 0,
-            categoriesCount: new Set(transactions.map(t => t.category._id)).size,
-          };
-          
-          return stats;
-        }
-        
-        throw new Error('Não foi possível calcular estatísticas');
-      },
-      {
-        totalTransactions: 50,
-        totalIncome: 5000,
-        totalExpense: 3500,
-        averageTransaction: 150,
-        categoriesCount: 8,
+    try {
+      const response = await apiService.getRecentTransactions(limit);
+      
+      if (response.success && response.data) {
+        return Array.isArray(response.data) ? 
+          response.data.map(t => this.mapTransaction(t)) : [];
       }
-    );
+      
+      return [];
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar transações recentes:', error);
+      return [];
+    }
   }
 
   /**
-   * Buscar transações por categoria
+   * Duplicar transação
    */
-  static async getTransactionsByCategory(categoryId: string, filters: TransactionFilters = {}): Promise<Transaction[]> {
-    return safeApiCall(
-      async () => {
-        const response = await this.getTransactions({ ...filters, category: categoryId });
-        return response.data || [];
-      },
-      (getMockData('transactions') as any[]).filter((t: any) => t.category._id === categoryId).map(transaction => this.mapTransaction(transaction))
-    );
-  }
+  static async duplicateTransaction(id: string): Promise<TransactionResponse> {
+    try {
+      // Buscar a transação original
+      const originalResponse = await this.getTransaction(id);
+      
+      if (!originalResponse.success || !originalResponse.data) {
+        return {
+          success: false,
+          message: 'Transação original não encontrada'
+        };
+      }
 
-  static async checkDuplicates(data: CreateTransactionData): Promise<Transaction[]> {
-    const response = await this.getTransactions({});
-    if (response.success && response.data) {
-      return response.data.filter(
-        (t) =>
-          t.description === data.description &&
-          t.amount === data.amount &&
-          t.date.split('T')[0] === (data.date ? data.date.split('T')[0] : '')
-      );
+      // Criar nova transação baseada na original
+      const duplicateData: CreateTransactionData = {
+        description: `${originalResponse.data.description} (Cópia)`,
+        amount: originalResponse.data.amount,
+        type: originalResponse.data.type,
+        category: typeof originalResponse.data.category === 'string' ? 
+          originalResponse.data.category : 
+          originalResponse.data.category._id || originalResponse.data.category.id,
+        date: new Date().toISOString(),
+        isRecurring: false, // Não duplicar como recorrente
+      };
+
+      return await this.createTransaction(duplicateData);
+    } catch (error: any) {
+      console.error('❌ Erro ao duplicar transação:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao duplicar transação'
+      };
     }
-    return [];
   }
 }
-
-// Exportar tipos
-export { Transaction, CreateTransactionData };

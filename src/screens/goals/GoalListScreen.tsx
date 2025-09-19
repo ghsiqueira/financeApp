@@ -11,9 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
 
 import { 
   Card, 
@@ -36,14 +35,11 @@ type GoalStackParamList = {
 };
 
 type GoalListScreenNavigationProp = NativeStackNavigationProp<GoalStackParamList, 'GoalList'>;
-type GoalListScreenRouteProp = RouteProp<GoalStackParamList, 'GoalList'>;
 
-interface Props {
-  navigation: GoalListScreenNavigationProp;
-  route: GoalListScreenRouteProp;
-}
-
-export const GoalListScreen: React.FC<Props> = ({ navigation }) => {
+// Componente sem props tipadas explícitas para compatibilidade com Tab Navigator
+export const GoalListScreen: React.FC = () => {
+  const navigation = useNavigation<GoalListScreenNavigationProp>();
+  
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -389,7 +385,7 @@ const styles = StyleSheet.create({
   goalCategory: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
+    color: COLORS.primary,
   },
   goalStatus: {
     alignItems: 'flex-end',
@@ -401,7 +397,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bold,
   },
   progressContainer: {
     marginBottom: SPACING.md,

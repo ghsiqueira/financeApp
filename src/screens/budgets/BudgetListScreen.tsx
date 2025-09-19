@@ -11,9 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
 
 import { 
   ProgressBar,
@@ -33,14 +32,11 @@ type BudgetStackParamList = {
 };
 
 type BudgetListScreenNavigationProp = NativeStackNavigationProp<BudgetStackParamList, 'BudgetList'>;
-type BudgetListScreenRouteProp = RouteProp<BudgetStackParamList, 'BudgetList'>;
 
-interface Props {
-  navigation: BudgetListScreenNavigationProp;
-  route: BudgetListScreenRouteProp;
-}
-
-export const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
+// Componente sem props tipadas explícitas para compatibilidade com Tab Navigator
+export const BudgetListScreen: React.FC = () => {
+  const navigation = useNavigation<BudgetListScreenNavigationProp>();
+  
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -187,7 +183,6 @@ export const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
               <Badge
                 text={isExceeded ? 'Excedido' : 'Ativo'}
                 variant={status === 'danger' ? 'error' : status === 'warning' ? 'warning' : 'success'}
-                size="sm"
               />
             </View>
           </View>
@@ -196,7 +191,7 @@ export const BudgetListScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.progressContainer}>
             <View style={styles.progressInfo}>
               <Text style={styles.progressText}>
-                {formatCurrency(budget.spent)} de {formatCurrency(budget.monthlyLimit)}
+                {formatCurrency(budget.spent)} / {formatCurrency(budget.monthlyLimit)}
               </Text>
               <Text style={[
                 styles.progressPercentage,

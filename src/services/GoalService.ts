@@ -1,7 +1,6 @@
-// src/services/GoalService.ts - VERSÃO LIMPA E FUNCIONAL
+// src/services/GoalService.ts - VERSÃO CORRIGIDA
 import apiService from './api';
 import { Goal, CreateGoalData, ApiResponse } from '../types';
-import { safeApiCall, getMockData } from '../utils/apiUtils';
 
 // Interface para update que inclui campos adicionais
 export interface UpdateGoalData extends Partial<CreateGoalData> {
@@ -90,190 +89,240 @@ export class GoalService {
     limit: number = 20,
     filters: GoalFilters = {}
   ): Promise<GoalsResponse> {
-    return safeApiCall(
-      async () => {
-        const status = filters.isCompleted ? 'completed' : filters.status;
-        const response = await apiService.getGoals(status, page, limit);
-        const goalsData = response.data || [];
+    try {
+      // Converter filtros para formato da API
+      const apiFilters = {
+        page,
+        limit,
+        ...filters,
+        // Remover campos que não são suportados pela API
+        isCompleted: undefined,
+      };
+
+      const response = await apiService.getGoals(page, limit, apiFilters);
+      
+      if (response.success && response.data) {
+        const goalsData = response.data.data || response.data;
+        const paginationData = response.data.pagination || { current: 1, pages: 1, total: 0 };
         
         return {
           success: true,
           data: Array.isArray(goalsData) ? 
-            goalsData.map(goal => this.mapGoal(goal)) : [],
-          pagination: response.pagination || {
-            current: page,
-            pages: 1,
-            total: Array.isArray(goalsData) ? goalsData.length : 0,
-          },
+            goalsData.map(g => this.mapGoal(g)) : [],
+          pagination: paginationData,
         };
-      },
-      {
-        success: true,
-        data: (getMockData('goals') as any[]).map(goal => this.mapGoal(goal)),
-        pagination: { current: 1, pages: 1, total: 0 },
       }
-    );
+      
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: response.message || 'Erro ao carregar metas'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar metas:', error);
+      return {
+        success: false,
+        data: [],
+        pagination: { current: 1, pages: 1, total: 0 },
+        message: error.message || 'Erro ao carregar metas'
+      };
+    }
   }
 
   /**
    * Buscar meta por ID
    */
   static async getGoal(id: string): Promise<GoalResponse> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getGoal(id);
+    try {
+      const response = await apiService.getGoal(id);
+      
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data ? this.mapGoal(response.data) : undefined,
+          data: this.mapGoal(response.data),
         };
-      },
-      {
-        success: true,
-        data: this.mapGoal((getMockData('goals') as any[])[0]),
       }
-    );
+      
+      return {
+        success: false,
+        message: response.message || 'Meta não encontrada'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao carregar meta'
+      };
+    }
   }
 
   /**
    * Criar nova meta
    */
   static async createGoal(data: CreateGoalData): Promise<GoalResponse> {
-    return safeApiCall(
-      async () => {
-        const mappedData = this.mapCreateData(data);
-        const response = await apiService.createGoal(mappedData);
+    try {
+      const mappedData = this.mapCreateData(data);
+      const response = await apiService.createGoal(mappedData);
+      
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data ? this.mapGoal(response.data) : undefined,
+          data: this.mapGoal(response.data),
         };
-      },
-      {
-        success: true,
-        data: this.mapGoal({
-          _id: Date.now().toString(),
-          ...this.mapCreateData(data),
-          status: 'active',
-          progress: 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        }),
       }
-    );
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao criar meta'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao criar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao criar meta'
+      };
+    }
   }
 
   /**
    * Atualizar meta
    */
-  static async updateGoal(id: string, data: UpdateGoalData): Promise<Goal> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.updateGoal(id, data);
-        return this.mapGoal(response.data);
-      },
-      this.mapGoal({
-        _id: id,
-        ...data,
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async updateGoal(id: string, data: UpdateGoalData): Promise<GoalResponse> {
+    try {
+      const response = await apiService.updateGoal(id, data);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: this.mapGoal(response.data),
+        };
+      }
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao atualizar meta'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao atualizar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao atualizar meta'
+      };
+    }
   }
 
   /**
    * Deletar meta
    */
-  static async deleteGoal(id: string): Promise<void> {
-    return safeApiCall(
-      async () => {
-        await apiService.deleteGoal(id);
-      },
-      undefined
-    );
+  static async deleteGoal(id: string): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await apiService.deleteGoal(id);
+      
+      return {
+        success: response.success,
+        message: response.message || 'Meta deletada com sucesso'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao deletar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao deletar meta'
+      };
+    }
+  }
+
+  /**
+   * Buscar metas ativas (método para HomeScreen)
+   */
+  static async getActiveGoals(limit: number = 5): Promise<Goal[]> {
+    try {
+      const response = await apiService.getActiveGoals(limit);
+      
+      if (response.success && response.data) {
+        return Array.isArray(response.data) ? 
+          response.data.map(g => this.mapGoal(g)) : [];
+      }
+      
+      return [];
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar metas ativas:', error);
+      return [];
+    }
   }
 
   /**
    * Adicionar valor à meta
    */
-  static async addToGoal(id: string, amount: number): Promise<Goal> {
-    return safeApiCall(
-      async () => {
-        const updateData: UpdateGoalData = { currentAmount: amount };
-        const response = await apiService.updateGoal(id, updateData);
-        return this.mapGoal(response.data);
-      },
-      this.mapGoal({
-        _id: id,
-        currentAmount: amount,
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async addToGoal(id: string, amount: number): Promise<GoalResponse> {
+    try {
+      const response = await apiService.addToGoal(id, amount);
+      
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: this.mapGoal(response.data),
+        };
+      }
+      
+      return {
+        success: false,
+        message: response.message || 'Erro ao adicionar valor à meta'
+      };
+    } catch (error: any) {
+      console.error('❌ Erro ao adicionar valor à meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao adicionar valor à meta'
+      };
+    }
   }
 
   /**
    * Pausar meta
    */
-  static async pauseGoal(id: string): Promise<Goal> {
-    return safeApiCall(
-      async () => {
-        const updateData: UpdateGoalData = { status: 'paused' };
-        const response = await apiService.updateGoal(id, updateData);
-        return this.mapGoal(response.data);
-      },
-      this.mapGoal({
-        _id: id,
-        status: 'paused',
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async pauseGoal(id: string): Promise<GoalResponse> {
+    try {
+      const updateData: UpdateGoalData = { status: 'paused' };
+      return await this.updateGoal(id, updateData);
+    } catch (error: any) {
+      console.error('❌ Erro ao pausar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao pausar meta'
+      };
+    }
   }
 
   /**
-   * Retomar meta
+   * Reativar meta
    */
-  static async resumeGoal(id: string): Promise<Goal> {
-    return safeApiCall(
-      async () => {
-        const updateData: UpdateGoalData = { status: 'active' };
-        const response = await apiService.updateGoal(id, updateData);
-        return this.mapGoal(response.data);
-      },
-      this.mapGoal({
-        _id: id,
-        status: 'active',
-        updatedAt: new Date().toISOString(),
-      })
-    );
+  static async resumeGoal(id: string): Promise<GoalResponse> {
+    try {
+      const updateData: UpdateGoalData = { status: 'active' };
+      return await this.updateGoal(id, updateData);
+    } catch (error: any) {
+      console.error('❌ Erro ao reativar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao reativar meta'
+      };
+    }
   }
 
   /**
-   * Buscar metas ativas (quantidade limitada)
+   * Completar meta
    */
-  static async getActiveGoals(limit: number = 5): Promise<Goal[]> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getGoals('active', 1, limit);
-        const goalsData = response.data || [];
-        return Array.isArray(goalsData) ? 
-          goalsData.map(goal => this.mapGoal(goal)) : [];
-      },
-      (getMockData('goals') as any[]).slice(0, limit).map(goal => this.mapGoal(goal))
-    );
-  }
-
-  /**
-   * Buscar estatísticas das metas
-   */
-  static async getGoalStats(): Promise<any> {
-    return safeApiCall(
-      async () => {
-        const response = await apiService.getGoalStats();
-        return response.data;
-      },
-      {
-        active: { count: 2, totalTarget: 50000, totalCurrent: 25000 },
-        completed: { count: 1, totalTarget: 10000, totalCurrent: 10000 },
-        paused: { count: 0, totalTarget: 0, totalCurrent: 0 },
-        total: { count: 3, totalTarget: 60000, totalCurrent: 35000, progress: 58.33 },
-      }
-    );
+  static async completeGoal(id: string): Promise<GoalResponse> {
+    try {
+      const updateData: UpdateGoalData = { status: 'completed' };
+      return await this.updateGoal(id, updateData);
+    } catch (error: any) {
+      console.error('❌ Erro ao completar meta:', error);
+      return {
+        success: false,
+        message: error.message || 'Erro ao completar meta'
+      };
+    }
   }
 }
