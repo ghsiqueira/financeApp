@@ -15,8 +15,24 @@ const BasicScreen: React.FC<{ title: string; subtitle?: string }> = ({ title, su
   </SafeAreaView>
 );
 
-// Exportar o LoginScreen real
+// ========== TELAS JÁ IMPLEMENTADAS ==========
+// Estas telas foram movidas para seus respectivos arquivos:
+// - GoalListScreen -> src/screens/goals/GoalListScreen.tsx
+// - CreateEditGoalScreen -> src/screens/goals/CreateEditGoalScreen.tsx 
+// - BudgetListScreen -> src/screens/budgets/BudgetListScreen.tsx
+// - ReportsScreen -> src/screens/reports/ReportsScreen.tsx
+// - ProfileScreen -> src/screens/profile/ProfileScreen.tsx
+
+// Importar e re-exportar as telas implementadas
 export { LoginScreen } from './auth/LoginScreen';
+export { GoalListScreen } from './goals/GoalListScreen';
+export { CreateEditGoalScreen as CreateGoalScreen } from './goals/CreateEditGoalScreen';
+export { CreateEditGoalScreen as EditGoalScreen } from './goals/CreateEditGoalScreen';
+export { BudgetListScreen } from './budgets/BudgetListScreen';
+export { ReportsScreen } from './reports/ReportsScreen';
+export { ProfileScreen } from './profile/ProfileScreen';
+
+// ========== TELAS AINDA EM DESENVOLVIMENTO ==========
 
 // Telas de autenticação
 export const RegisterScreen: React.FC = () => (
@@ -27,28 +43,12 @@ export const ForgotPasswordScreen: React.FC = () => (
   <BasicScreen title="Recuperar Senha" subtitle="Digite seu email para recuperar a senha" />
 );
 
-// Telas de metas
-export const GoalListScreen: React.FC = () => (
-  <BasicScreen title="Metas" subtitle="Organize seus objetivos financeiros" />
-);
-
-export const CreateGoalScreen: React.FC = () => (
-  <BasicScreen title="Nova Meta" subtitle="Defina uma nova meta financeira" />
-);
-
-export const EditGoalScreen: React.FC = () => (
-  <BasicScreen title="Editar Meta" />
-);
-
+// Telas de metas (detalhes)
 export const GoalDetailScreen: React.FC = () => (
   <BasicScreen title="Detalhes da Meta" />
 );
 
 // Telas de orçamentos
-export const BudgetListScreen: React.FC = () => (
-  <BasicScreen title="Orçamentos" subtitle="Controle seus gastos mensais" />
-);
-
 export const CreateBudgetScreen: React.FC = () => (
   <BasicScreen title="Novo Orçamento" subtitle="Defina limites para suas categorias" />
 );
@@ -61,30 +61,22 @@ export const BudgetDetailScreen: React.FC = () => (
   <BasicScreen title="Detalhes do Orçamento" />
 );
 
-// Telas de relatórios
-export const ReportsScreen: React.FC = () => (
-  <BasicScreen title="Relatórios" subtitle="Analise suas finanças com gráficos e estatísticas" />
-);
-
-// Telas de perfil
-export const ProfileScreen: React.FC = () => (
-  <BasicScreen title="Perfil" subtitle="Gerencie sua conta e configurações" />
-);
-
-export const SettingsScreen: React.FC = () => (
-  <BasicScreen title="Configurações" />
-);
-
-export const EditProfileScreen: React.FC = () => (
-  <BasicScreen title="Editar Perfil" />
-);
-
+// Telas de transações
 export const EditTransactionScreen: React.FC = () => (
   <BasicScreen title="Editar Transação" />
 );
 
 export const TransactionDetailScreen: React.FC = () => (
   <BasicScreen title="Detalhes da Transação" />
+);
+
+// Telas de perfil e configurações
+export const SettingsScreen: React.FC = () => (
+  <BasicScreen title="Configurações" />
+);
+
+export const EditProfileScreen: React.FC = () => (
+  <BasicScreen title="Editar Perfil" />
 );
 
 // Telas de categorias

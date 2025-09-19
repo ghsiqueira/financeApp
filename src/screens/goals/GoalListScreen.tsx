@@ -1,113 +1,106 @@
 // src/screens/goals/GoalListScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   FlatList,
   TouchableOpacity,
   RefreshControl,
   Alert,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useNavigation } from '@react-navigation/native';
 
-import { 
-  Card, 
-  EmptyState, 
-  Loading, 
-  FloatingActionButton,
-  ProgressBar,
-  Button
-} from '../../components/common';
-import { GoalService } from '../../services/GoalService';
+// Importações do projeto
+import { useGoals } from '../../hooks';
 import { Goal } from '../../types';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
+import { EmptyState, Loading } from '../../components/common';
+import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-type GoalStackParamList = {
-  GoalList: undefined;
-  CreateGoal: undefined;
-  EditGoal: { goalId: string };
-  GoalDetails: { goalId: string };
-};
-
-type GoalListScreenNavigationProp = NativeStackNavigationProp<GoalStackParamList, 'GoalList'>;
-
-// Componente sem props tipadas explícitas para compatibilidade com Tab Navigator
 export const GoalListScreen: React.FC = () => {
-  const navigation = useNavigation<GoalListScreenNavigationProp>();
-  
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all');
+  const navigation = useNavigation();
+  const { goals, loading, refreshing, error, refresh, deleteGoal } = useGoals();
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | 'completed' | 'paused'>('all');
 
-  // Carregar metas
-  const loadGoals = async (showLoading = true) => {
-    try {
-      if (showLoading) setLoading(true);
-      
-      const response = await GoalService.getGoals(1, 50, {
-        status: filter === 'all' ? undefined : filter,
-      });
-      
-      if (response.success) {
-        setGoals(response.data);
-      } else {
-        Alert.alert('Erro', response.message || 'Não foi possível carregar as metas');
-      }
-    } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao carregar metas');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  // Filtrar metas baseado no filtro selecionado
+  const filteredGoals = goals.filter(goal => {
+    switch (selectedFilter) {
+      case 'active':
+        return goal.status === 'active';
+      case 'completed':
+        return goal.status === 'completed';
+      case 'paused':
+        return goal.status === 'paused';
+      default:
+        return true;
     }
-  };
-
-  // Recarregar ao focar na tela
-  useFocusEffect(
-    useCallback(() => {
-      loadGoals();
-    }, [filter])
-  );
-
-  // Pull to refresh
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadGoals(false);
-  };
-
-  // Deletar meta
-  const handleDeleteGoal = (goal: Goal) => {
-    Alert.alert(
-      'Excluir Meta',
-      `Tem certeza que deseja excluir a meta "${goal.title}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await GoalService.deleteGoal(goal.id);
-              await loadGoals(false);
-              Alert.alert('Sucesso', 'Meta excluída com sucesso!');
-            } catch (error: any) {
-              Alert.alert('Erro', error.message || 'Erro ao excluir meta');
-            }
-          },
-        },
-      ]
-    );
-  };
+  });
 
   // Calcular progresso da meta
   const calculateProgress = (goal: Goal): number => {
     if (goal.targetAmount <= 0) return 0;
     return Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
+  };
+
+  // Obter cor do status
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return COLORS.success;
+      case 'paused':
+        return COLORS.warning;
+      case 'active':
+        return COLORS.primary;
+      default:
+        return COLORS.gray400;
+    }
+  };
+
+  // Obter texto do status
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'Concluída';
+      case 'paused':
+        return 'Pausada';
+      case 'active':
+        return 'Ativa';
+      default:
+        return 'Indefinido';
+    }
+  };
+
+  // Confirmar exclusão de meta
+  const confirmDelete = (goal: Goal) => {
+    Alert.alert(
+      'Excluir Meta',
+      `Tem certeza que deseja excluir a meta "${goal.title}"?`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: () => deleteGoal(goal._id),
+        },
+      ]
+    );
+  };
+
+  // Navegação para criar nova meta
+  const handleCreateGoal = () => {
+    // Usar any para evitar problemas de tipagem temporariamente
+    (navigation as any).navigate('CreateGoal');
+  };
+
+  // Navegação para detalhes da meta
+  const handleGoalPress = (goal: Goal) => {
+    (navigation as any).navigate('GoalDetail', { goalId: goal._id });
   };
 
   // Renderizar filtros
@@ -116,27 +109,43 @@ export const GoalListScreen: React.FC = () => {
       { key: 'all', label: 'Todas', count: goals.length },
       { key: 'active', label: 'Ativas', count: goals.filter(g => g.status === 'active').length },
       { key: 'completed', label: 'Concluídas', count: goals.filter(g => g.status === 'completed').length },
+      { key: 'paused', label: 'Pausadas', count: goals.filter(g => g.status === 'paused').length },
     ];
 
     return (
       <View style={styles.filtersContainer}>
-        {filters.map((filterItem) => (
+        {filters.map((filter) => (
           <TouchableOpacity
-            key={filterItem.key}
+            key={filter.key}
             style={[
               styles.filterButton,
-              filter === filterItem.key && styles.activeFilterButton,
+              selectedFilter === filter.key && styles.filterButtonActive,
             ]}
-            onPress={() => setFilter(filterItem.key as any)}
+            onPress={() => setSelectedFilter(filter.key as any)}
           >
             <Text
               style={[
-                styles.filterText,
-                filter === filterItem.key && styles.activeFilterText,
+                styles.filterButtonText,
+                selectedFilter === filter.key && styles.filterButtonTextActive,
               ]}
             >
-              {filterItem.label} ({filterItem.count})
+              {filter.label}
             </Text>
+            <View
+              style={[
+                styles.filterCount,
+                selectedFilter === filter.key && styles.filterCountActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.filterCountText,
+                  selectedFilter === filter.key && styles.filterCountTextActive,
+                ]}
+              >
+                {filter.count}
+              </Text>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -146,160 +155,154 @@ export const GoalListScreen: React.FC = () => {
   // Renderizar item da lista
   const renderGoalItem = ({ item: goal }: { item: Goal }) => {
     const progress = calculateProgress(goal);
+    const statusColor = getStatusColor(goal.status);
     const isCompleted = goal.status === 'completed';
-    const daysLeft = Math.ceil(
-      (new Date(goal.targetDate || goal.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysRemaining = goal.daysRemaining || 0;
 
     return (
-      <Card style={styles.goalCard}>
-        <TouchableOpacity
-          style={styles.goalItem}
-          onPress={() => navigation.navigate('GoalDetails', { goalId: goal.id })}
-          activeOpacity={0.7}
-        >
-          {/* Header da meta */}
-          <View style={styles.goalHeader}>
-            <View style={styles.goalInfo}>
-              <Text style={styles.goalTitle} numberOfLines={1}>
-                {goal.title}
+      <TouchableOpacity
+        style={styles.goalCard}
+        onPress={() => handleGoalPress(goal)}
+        activeOpacity={0.7}
+      >
+        {/* Header do card */}
+        <View style={styles.goalHeader}>
+          <View style={styles.goalTitleContainer}>
+            <Text style={styles.goalTitle} numberOfLines={2}>
+              {goal.title}
+            </Text>
+            <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {getStatusText(goal.status)}
               </Text>
-              {goal.category && (
-                <Text style={styles.goalCategory} numberOfLines={1}>
-                  {goal.category}
-                </Text>
-              )}
-            </View>
-            
-            <View style={styles.goalStatus}>
-              <View style={[
-                styles.statusBadge,
-                {
-                  backgroundColor: isCompleted ? COLORS.success10 : 
-                                  daysLeft < 0 ? COLORS.error10 : COLORS.primary10
-                }
-              ]}>
-                <Text style={[
-                  styles.statusText,
-                  {
-                    color: isCompleted ? COLORS.success : 
-                          daysLeft < 0 ? COLORS.error : COLORS.primary
-                  }
-                ]}>
-                  {isCompleted ? 'Concluída' : 
-                   daysLeft < 0 ? 'Vencida' : 
-                   daysLeft === 0 ? 'Hoje' : `${daysLeft}d`}
-                </Text>
-              </View>
             </View>
           </View>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => confirmDelete(goal)}
+          >
+            <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+          </TouchableOpacity>
+        </View>
 
-          {/* Progresso */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressInfo}>
-              <Text style={styles.progressText}>
-                {formatCurrency(goal.currentAmount)} de {formatCurrency(goal.targetAmount)}
-              </Text>
-              <Text style={styles.progressPercentage}>
-                {progress.toFixed(0)}%
-              </Text>
-            </View>
-            
-            <ProgressBar
-              progress={progress}
-              color={isCompleted ? COLORS.success : COLORS.primary}
-              backgroundColor={COLORS.gray200}
-              style={styles.progressBar}
+        {/* Descrição */}
+        {goal.description && (
+          <Text style={styles.goalDescription} numberOfLines={2}>
+            {goal.description}
+          </Text>
+        )}
+
+        {/* Progresso */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressInfo}>
+            <Text style={styles.progressText}>
+              {formatCurrency(goal.currentAmount)} de {formatCurrency(goal.targetAmount)}
+            </Text>
+            <Text style={styles.progressPercentage}>
+              {progress.toFixed(1)}%
+            </Text>
+          </View>
+          <View style={styles.progressBarContainer}>
+            <View
+              style={[
+                styles.progressBar,
+                {
+                  width: `${progress}%`,
+                  backgroundColor: isCompleted ? COLORS.success : statusColor,
+                },
+              ]}
             />
           </View>
+        </View>
 
-          {/* Data alvo */}
-          <Text style={styles.targetDate}>
-            Meta para: {formatDate(goal.targetDate || goal.endDate)}
-          </Text>
-
-          {/* Ações */}
-          <View style={styles.goalActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => navigation.navigate('EditGoal', { goalId: goal.id })}
-            >
-              <Ionicons name="create" size={16} color={COLORS.info} />
-              <Text style={styles.actionButtonText}>Editar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.actionButton, styles.deleteButton]}
-              onPress={() => handleDeleteGoal(goal)}
-            >
-              <Ionicons name="trash" size={16} color={COLORS.error} />
-              <Text style={[styles.actionButtonText, styles.deleteButtonText]}>
-                Excluir
-              </Text>
-            </TouchableOpacity>
+        {/* Informações adicionais */}
+        <View style={styles.goalFooter}>
+          <View style={styles.goalInfo}>
+            <Ionicons name="calendar-outline" size={16} color={COLORS.gray600} />
+            <Text style={styles.goalInfoText}>
+              {goal.targetDate ? formatDate(new Date(goal.targetDate)) : 'Sem prazo'}
+            </Text>
           </View>
-        </TouchableOpacity>
-      </Card>
+          {daysRemaining > 0 && !isCompleted && (
+            <View style={styles.goalInfo}>
+              <Ionicons name="time-outline" size={16} color={COLORS.gray600} />
+              <Text style={styles.goalInfoText}>
+                {daysRemaining} dias restantes
+              </Text>
+            </View>
+          )}
+          {goal.category && (
+            <View style={styles.goalInfo}>
+              <Ionicons name="pricetag-outline" size={16} color={COLORS.gray600} />
+              <Text style={styles.goalInfoText}>
+                {goal.category}
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     );
   };
 
-  if (loading) {
-    return <Loading text="Carregando metas..." />;
-  }
-
-  const filteredGoals = goals.filter(goal => {
-    if (filter === 'all') return true;
-    return goal.status === filter;
-  });
+  // Renderizar estado vazio
+  const renderEmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="flag-outline" size={80} color={COLORS.gray400} />
+      <Text style={styles.emptyTitle}>Nenhuma meta encontrada</Text>
+      <Text style={styles.emptyDescription}>
+        {selectedFilter === 'all'
+          ? 'Comece criando sua primeira meta financeira!'
+          : `Não há metas ${selectedFilter === 'active' ? 'ativas' : selectedFilter === 'completed' ? 'concluídas' : 'pausadas'} no momento.`}
+      </Text>
+      {selectedFilter === 'all' && (
+        <TouchableOpacity style={styles.createButton} onPress={handleCreateGoal}>
+          <Text style={styles.createButtonText}>Criar Meta</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Metas Financeiras</Text>
-        <Text style={styles.subtitle}>
-          Organize e acompanhe seus objetivos
-        </Text>
+        <Text style={styles.headerTitle}>Minhas Metas</Text>
+        <TouchableOpacity style={styles.addButton} onPress={handleCreateGoal}>
+          <Ionicons name="add" size={24} color={COLORS.white} />
+        </TouchableOpacity>
       </View>
 
+      {/* Filtros */}
       {renderFilters()}
 
+      {/* Lista de metas */}
       <FlatList
         data={filteredGoals}
         renderItem={renderGoalItem}
-        keyExtractor={(item) => item.id}
-        style={styles.list}
+        keyExtractor={(item) => item._id}
         contentContainerStyle={[
-          styles.listContent,
-          filteredGoals.length === 0 && styles.emptyListContent,
+          styles.listContainer,
+          filteredGoals.length === 0 && styles.listContainerEmpty,
         ]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refresh}
+            colors={[COLORS.primary]}
             tintColor={COLORS.primary}
           />
         }
-        ListEmptyComponent={
-          <EmptyState
-            icon="flag-outline"
-            title="Nenhuma meta encontrada"
-            description={
-              filter === 'all'
-                ? 'Comece criando sua primeira meta financeira'
-                : `Você não tem metas ${filter === 'active' ? 'ativas' : 'concluídas'}`
-            }
-            actionText={filter === 'all' ? 'Criar Meta' : undefined}
-            onAction={filter === 'all' ? () => navigation.navigate('CreateGoal') : undefined}
-          />
-        }
+        ListEmptyComponent={renderEmptyState}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
       />
 
-      <FloatingActionButton
-        icon="add"
-        onPress={() => navigation.navigate('CreateGoal')}
-        style={styles.fab}
-      />
+      {/* Botão flutuante para criar meta */}
+      {filteredGoals.length > 0 && (
+        <TouchableOpacity style={styles.floatingButton} onPress={handleCreateGoal}>
+          <Ionicons name="add" size={28} color={COLORS.white} />
+        </TouchableOpacity>
+      )}
     </SafeAreaView>
   );
 };
@@ -310,71 +313,100 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.white,
+    ...SHADOWS.sm,
   },
-  title: {
+  headerTitle: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
   },
-  subtitle: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
+  addButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   filtersContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.md,
-    gap: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.white,
+    gap: SPACING.xs,
   },
   filterButton: {
     flex: 1,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 8,
-    backgroundColor: COLORS.gray100,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.gray100,
+    gap: SPACING.xs,
   },
-  activeFilterButton: {
+  filterButtonActive: {
     backgroundColor: COLORS.primary,
   },
-  filterText: {
+  filterButtonText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
+    color: COLORS.gray600,
   },
-  activeFilterText: {
+  filterButtonTextActive: {
     color: COLORS.white,
   },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
-  },
-  emptyListContent: {
-    flex: 1,
+  filterCount: {
+    backgroundColor: COLORS.gray300,
+    borderRadius: BORDER_RADIUS.full,
+    minWidth: 20,
+    height: 20,
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xs,
+  },
+  filterCountActive: {
+    backgroundColor: COLORS.white,
+  },
+  filterCountText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray600,
+  },
+  filterCountTextActive: {
+    color: COLORS.primary,
+  },
+  listContainer: {
+    padding: SPACING.md,
+  },
+  listContainerEmpty: {
+    flex: 1,
+  },
+  separator: {
+    height: SPACING.md,
   },
   goalCard: {
-    marginBottom: SPACING.md,
-  },
-  goalItem: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
+    ...SHADOWS.card,
   },
   goalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
-  goalInfo: {
+  goalTitleContainer: {
     flex: 1,
-    marginRight: SPACING.md,
+    marginRight: SPACING.sm,
   },
   goalTitle: {
     fontSize: FONT_SIZES.lg,
@@ -382,22 +414,25 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: SPACING.xs,
   },
-  goalCategory: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.primary,
-  },
-  goalStatus: {
-    alignItems: 'flex-end',
-  },
   statusBadge: {
+    alignSelf: 'flex-start',
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.full,
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.medium,
+  },
+  menuButton: {
+    padding: SPACING.xs,
+  },
+  goalDescription: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.md,
+    lineHeight: 20,
   },
   progressContainer: {
     marginBottom: SPACING.md,
@@ -418,45 +453,73 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.primary,
   },
-  progressBar: {
+  progressBarContainer: {
     height: 8,
-    borderRadius: 4,
+    backgroundColor: COLORS.gray200,
+    borderRadius: BORDER_RADIUS.full,
+    overflow: 'hidden',
   },
-  targetDate: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
+  progressBar: {
+    height: '100%',
+    borderRadius: BORDER_RADIUS.full,
   },
-  goalActions: {
+  goalFooter: {
     flexDirection: 'row',
-    gap: SPACING.sm,
+    flexWrap: 'wrap',
+    gap: SPACING.md,
   },
-  actionButton: {
-    flex: 1,
+  goalInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 8,
-    backgroundColor: COLORS.gray100,
     gap: SPACING.xs,
   },
-  deleteButton: {
-    backgroundColor: COLORS.error10,
+  goalInfoText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray600,
   },
-  actionButtonText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.info,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
   },
-  deleteButtonText: {
-    color: COLORS.error,
+  emptyTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginTop: SPACING.lg,
+    marginBottom: SPACING.sm,
   },
-  fab: {
+  emptyDescription: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: SPACING.xl,
+  },
+  createButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.md,
+  },
+  createButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+  },
+  floatingButton: {
     position: 'absolute',
     bottom: SPACING.xl,
-    right: SPACING.lg,
+    right: SPACING.xl,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.full,
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...SHADOWS.lg,
   },
 });

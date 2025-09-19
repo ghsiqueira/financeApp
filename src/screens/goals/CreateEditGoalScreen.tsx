@@ -5,9 +5,9 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
   Platform,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -25,7 +25,8 @@ import {
 import { GoalService } from '../../services/GoalService';
 import { Goal, CreateGoalData } from '../../types';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
-import { DEFAULT_CATEGORIES } from '../../constants';
+
+const { height: screenHeight } = Dimensions.get('window');
 
 type GoalStackParamList = {
   GoalList: undefined;
@@ -78,7 +79,7 @@ export const CreateEditGoalScreen: React.FC<Props> = ({ navigation, route }) => 
     description: '',
     targetAmount: '',
     currentAmount: '0',
-    targetDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias no futuro
+    targetDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 dias no futuro
     category: '',
   });
 
@@ -217,138 +218,142 @@ export const CreateEditGoalScreen: React.FC<Props> = ({ navigation, route }) => 
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <View style={styles.container}>
+      {/* Header fixo */}
+      <View style={styles.header}>
+        <Text style={styles.title}>
+          {isEditing ? 'Editar Meta' : 'Nova Meta'}
+        </Text>
+        <Text style={styles.subtitle}>
+          {isEditing 
+            ? 'Atualize as informações da sua meta' 
+            : 'Defina um objetivo financeiro para alcançar'
+          }
+        </Text>
+      </View>
+
+      {/* Conteúdo com scroll */}
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>
-            {isEditing ? 'Editar Meta' : 'Nova Meta'}
-          </Text>
-          <Text style={styles.subtitle}>
-            {isEditing 
-              ? 'Atualize as informações da sua meta' 
-              : 'Defina um objetivo financeiro para alcançar'
-            }
-          </Text>
-        </View>
+        {/* Informações Básicas */}
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Informações Básicas</Text>
 
-        <ScrollView
-          style={styles.form}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <Card style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Informações Básicas</Text>
+          <Input
+            label="Título da Meta"
+            placeholder="Ex: Viagem para Europa"
+            value={formData.title}
+            onChangeText={(value: string | Date) => updateField('title', value)}
+            error={errors.title}
+            maxLength={50}
+            required
+          />
 
-            <Input
-              label="Título da Meta"
-              placeholder="Ex: Viagem para Europa"
-              value={formData.title}
-              onChangeText={(value: string | Date) => updateField('title', value)}
-              error={errors.title}
-              maxLength={50}
-              required
-            />
+          <Input
+            label="Descrição (Opcional)"
+            placeholder="Descreva sua meta em mais detalhes"
+            value={formData.description}
+            onChangeText={(value: string | Date) => updateField('description', value)}
+            multiline
+            numberOfLines={3}
+            maxLength={200}
+          />
 
-            <Input
-              label="Descrição (Opcional)"
-              placeholder="Descreva sua meta em mais detalhes"
-              value={formData.description}
-              onChangeText={(value: string | Date) => updateField('description', value)}
-              multiline
-              numberOfLines={3}
-              maxLength={200}
-            />
+          <Select
+            label="Categoria"
+            placeholder="Selecione uma categoria"
+            value={formData.category}
+            onValueChange={(value: string) => updateField('category', value)}
+            options={goalCategories.map(cat => ({ label: cat, value: cat }))}
+            error={errors.category}
+            required
+          />
+        </Card>
 
-            <Select
-              label="Categoria"
-              placeholder="Selecione uma categoria"
-              value={formData.category}
-              onValueChange={(value: string) => updateField('category', value)}
-              options={goalCategories.map(cat => ({ label: cat, value: cat }))}
-              error={errors.category}
-              required
-            />
-          </Card>
+        {/* Valores */}
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Valores</Text>
 
-          <Card style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Valores</Text>
+          <CurrencyInput
+            label="Valor da Meta"
+            placeholder="R$ 0,00"
+            value={formData.targetAmount}
+            onChangeText={(value: string) => updateField('targetAmount', value)}
+            error={errors.targetAmount}
+            required
+          />
 
+          {isEditing && (
             <CurrencyInput
-              label="Valor da Meta"
+              label="Valor Atual"
               placeholder="R$ 0,00"
-              value={formData.targetAmount}
-              onChangeText={(value: string) => updateField('targetAmount', value)}
-              error={errors.targetAmount}
-              required
+              value={formData.currentAmount}
+              onChangeText={(value: string) => updateField('currentAmount', value)}
+              helperText="Quanto você já economizou para esta meta"
             />
+          )}
+        </Card>
 
-            {isEditing && (
-              <CurrencyInput
-                label="Valor Atual"
-                placeholder="R$ 0,00"
-                value={formData.currentAmount}
-                onChangeText={(value: string) => updateField('currentAmount', value)}
-                helperText="Quanto você já economizou para esta meta"
-              />
-            )}
-          </Card>
+        {/* Prazo */}
+        <Card style={styles.formCard}>
+          <Text style={styles.sectionTitle}>Prazo</Text>
 
-          <Card style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Prazo</Text>
+          <DatePicker
+            label="Data da Meta"
+            value={formData.targetDate}
+            onDateChange={(date: Date) => updateField('targetDate', date)}
+            error={errors.targetDate}
+            minimumDate={new Date()}
+            helperText="Até quando você quer alcançar esta meta"
+            required
+          />
 
-            <DatePicker
-              label="Data da Meta"
-              value={formData.targetDate}
-              onDateChange={(date: Date) => updateField('targetDate', date)}
-              error={errors.targetDate}
-              minimumDate={new Date()}
-              helperText="Até quando você quer alcançar esta meta"
-              required
-            />
+          <View style={styles.dateInfo}>
+            <Text style={styles.dateInfoText}>
+              Dias restantes: {Math.ceil((formData.targetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+            </Text>
+          </View>
+        </Card>
 
-            <View style={styles.dateInfo}>
-              <Text style={styles.dateInfoText}>
-                Dias restantes: {Math.ceil((formData.targetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+        {/* Preview da meta */}
+        {formData.title && formData.targetAmount && (
+          <Card style={styles.previewCard}>
+            <Text style={styles.sectionTitle}>Preview da Meta</Text>
+            
+            <View style={styles.preview}>
+              <View style={styles.previewHeader}>
+                <Text style={styles.previewTitle}>{formData.title}</Text>
+                {formData.category && (
+                  <Text style={styles.previewCategory}>{formData.category}</Text>
+                )}
+              </View>
+
+              <View style={styles.previewValues}>
+                <Text style={styles.previewTarget}>
+                  Meta: {formData.targetAmount || 'R$ 0,00'}
+                </Text>
+                {isEditing && (
+                  <Text style={styles.previewCurrent}>
+                    Atual: {formData.currentAmount || 'R$ 0,00'}
+                  </Text>
+                )}
+              </View>
+
+              <Text style={styles.previewDate}>
+                Até: {formData.targetDate.toLocaleDateString('pt-BR')}
               </Text>
             </View>
           </Card>
+        )}
+      </ScrollView>
 
-          {/* Preview da meta */}
-          {formData.title && formData.targetAmount && (
-            <Card style={styles.previewCard}>
-              <Text style={styles.sectionTitle}>Preview da Meta</Text>
-              
-              <View style={styles.preview}>
-                <View style={styles.previewHeader}>
-                  <Text style={styles.previewTitle}>{formData.title}</Text>
-                  {formData.category && (
-                    <Text style={styles.previewCategory}>{formData.category}</Text>
-                  )}
-                </View>
-
-                <View style={styles.previewValues}>
-                  <Text style={styles.previewTarget}>
-                    Meta: R$ {formData.targetAmount || '0,00'}
-                  </Text>
-                  {isEditing && (
-                    <Text style={styles.previewCurrent}>
-                      Atual: R$ {formData.currentAmount || '0,00'}
-                    </Text>
-                  )}
-                </View>
-
-                <Text style={styles.previewDate}>
-                  Até: {formData.targetDate.toLocaleDateString('pt-BR')}
-                </Text>
-              </View>
-            </Card>
-          )}
-        </ScrollView>
-
-        <View style={styles.footer}>
+      {/* Botões fixos na parte inferior - SEMPRE VISÍVEIS */}
+      <SafeAreaView style={styles.safeFooter}>
+        <View style={styles.buttonsContainer}>
           <Button
             title="Cancelar"
             variant="outline"
@@ -363,8 +368,8 @@ export const CreateEditGoalScreen: React.FC<Props> = ({ navigation, route }) => 
             style={styles.saveButton}
           />
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </View>
   );
 };
 
@@ -373,12 +378,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  keyboardContainer: {
-    flex: 1,
-  },
   header: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
+    paddingTop: SPACING.xl, // Espaço extra para status bar
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: FONT_SIZES.xl,
@@ -391,9 +397,13 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
-  form: {
+  scrollContainer: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    paddingBottom: SPACING.xl, // Espaço extra para os botões
   },
   formCard: {
     marginBottom: SPACING.md,
@@ -418,7 +428,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   previewCard: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     padding: SPACING.lg,
     backgroundColor: COLORS.backgroundSecondary,
   },
@@ -457,14 +467,16 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
-  footer: {
+  safeFooter: {
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  buttonsContainer: {
     flexDirection: 'row',
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     gap: SPACING.sm,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   cancelButton: {
     flex: 1,

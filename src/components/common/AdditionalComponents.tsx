@@ -1,5 +1,5 @@
 // src/components/common/AdditionalComponents.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   ViewStyle,
   Alert,
   Animated,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -239,7 +240,7 @@ interface DatePickerProps {
   helperText?: string;
 }
 
-// Componente DatePicker (simplificado para web/mobile)
+// Componente DatePicker que agora usa o Calendar avançado
 export const DatePicker: React.FC<DatePickerProps> = ({
   label,
   value,
@@ -250,10 +251,28 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   maximumDate,
   helperText,
 }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [isCalendarVisible, setIsCalendarVisible] = useState(false);
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('pt-BR');
+  };
+
+  const handleDateSelect = (date: Date) => {
+    onDateChange(date);
+    setIsCalendarVisible(false);
+  };
+
+  const quickSelectOptions = [
+    { label: '3 meses', months: 3 },
+    { label: '6 meses', months: 6 },
+    { label: '1 ano', months: 12 },
+    { label: '2 anos', months: 24 },
+  ];
+
+  const handleQuickSelect = (months: number) => {
+    const newDate = new Date();
+    newDate.setMonth(newDate.getMonth() + months);
+    handleDateSelect(newDate);
   };
 
   return (
@@ -270,7 +289,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           styles.datePickerButton,
           error && styles.datePickerButtonError,
         ]}
-        onPress={() => setIsOpen(true)}
+        onPress={() => setIsCalendarVisible(true)}
       >
         <Ionicons name="calendar-outline" size={20} color={COLORS.gray400} />
         <Text style={styles.datePickerButtonText}>
@@ -285,8 +304,70 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       
       {error && <Text style={styles.datePickerError}>{error}</Text>}
 
-      {/* Aqui seria implementado o picker real do React Native */}
-      {/* Para simplificar, vamos simular com um input básico */}
+      {/* Modal de Seleção */}
+      <Modal
+        visible={isCalendarVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsCalendarVisible(false)}
+      >
+        <View style={styles.dateModalOverlay}>
+          <View style={styles.dateModal}>
+            <View style={styles.dateModalHeader}>
+              <Text style={styles.dateModalTitle}>
+                {label || 'Selecionar Data'}
+              </Text>
+              <TouchableOpacity 
+                onPress={() => setIsCalendarVisible(false)}
+                style={styles.dateModalClose}
+              >
+                <Ionicons name="close" size={24} color={COLORS.gray600} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.dateModalContent}>
+              <Text style={styles.quickSelectTitle}>Opções rápidas:</Text>
+              <View style={styles.quickSelectButtons}>
+                {quickSelectOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.label}
+                    style={styles.quickSelectButton}
+                    onPress={() => handleQuickSelect(option.months)}
+                  >
+                    <Text style={styles.quickSelectButtonText}>{option.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              <TouchableOpacity
+                style={styles.customDateButton}
+                onPress={() => {
+                  setIsCalendarVisible(false);
+                  // Aqui você pode abrir o calendário completo ou implementar um picker de data nativo
+                  Alert.alert(
+                    'Data personalizada',
+                    'Em breve você poderá selecionar qualquer data no calendário!'
+                  );
+                }}
+              >
+                <Ionicons name="calendar" size={20} color={COLORS.primary} />
+                <Text style={styles.customDateButtonText}>Escolher data personalizada</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.dateModalButtons}>
+              <TouchableOpacity
+                style={styles.dateModalButtonCancel}
+                onPress={() => setIsCalendarVisible(false)}
+              >
+                <Text style={styles.dateModalButtonTextCancel}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -303,10 +384,10 @@ interface CurrencyInputProps {
   autoFocus?: boolean;
 }
 
-// Componente CurrencyInput
+// Componente CurrencyInput CORRIGIDO
 export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   label,
-  placeholder = "R$ 0,00",
+  placeholder = "0,00",
   value,
   onChangeText,
   error,
@@ -314,9 +395,39 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   helperText,
   autoFocus = false,
 }) => {
-  const formatCurrency = (text: string): string => {
+  const [isModalVisible, setIsModalVisible] = React.useState(false);
+  const [inputValue, setInputValue] = React.useState('');
+
+  const formatCurrencyRealTime = (text: string): string => {
     // Remove tudo exceto números
     const numbers = text.replace(/\D/g, '');
+    
+    if (!numbers) return '';
+    
+    // Para valores pequenos, mostra de forma mais natural
+    if (numbers.length === 1) {
+      return numbers; // 1 → "1"
+    } else if (numbers.length === 2) {
+      return numbers; // 12 → "12"
+    } else if (numbers.length === 3) {
+      return `${numbers.slice(0, 1)},${numbers.slice(1)}`; // 123 → "1,23"
+    } else {
+      // Para valores maiores
+      const integerPart = numbers.slice(0, -2);
+      const decimalPart = numbers.slice(-2);
+      
+      // Adiciona pontos de milhares
+      const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      
+      return `${formattedInteger},${decimalPart}`;
+    }
+  };
+
+  const formatCurrencyFinal = (text: string): string => {
+    // Remove tudo exceto números
+    const numbers = text.replace(/\D/g, '');
+    
+    if (!numbers) return '';
     
     // Converte para centavos
     const cents = parseInt(numbers) || 0;
@@ -331,9 +442,39 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
     });
   };
 
-  const handleTextChange = (text: string) => {
-    const formatted = formatCurrency(text);
+  const handleInputChange = (text: string) => {
+    // Remove tudo exceto números
+    const numbers = text.replace(/\D/g, '');
+    
+    // Formata em tempo real no próprio campo
+    const formatted = formatCurrencyRealTime(numbers);
+    setInputValue(formatted);
+  };
+
+  const handleModalSubmit = () => {
+    // Converte o valor formatado para o formato final com R$
+    const numbers = inputValue.replace(/\D/g, '');
+    const formatted = formatCurrencyFinal(numbers);
     onChangeText(formatted);
+    setIsModalVisible(false);
+    setInputValue('');
+  };
+
+  const handleModalCancel = () => {
+    setIsModalVisible(false);
+    setInputValue('');
+  };
+
+  const openModal = () => {
+    // Pré-popular com valor atual se existir
+    if (value) {
+      const numbers = value.replace(/\D/g, '');
+      const formatted = formatCurrencyRealTime(numbers);
+      setInputValue(formatted);
+    } else {
+      setInputValue('');
+    }
+    setIsModalVisible(true);
   };
 
   return (
@@ -345,10 +486,14 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
         </Text>
       )}
       
-      <View style={[
-        styles.currencyInputWrapper,
-        error && styles.currencyInputWrapperError,
-      ]}>
+      <TouchableOpacity
+        style={[
+          styles.currencyInputWrapper,
+          error && styles.currencyInputWrapperError,
+        ]}
+        onPress={openModal}
+        activeOpacity={0.7}
+      >
         <Ionicons 
           name="cash-outline" 
           size={20} 
@@ -361,17 +506,85 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
             styles.currencyInput,
             !value && styles.currencyInputPlaceholder,
           ]}
-          onPress={() => {/* Abrir teclado numérico */}}
         >
           {value || placeholder}
         </Text>
-      </View>
+        <Ionicons 
+          name="chevron-forward" 
+          size={16} 
+          color={COLORS.gray400} 
+        />
+      </TouchableOpacity>
 
       {helperText && (
         <Text style={styles.currencyInputHelper}>{helperText}</Text>
       )}
       
       {error && <Text style={styles.currencyInputError}>{error}</Text>}
+
+      {/* Modal para input de valor */}
+      <Modal
+        visible={isModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={handleModalCancel}
+      >
+        <View style={styles.currencyModalOverlay}>
+          <View style={styles.currencyModal}>
+            <View style={styles.currencyModalHeader}>
+              <Text style={styles.currencyModalTitle}>
+                {label || 'Digite o valor'}
+              </Text>
+              <TouchableOpacity 
+                onPress={handleModalCancel}
+                style={styles.currencyModalClose}
+              >
+                <Ionicons name="close" size={24} color={COLORS.gray600} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.currencyModalContent}>
+              <View style={styles.currencyModalInputWrapper}>
+                <Text style={styles.currencyModalSymbol}>R$</Text>
+                <TextInput
+                  style={styles.currencyModalInput}
+                  value={inputValue}
+                  onChangeText={handleInputChange}
+                  placeholder="1500"
+                  placeholderTextColor={COLORS.gray400}
+                  keyboardType="numeric"
+                  autoFocus
+                  selectTextOnFocus
+                />
+              </View>
+              
+              <Text style={styles.currencyModalPreview}>
+                Valor: {inputValue || '0,00'}
+              </Text>
+            </View>
+
+            <View style={styles.currencyModalButtons}>
+              <TouchableOpacity
+                style={[styles.currencyModalButton, styles.currencyModalButtonCancel]}
+                onPress={handleModalCancel}
+              >
+                <Text style={styles.currencyModalButtonTextCancel}>
+                  Cancelar
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.currencyModalButton, styles.currencyModalButtonConfirm]}
+                onPress={handleModalSubmit}
+              >
+                <Text style={styles.currencyModalButtonTextConfirm}>
+                  Confirmar
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -650,6 +863,93 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 
+  // Date Modal
+  dateModalOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dateModal: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    marginHorizontal: SPACING.lg,
+    width: '90%',
+    maxWidth: 400,
+    ...SHADOWS.lg,
+  },
+  dateModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  dateModalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+  },
+  dateModalClose: {
+    padding: SPACING.xs,
+  },
+  dateModalContent: {
+    padding: SPACING.lg,
+  },
+  quickSelectTitle: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+  },
+  quickSelectButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
+  },
+  quickSelectButton: {
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.primary10,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  quickSelectButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+  },
+  customDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.gray50,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.sm,
+  },
+  customDateButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+  },
+  dateModalButtons: {
+    padding: SPACING.lg,
+    paddingTop: 0,
+  },
+  dateModalButtonCancel: {
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.gray100,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  dateModalButtonTextCancel: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+  },
+
   // CurrencyInput
   currencyInputContainer: {
     marginBottom: SPACING.md,
@@ -705,6 +1005,103 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.error,
     marginTop: SPACING.xs,
+  },
+
+  // Currency Modal
+  currencyModalOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  currencyModal: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    marginHorizontal: SPACING.lg,
+    width: '90%',
+    maxWidth: 400,
+    ...SHADOWS.lg,
+  },
+  currencyModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  currencyModalTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+  },
+  currencyModalClose: {
+    padding: SPACING.xs,
+  },
+  currencyModalContent: {
+    padding: SPACING.lg,
+  },
+  currencyModalInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.white,
+  },
+  currencyModalSymbol: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+    marginRight: SPACING.sm,
+  },
+  currencyModalInput: {
+    flex: 1,
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    textAlign: 'left',
+    padding: 0,
+  },
+  currencyModalPreview: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+    textAlign: 'center',
+    marginTop: SPACING.lg,
+    padding: SPACING.md,
+    backgroundColor: COLORS.primary10,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  currencyModalButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+    padding: SPACING.lg,
+    paddingTop: 0,
+  },
+  currencyModalButton: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  currencyModalButtonCancel: {
+    backgroundColor: COLORS.gray100,
+  },
+  currencyModalButtonConfirm: {
+    backgroundColor: COLORS.primary,
+  },
+  currencyModalButtonTextCancel: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+  },
+  currencyModalButtonTextConfirm: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.medium,
+    color: COLORS.white,
   },
 
   // CustomAlert
