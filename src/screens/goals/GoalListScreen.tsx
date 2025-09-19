@@ -23,7 +23,8 @@ import {
   ProgressBar,
   Button
 } from '../../components/common';
-import { GoalService, Goal } from '../../services/GoalService';
+import { GoalService } from '../../services/GoalService';
+import { Goal } from '../../types';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
 

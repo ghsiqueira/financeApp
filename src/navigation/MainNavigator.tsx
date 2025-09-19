@@ -1,110 +1,150 @@
+// src/navigation/MainNavigator.tsx - VERSÃO COM NAVEGAÇÃO CORRIGIDA
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '../components/common';
-import { useAuth } from '../contexts/AuthContext';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../constants';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+
+// Importar telas
+import { HomeScreen } from '../screens/main/HomeScreen';
+import { TransactionListScreen } from '../screens/transactions/TransactionListScreen';
+import { GoalListScreen } from '../screens/goals/GoalListScreen';
+import { BudgetListScreen } from '../screens/budgets/BudgetListScreen';
+// import { ReportsScreen } from '../screens/reports/ReportsScreen';
+// import { ProfileScreen } from '../screens/profile/ProfileScreen';
+
+import { COLORS, FONTS, FONT_SIZES } from '../constants';
+import { MainTabParamList } from '../types';
+
+const Tab = createBottomTabNavigator<MainTabParamList>();
+const Stack = createNativeStackNavigator();
+
+// Tela temporária para as seções não implementadas
+const PlaceholderScreen = ({ title }: { title: string }) => {
+  return (
+    <div style={{
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: COLORS.background,
+      padding: 20
+    }}>
+      <Ionicons name="construct-outline" size={64} color={COLORS.textSecondary} />
+      <h2 style={{
+        fontSize: FONT_SIZES.xl,
+        fontFamily: FONTS.bold,
+        color: COLORS.textPrimary,
+        marginTop: 16,
+        marginBottom: 8,
+        textAlign: 'center'
+      }}>
+        {title}
+      </h2>
+      <p style={{
+        fontSize: FONT_SIZES.md,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        lineHeight: 1.5
+      }}>
+        Esta tela está em desenvolvimento e será implementada em breve.
+      </p>
+    </div>
+  );
+};
+
+const ReportsScreen = () => <PlaceholderScreen title="Relatórios" />;
+const ProfileScreen = () => <PlaceholderScreen title="Perfil" />;
 
 export function MainNavigator() {
-  const { user, logout } = useAuth();
-
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>🎉 Bem-vindo!</Text>
-        <Text style={styles.subtitle}>
-          Olá, {user?.name}! 
-        </Text>
-        <Text style={styles.description}>
-          O app está funcionando perfeitamente! 
-          O backend está conectado e você está autenticado.
-        </Text>
-        
-        <View style={styles.info}>
-          <Text style={styles.infoTitle}>✅ Funcionalidades implementadas:</Text>
-          <Text style={styles.infoText}>• Sistema de autenticação</Text>
-          <Text style={styles.infoText}>• Conexão com API</Text>
-          <Text style={styles.infoText}>• Contexto de usuário</Text>
-          <Text style={styles.infoText}>• Navegação</Text>
-          <Text style={styles.infoText}>• Componentes base</Text>
-        </View>
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
 
-        <Text style={styles.nextSteps}>
-          🚧 Próximos passos: Implementar telas principais
-        </Text>
-        
-        <Button
-          title="Sair"
-          onPress={logout}
-          variant="outline"
-          icon="log-out-outline"
-          style={styles.logoutButton}
-        />
-      </View>
-    </SafeAreaView>
+          switch (route.name) {
+            case 'Home':
+              iconName = focused ? 'home' : 'home-outline';
+              break;
+            case 'Transactions':
+              iconName = focused ? 'receipt' : 'receipt-outline';
+              break;
+            case 'Goals':
+              iconName = focused ? 'flag' : 'flag-outline';
+              break;
+            case 'Budgets':
+              iconName = focused ? 'pie-chart' : 'pie-chart-outline';
+              break;
+            case 'Reports':
+              iconName = focused ? 'analytics' : 'analytics-outline';
+              break;
+            case 'Profile':
+              iconName = focused ? 'person' : 'person-outline';
+              break;
+            default:
+              iconName = 'home-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textSecondary,
+        tabBarLabelStyle: {
+          fontSize: FONT_SIZES.xs,
+          fontFamily: FONTS.medium,
+        },
+        tabBarStyle: {
+          backgroundColor: COLORS.white,
+          borderTopWidth: 1,
+          borderTopColor: COLORS.gray200,
+          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen 
+        name="Home" 
+        component={HomeScreen}
+        options={{
+          tabBarLabel: 'Início'
+        }}
+      />
+      <Tab.Screen 
+        name="Transactions" 
+        component={TransactionListScreen}
+        options={{
+          tabBarLabel: 'Transações'
+        }}
+      />
+      <Tab.Screen 
+        name="Goals" 
+        component={GoalListScreen}
+        options={{
+          tabBarLabel: 'Metas'
+        }}
+      />
+      <Tab.Screen 
+        name="Budgets" 
+        component={BudgetListScreen}
+        options={{
+          tabBarLabel: 'Orçamentos'
+        }}
+      />
+      <Tab.Screen 
+        name="Reports" 
+        component={ReportsScreen}
+        options={{
+          tabBarLabel: 'Relatórios'
+        }}
+      />
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Perfil'
+        }}
+      />
+    </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.xl,
-  },
-  title: {
-    fontSize: FONT_SIZES['3xl'],
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.medium,
-    color: COLORS.primary,
-    marginBottom: SPACING.lg,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: SPACING.xl,
-  },
-  info: {
-    backgroundColor: COLORS.white,
-    padding: SPACING.lg,
-    borderRadius: 12,
-    marginBottom: SPACING.xl,
-    width: '100%',
-    maxWidth: 300,
-  },
-  infoTitle: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-  },
-  infoText: {
-    fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-    paddingLeft: SPACING.sm,
-  },
-  nextSteps: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.warning,
-    textAlign: 'center',
-    marginBottom: SPACING.xl,
-  },
-  logoutButton: {
-    minWidth: 200,
-  },
-});

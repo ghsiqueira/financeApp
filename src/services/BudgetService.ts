@@ -1,4 +1,4 @@
-// src/services/BudgetService.ts
+// src/services/BudgetService.ts - VERSÃO COMPLETA CORRIGIDA
 import apiService from './api';
 import { Budget, CreateBudgetData } from '../types';
 import { safeApiCall, getMockData } from '../utils/apiUtils';
@@ -7,6 +7,7 @@ import { safeApiCall, getMockData } from '../utils/apiUtils';
 export interface UpdateBudgetData extends Partial<CreateBudgetData> {
   spent?: number;
   isActive?: boolean;
+  monthlyLimit?: number;
 }
 
 export interface BudgetFilters {
@@ -46,12 +47,22 @@ export class BudgetService {
       ...apiBudget,
       id: apiBudget._id || apiBudget.id,
       _id: apiBudget._id || apiBudget.id,
-      amount: apiBudget.monthlyLimit || apiBudget.amount,
-      monthlyLimit: apiBudget.monthlyLimit || apiBudget.amount,
-      limit: apiBudget.monthlyLimit || apiBudget.amount, // Alias para compatibilidade
+      amount: apiBudget.monthlyLimit || apiBudget.amount || 0,
+      monthlyLimit: apiBudget.monthlyLimit || apiBudget.amount || 0,
       spent: apiBudget.spent || 0,
+      usage: apiBudget.usage || 0,
+      remaining: apiBudget.remaining || 0,
+      isOverBudget: apiBudget.isOverBudget || false,
+      overage: apiBudget.overage || 0,
       // Garantir que category existe como objeto Category
       category: this.ensureCategory(apiBudget.category),
+      name: apiBudget.name || 'Orçamento',
+      month: apiBudget.month || new Date().getMonth() + 1,
+      year: apiBudget.year || new Date().getFullYear(),
+      isActive: apiBudget.isActive !== undefined ? apiBudget.isActive : true,
+      userId: apiBudget.userId || '',
+      createdAt: apiBudget.createdAt || new Date().toISOString(),
+      updatedAt: apiBudget.updatedAt || new Date().toISOString(),
     };
   }
 
@@ -106,7 +117,6 @@ export class BudgetService {
   ): Promise<BudgetsResponse> {
     return safeApiCall(
       async () => {
-        // Usar apenas os 3 parâmetros que o apiService.getBudgets aceita
         const response = await apiService.getBudgets(
           filters.month,
           filters.year,
@@ -117,15 +127,19 @@ export class BudgetService {
         
         return {
           success: true,
-          data: Array.isArray(budgetsData) ? budgetsData.map(this.mapBudget) : [],
-          pagination: response.pagination || { current: 1, pages: 1, total: 0 }
+          data: Array.isArray(budgetsData) ? 
+            budgetsData.map((budget: any) => this.mapBudget(budget)) : [],
+          pagination: response.pagination || {
+            current: page,
+            pages: 1,
+            total: Array.isArray(budgetsData) ? budgetsData.length : 0,
+          },
         };
       },
-      // Fallback com dados mockados
       {
         success: true,
-        data: getMockData().budgets,
-        pagination: { current: 1, pages: 1, total: 2 }
+        data: (getMockData('budgets') as any[]).map((budget: any) => this.mapBudget(budget)),
+        pagination: { current: 1, pages: 1, total: 0 },
       }
     );
   }
@@ -137,23 +151,14 @@ export class BudgetService {
     return safeApiCall(
       async () => {
         const response = await apiService.getBudget(id);
-        
-        if (response.success && response.data) {
-          return {
-            success: true,
-            data: this.mapBudget(response.data)
-          };
-        } else {
-          return {
-            success: false,
-            message: response.message || 'Orçamento não encontrado'
-          };
-        }
+        return {
+          success: true,
+          data: response.data ? this.mapBudget(response.data) : undefined,
+        };
       },
-      // Fallback
       {
         success: true,
-        data: getMockData().budgets[0]
+        data: this.mapBudget((getMockData('budgets') as any[])[0]),
       }
     );
   }
@@ -166,100 +171,105 @@ export class BudgetService {
       async () => {
         const mappedData = this.mapCreateData(data);
         const response = await apiService.createBudget(mappedData);
-        
-        if (response.success && response.data) {
-          return {
-            success: true,
-            data: this.mapBudget(response.data)
-          };
-        } else {
-          return {
-            success: false,
-            message: response.message || 'Erro ao criar orçamento'
-          };
-        }
+        return {
+          success: true,
+          data: response.data ? this.mapBudget(response.data) : undefined,
+        };
       },
-      // Fallback
       {
         success: true,
-        data: {
-          ...getMockData().budgets[0],
-          ...data,
-          id: 'temp-' + Date.now(),
-          _id: 'temp-' + Date.now(),
-          category: getMockData().budgets[0].category, // Garantir que category é um objeto
-        }
+        data: this.mapBudget({
+          _id: Date.now().toString(),
+          ...this.mapCreateData(data),
+          spent: 0,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }),
       }
     );
   }
 
   /**
-   * Atualizar orçamento existente
+   * Atualizar orçamento
    */
-  static async updateBudget(id: string, data: UpdateBudgetData): Promise<BudgetResponse> {
+  static async updateBudget(id: string, data: UpdateBudgetData): Promise<Budget> {
     return safeApiCall(
       async () => {
         const response = await apiService.updateBudget(id, data);
-        
-        if (response.success && response.data) {
-          return {
-            success: true,
-            data: this.mapBudget(response.data)
-          };
-        } else {
-          return {
-            success: false,
-            message: response.message || 'Erro ao atualizar orçamento'
-          };
-        }
+        return this.mapBudget(response.data);
       },
-      // Fallback
-      {
-        success: true,
-        data: {
-          ...getMockData().budgets[0],
-          ...data,
-          id,
-          _id: id,
-          category: getMockData().budgets[0].category, // Garantir que category é um objeto
-        }
-      }
+      this.mapBudget({
+        _id: id,
+        ...data,
+        updatedAt: new Date().toISOString(),
+      })
     );
   }
 
   /**
    * Deletar orçamento
    */
-  static async deleteBudget(id: string): Promise<{ success: boolean; message?: string }> {
+  static async deleteBudget(id: string): Promise<void> {
     return safeApiCall(
       async () => {
-        const response = await apiService.deleteBudget(id);
-        
-        return {
-          success: response.success,
-          message: response.message || 'Orçamento deletado com sucesso'
-        };
+        await apiService.deleteBudget(id);
       },
-      // Fallback
-      {
-        success: true,
-        message: 'Orçamento deletado com sucesso (modo offline)'
-      }
+      undefined
     );
   }
 
   /**
-   * Buscar resumo dos orçamentos (método simplificado)
+   * Ajustar limite do orçamento - MÉTODO NECESSÁRIO PARA O HOOK
+   */
+  static async adjustBudgetLimit(id: string, newLimit: number): Promise<Budget> {
+    return safeApiCall(
+      async () => {
+        const updateData: UpdateBudgetData = { monthlyLimit: newLimit };
+        const response = await apiService.updateBudget(id, updateData);
+        return this.mapBudget(response.data);
+      },
+      this.mapBudget({
+        _id: id,
+        monthlyLimit: newLimit,
+        amount: newLimit,
+        updatedAt: new Date().toISOString(),
+      })
+    );
+  }
+
+  /**
+   * Buscar orçamentos atuais (método para HomeScreen)
+   */
+  static async getCurrentBudgets(limit: number = 5): Promise<Budget[]> {
+    return safeApiCall(
+      async () => {
+        const currentDate = new Date();
+        const response = await this.getBudgets(1, limit, {
+          month: currentDate.getMonth() + 1,
+          year: currentDate.getFullYear(),
+          isActive: true
+        });
+
+        if (response.success && response.data) {
+          return response.data;
+        }
+        return [];
+      },
+      (getMockData('budgets') as any[]).slice(0, limit).map((budget: any) => this.mapBudget(budget))
+    );
+  }
+
+  /**
+   * Buscar resumo dos orçamentos
    */
   static async getBudgetSummary(month?: number, year?: number) {
     return safeApiCall(
       async () => {
-        // Como não temos getBudgetSummary no apiService, vamos simular ou usar outro método
         const currentDate = new Date();
         const targetMonth = month || (currentDate.getMonth() + 1);
         const targetYear = year || currentDate.getFullYear();
         
-        // Buscar orçamentos do mês atual
         const response = await this.getBudgets(1, 50, {
           month: targetMonth,
           year: targetYear,
@@ -267,7 +277,6 @@ export class BudgetService {
         });
         
         if (response.success) {
-          // Calcular resumo manualmente
           const budgets = response.data;
           const totals = budgets.reduce((acc, budget) => {
             acc.budget += budget.monthlyLimit || 0;
@@ -307,11 +316,10 @@ export class BudgetService {
           };
         }
       },
-      // Fallback
       {
         success: true,
         data: {
-          budgets: getMockData().budgets,
+          budgets: (getMockData('budgets') as any[]).map((b: any) => this.mapBudget(b)),
           totals: {
             budget: 1100,
             spent: 630,
@@ -327,28 +335,6 @@ export class BudgetService {
         }
       }
     );
-  }
-
-  /**
-   * Buscar orçamentos atuais (método para HomeScreen)
-   */
-  static async getCurrentBudgets(limit: number = 5): Promise<Budget[]> {
-    try {
-      const currentDate = new Date();
-      const response = await this.getBudgets(1, limit, {
-        month: currentDate.getMonth() + 1,
-        year: currentDate.getFullYear(),
-        isActive: true
-      });
-
-      if (response.success && response.data) {
-        return response.data;
-      }
-      return getMockData().budgets;
-    } catch (error) {
-      console.error('Erro ao buscar orçamentos atuais:', error);
-      return getMockData().budgets;
-    }
   }
 }
 

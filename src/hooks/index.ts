@@ -1,8 +1,8 @@
-// src/hooks/index.ts
+// src/hooks/index.ts - HOOKS COMPLETOS CORRIGIDOS
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { TransactionService } from '../services/TransactionService';
-import { GoalService, GoalsResponse } from '../services/GoalService'; // Importar GoalsResponse corrigida
+import { GoalService, GoalsResponse } from '../services/GoalService';
 import { BudgetService } from '../services/BudgetService';
 import { CategoryService } from '../services/CategoryService';
 import { 
@@ -126,7 +126,7 @@ export const useTransactions = (filters?: TransactionFilters) => {
   };
 };
 
-// Hook para gerenciar metas
+// Hook para gerenciar metas - CORRIGIDO
 export const useGoals = () => {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,7 +137,8 @@ export const useGoals = () => {
     try {
       setLoading(true);
       setError(null);
-      const response: GoalsResponse = await GoalService.getGoals(); // Usar tipo correto
+      
+      const response: GoalsResponse = await GoalService.getGoals();
       
       if (response.success && response.data) {
         setGoals(response.data);
@@ -212,7 +213,7 @@ export const useGoals = () => {
   };
 };
 
-// Hook para gerenciar orçamentos
+// Hook para gerenciar orçamentos - CORRIGIDO
 export const useBudgets = () => {
   const [budgets, setBudgets] = useState<Budget[]>([]);
   const [loading, setLoading] = useState(true);

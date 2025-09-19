@@ -1,4 +1,4 @@
-// src/utils/apiUtils.ts
+// src/utils/apiUtils.ts - VERSÃO CORRIGIDA
 import { Alert } from 'react-native';
 
 /**
@@ -77,122 +77,168 @@ export const checkApiHealth = async (): Promise<boolean> => {
 
 /**
  * Dados mockados para quando a API não estiver disponível
+ * FUNÇÃO CORRIGIDA - agora aceita parâmetro de tipo
  */
-export const getMockData = () => ({
-  goals: [
-    {
-      _id: 'mock-goal-1',
-      id: 'mock-goal-1',
-      title: 'Viagem para Europa',
-      description: 'Economizar para viagem de férias',
-      targetAmount: 15000,
-      currentAmount: 5000,
-      targetDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
-      startDate: new Date().toISOString(),
-      category: 'Viagem',
-      status: 'active' as const,
-      userId: 'mock-user',
-      monthlyTarget: 3333,
-      name: 'Viagem para Europa',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      _id: 'mock-goal-2',
-      id: 'mock-goal-2',
-      title: 'Casa Própria',
-      description: 'Juntar entrada para financiamento',
-      targetAmount: 50000,
-      currentAmount: 12000,
-      targetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      startDate: new Date().toISOString(),
-      category: 'Casa própria',
-      status: 'active' as const,
-      userId: 'mock-user',
-      monthlyTarget: 4167,
-      name: 'Casa Própria',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-  ],
-  
-  budgets: [
-    {
-      _id: 'mock-budget-1',
-      id: 'mock-budget-1',
-      name: 'Alimentação',
-      monthlyLimit: 800,
-      amount: 800,
-      limit: 800,
-      spent: 450,
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-      isActive: true,
-      userId: 'mock-user',
-      category: {
-        _id: 'mock-cat-1',
-        id: 'mock-cat-1',
-        name: 'Alimentação',
-        icon: '🍔',
-        color: '#FF6B6B',
-        type: 'expense' as const,
-        isDefault: true,
+export const getMockData = (type?: 'goals' | 'budgets' | 'transactions') => {
+  const mockData = {
+    goals: [
+      {
+        _id: 'mock-goal-1',
+        id: 'mock-goal-1',
+        title: 'Viagem para Europa',
+        description: 'Economizar para viagem de férias',
+        targetAmount: 15000,
+        currentAmount: 5000,
+        targetDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+        startDate: new Date().toISOString(),
+        category: 'Viagem',
+        status: 'active' as const,
+        userId: 'mock-user',
+        monthlyTarget: 3333,
+        name: 'Viagem para Europa',
+        progress: 33,
+        daysRemaining: 90,
+        monthlyTargetRemaining: 3333,
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      _id: 'mock-budget-2',
-      id: 'mock-budget-2',
-      name: 'Transporte',
-      monthlyLimit: 300,
-      amount: 300,
-      limit: 300,
-      spent: 180,
-      month: new Date().getMonth() + 1,
-      year: new Date().getFullYear(),
-      isActive: true,
-      userId: 'mock-user',
-      category: {
-        _id: 'mock-cat-2',
-        id: 'mock-cat-2',
+      {
+        _id: 'mock-goal-2',
+        id: 'mock-goal-2',
+        title: 'Casa Própria',
+        description: 'Juntar entrada para financiamento',
+        targetAmount: 50000,
+        currentAmount: 12000,
+        targetDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        startDate: new Date().toISOString(),
+        category: 'Casa própria',
+        status: 'active' as const,
+        userId: 'mock-user',
+        monthlyTarget: 4167,
+        name: 'Casa Própria',
+        progress: 24,
+        daysRemaining: 365,
+        monthlyTargetRemaining: 4167,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    ],
+    
+    budgets: [
+      {
+        _id: 'mock-budget-1',
+        id: 'mock-budget-1',
+        name: 'Alimentação',
+        monthlyLimit: 800,
+        amount: 800,
+        spent: 450,
+        usage: 56.25,
+        remaining: 350,
+        isOverBudget: false,
+        overage: 0,
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        isActive: true,
+        userId: 'mock-user',
+        category: {
+          _id: 'mock-cat-1',
+          id: 'mock-cat-1',
+          name: 'Alimentação',
+          icon: '🍔',
+          color: '#FF6B6B',
+          type: 'expense' as const,
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _id: 'mock-budget-2',
+        id: 'mock-budget-2',
         name: 'Transporte',
-        icon: '🚗',
-        color: '#4ECDC4',
-        type: 'expense' as const,
-        isDefault: true,
+        monthlyLimit: 300,
+        amount: 300,
+        spent: 180,
+        usage: 60,
+        remaining: 120,
+        isOverBudget: false,
+        overage: 0,
+        month: new Date().getMonth() + 1,
+        year: new Date().getFullYear(),
+        isActive: true,
+        userId: 'mock-user',
+        category: {
+          _id: 'mock-cat-2',
+          id: 'mock-cat-2',
+          name: 'Transporte',
+          icon: '🚗',
+          color: '#4ECDC4',
+          type: 'expense' as const,
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+        },
         createdAt: new Date().toISOString(),
-      },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-  ],
-  
-  transactions: [
-    {
-      _id: 'mock-trans-1',
-      id: 'mock-trans-1',
-      description: 'Supermercado',
-      amount: 120.50,
-      type: 'expense' as const,
-      date: new Date().toISOString(),
-      userId: 'mock-user',
-      isRecurring: false,
-      category: {
-        _id: 'mock-cat-1',
-        id: 'mock-cat-1',
-        name: 'Alimentação',
-        icon: '🍔',
-        color: '#FF6B6B',
+        updatedAt: new Date().toISOString(),
+      }
+    ],
+    
+    transactions: [
+      {
+        _id: 'mock-trans-1',
+        id: 'mock-trans-1',
+        description: 'Supermercado',
+        amount: 120.50,
         type: 'expense' as const,
-        isDefault: true,
+        date: new Date().toISOString(),
+        userId: 'mock-user',
+        isRecurring: false,
+        category: {
+          _id: 'mock-cat-1',
+          id: 'mock-cat-1',
+          name: 'Alimentação',
+          icon: '🍔',
+          color: '#FF6B6B',
+          type: 'expense' as const,
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+        },
         createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-  ]
-});
+      {
+        _id: 'mock-trans-2',
+        id: 'mock-trans-2',
+        description: 'Salário',
+        amount: 5000,
+        type: 'income' as const,
+        date: new Date().toISOString(),
+        userId: 'mock-user',
+        isRecurring: true,
+        recurringDay: 5,
+        category: {
+          _id: 'mock-cat-3',
+          id: 'mock-cat-3',
+          name: 'Salário',
+          icon: '💰',
+          color: '#4CAF50',
+          type: 'income' as const,
+          isDefault: true,
+          createdAt: new Date().toISOString(),
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+    ]
+  };
+
+  // Se foi especificado um tipo, retornar apenas esse array
+  if (type) {
+    return mockData[type];
+  }
+
+  // Se não foi especificado tipo, retornar o objeto completo
+  return mockData;
+};

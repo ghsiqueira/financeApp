@@ -22,7 +22,8 @@ import {
   Card,
   Loading,
 } from '../../components/common';
-import { GoalService, Goal, CreateGoalData } from '../../services/GoalService';
+import { GoalService } from '../../services/GoalService';
+import { Goal, CreateGoalData } from '../../types';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
 import { DEFAULT_CATEGORIES } from '../../constants';
 

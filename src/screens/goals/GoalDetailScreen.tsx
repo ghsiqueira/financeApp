@@ -20,7 +20,8 @@ import {
   CustomAlert,
 } from '../../components/common';
 import { Card, Loading, Button } from '../../components/common/index';
-import { GoalService, Goal } from '../../services/GoalService';
+import { GoalService } from '../../services/GoalService';
+import { Goal } from '../../types';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
 

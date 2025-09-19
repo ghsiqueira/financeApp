@@ -1,10 +1,12 @@
+// src/types/index.ts - TIPOS COMPLETOS CORRIGIDOS
+
 // User types
 export interface User {
   id: string;
   name: string;
   email: string;
   createdAt: string;
-  updatedAt: string; // Adicionado para compatibilidade com AuthContext
+  updatedAt: string;
 }
 
 export interface AuthResponse {
@@ -17,7 +19,7 @@ export interface AuthResponse {
 // Transaction types
 export interface Transaction {
   _id: string;
-  id: string; // Adicionado para compatibilidade
+  id: string; // Para compatibilidade
   userId: string;
   description: string;
   amount: number;
@@ -45,17 +47,17 @@ export interface CreateTransactionData {
 // Goal types
 export interface Goal {
   _id: string;
-  id: string; // Adicionado para compatibilidade
+  id: string; // Para compatibilidade
   userId: string;
   title: string;
-  name: string; // Adicionado para compatibilidade (mesmo valor que title)
+  name: string; // Para compatibilidade (mesmo valor que title)
   description?: string;
   targetAmount: number;
   currentAmount: number;
   startDate: string;
   endDate: string;
-  targetDate: string; // Adicionado para compatibilidade (mesmo valor que endDate)
-  category?: string; // Adicionado para compatibilidade
+  targetDate: string; // Para compatibilidade (mesmo valor que endDate)
+  category?: string;
   monthlyTarget: number;
   status: 'active' | 'completed' | 'paused';
   progress?: number;
@@ -69,22 +71,22 @@ export interface CreateGoalData {
   title: string;
   description?: string;
   targetAmount: number;
-  currentAmount?: number; // Adicionado para compatibilidade
-  startDate?: string; // Opcional para compatibilidade
-  endDate?: string; // Opcional para compatibilidade  
-  targetDate: string; // Adicionado para compatibilidade (será mapeado para endDate)
-  category?: string; // Adicionado para compatibilidade
+  currentAmount?: number;
+  startDate?: string;
+  endDate?: string;
+  targetDate: string; // Será mapeado para endDate
+  category?: string;
 }
 
 // Budget types
 export interface Budget {
   _id: string;
-  id: string; // Adicionado para compatibilidade
+  id: string; // Para compatibilidade
   userId: string;
   name: string;
   category: Category;
   monthlyLimit: number;
-  amount: number; // Adicionado para compatibilidade (mesmo valor que monthlyLimit)
+  amount: number; // Para compatibilidade (mesmo valor que monthlyLimit)
   spent: number;
   month: number;
   year: number;
@@ -109,7 +111,7 @@ export interface CreateBudgetData {
 // Category types
 export interface Category {
   _id: string;
-  id: string; // Adicionado para compatibilidade
+  id: string; // Para compatibilidade
   name: string;
   icon: string;
   color: string;
@@ -295,4 +297,35 @@ export interface AppNotification {
   type: 'success' | 'error' | 'warning' | 'info';
   timestamp: string;
   read: boolean;
+}
+
+// Service method types para compatibilidade
+export interface ServiceResponse<T = any> {
+  success: boolean;
+  data?: T;
+  message?: string;
+  errors?: any[];
+}
+
+// Métodos específicos que são usados no HomeScreen
+export interface TransactionServiceMethods {
+  getFinancialSummary(): Promise<FinancialSummary>;
+  getRecentTransactions(limit: number): Promise<Transaction[]>;
+  getTransactions(filters?: TransactionFilters): Promise<PaginatedResponse<Transaction[]>>;
+  deleteTransaction(id: string): Promise<void>;
+  duplicateTransaction(id: string): Promise<Transaction>;
+}
+
+export interface GoalServiceMethods {
+  getActiveGoals(limit: number): Promise<Goal[]>;
+  addToGoal(id: string, amount: number): Promise<Goal>;
+  pauseGoal(id: string): Promise<Goal>;
+  resumeGoal(id: string): Promise<Goal>;
+  deleteGoal(id: string): Promise<void>;
+}
+
+export interface BudgetServiceMethods {
+  getCurrentBudgets(limit: number): Promise<Budget[]>;
+  adjustBudgetLimit(id: string, newLimit: number): Promise<Budget>;
+  deleteBudget(id: string): Promise<void>;
 }
