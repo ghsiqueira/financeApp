@@ -44,27 +44,33 @@ export interface CreateTransactionData {
   budgetId?: string;
 }
 
-// Goal types
+// Goal types - CORRIGIDO baseado na resposta da API
 export interface Goal {
+  goal: Goal;
   _id: string;
-  id: string; // Para compatibilidade
+  id?: string; // Para compatibilidade opcional
   userId: string;
   title: string;
-  name: string; // Para compatibilidade (mesmo valor que title)
+  name?: string; // Para compatibilidade opcional
   description?: string;
   targetAmount: number;
   currentAmount: number;
   startDate: string;
   endDate: string;
-  targetDate: string; // Para compatibilidade (mesmo valor que endDate)
+  targetDate?: string; // Para compatibilidade opcional
   category?: string;
   monthlyTarget: number;
+  monthlyTargetRemaining: number;
   status: 'active' | 'completed' | 'paused';
-  progress?: number;
-  daysRemaining?: number;
-  monthlyTargetRemaining?: number;
+  progress: number;
+  daysRemaining: number;
+  daysPassed: number;
+  totalDays: number;
+  monthsRemaining: number;
+  remainingAmount: number;
   createdAt: string;
   updatedAt: string;
+  __v?: number; // MongoDB version field
 }
 
 export interface CreateGoalData {
@@ -133,12 +139,22 @@ export interface CreateCategoryData {
   type: 'income' | 'expense';
 }
 
-// API Response types
+// API Response types - CORRIGIDOS
 export interface ApiResponse<T = any> {
   success: boolean;
   message?: string;
   data?: T;
   errors?: any[];
+}
+
+// Tipo específico para resposta do GoalService baseado no log
+export interface GoalApiResponse {
+  data: {
+    goal: Goal;
+    success: boolean;
+  };
+  message: string;
+  success: boolean;
 }
 
 export interface PaginatedResponse<T> extends ApiResponse<T> {
@@ -209,7 +225,7 @@ export interface CategorySpendingData {
   percentage: number;
 }
 
-// Navigation types
+// Navigation types - CORRIGIDOS para consistência
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
@@ -231,21 +247,21 @@ export type TransactionStackParamList = {
   TransactionList: undefined;
   CreateTransaction: undefined;
   EditTransaction: { transactionId: string };
-  TransactionDetails: { transactionId: string };
+  TransactionDetail: { transactionId: string };
 };
 
 export type GoalStackParamList = {
   GoalList: undefined;
   CreateGoal: undefined;
   EditGoal: { goalId: string };
-  GoalDetails: { goalId: string };
+  GoalDetail: { goalId: string }; // CORRIGIDO para consistência
 };
 
 export type BudgetStackParamList = {
   BudgetList: undefined;
   CreateBudget: undefined;
   EditBudget: { budgetId: string };
-  BudgetDetails: { budgetId: string };
+  BudgetDetail: { budgetId: string }; // CORRIGIDO para consistência
 };
 
 export type CategoryStackParamList = {
@@ -318,10 +334,14 @@ export interface TransactionServiceMethods {
 
 export interface GoalServiceMethods {
   getActiveGoals(limit: number): Promise<Goal[]>;
-  addToGoal(id: string, amount: number): Promise<Goal>;
-  pauseGoal(id: string): Promise<Goal>;
-  resumeGoal(id: string): Promise<Goal>;
-  deleteGoal(id: string): Promise<void>;
+  getGoal(id: string): Promise<ServiceResponse<Goal>>; // ADICIONADO
+  addToGoal(id: string, amount: number): Promise<ServiceResponse<Goal>>; // CORRIGIDO
+  pauseGoal(id: string): Promise<ServiceResponse<Goal>>; // CORRIGIDO
+  resumeGoal(id: string): Promise<ServiceResponse<Goal>>; // CORRIGIDO
+  completeGoal(id: string): Promise<ServiceResponse<Goal>>; // ADICIONADO
+  deleteGoal(id: string): Promise<ServiceResponse<void>>; // CORRIGIDO
+  createGoal(data: CreateGoalData): Promise<ServiceResponse<Goal>>; // ADICIONADO
+  updateGoal(id: string, data: Partial<CreateGoalData>): Promise<ServiceResponse<Goal>>; // ADICIONADO
 }
 
 export interface BudgetServiceMethods {

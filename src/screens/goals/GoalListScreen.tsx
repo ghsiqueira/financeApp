@@ -1,4 +1,4 @@
-// src/screens/goals/GoalListScreen.tsx - VERSÃO COMPLETA COM VALOR MENSAL
+// src/screens/goals/GoalListScreen.tsx - VERSÃO COMPLETA COM NAVEGAÇÃO CORRIGIDA
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { NavigationProp } from '@react-navigation/native';
 
 // Importações do projeto
 import { useGoals } from '../../hooks';
@@ -20,8 +20,19 @@ import { formatCurrency, formatDate } from '../../utils';
 import { EmptyState, Loading } from '../../components/common';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-export const GoalListScreen: React.FC = () => {
-  const navigation = useNavigation();
+// Types de navegação corrigidos
+type GoalStackParamList = {
+  GoalList: undefined;
+  CreateGoal: undefined;
+  EditGoal: { goalId: string };
+  GoalDetail: { goalId: string }; // Corrigido: usando GoalDetail
+};
+
+interface GoalListScreenProps {
+  navigation: NavigationProp<GoalStackParamList>;
+}
+
+export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) => {
   const { goals, loading, refreshing, error, refresh, deleteGoal } = useGoals();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | 'completed' | 'paused'>('all');
 
@@ -92,14 +103,14 @@ export const GoalListScreen: React.FC = () => {
     );
   };
 
-  // Navegação para criar nova meta
+  // Navegação para criar nova meta - CORRIGIDO
   const handleCreateGoal = () => {
-    (navigation as any).navigate('CreateGoal');
+    navigation.navigate('CreateGoal');
   };
 
-  // Navegação para detalhes da meta
+  // Navegação para detalhes da meta - CORRIGIDO
   const handleGoalPress = (goal: Goal) => {
-    (navigation as any).navigate('GoalDetail', { goalId: goal._id });
+    navigation.navigate('GoalDetail', { goalId: goal._id }); // ✅ Corrigido para GoalDetail
   };
 
   // Renderizar filtros
@@ -151,7 +162,7 @@ export const GoalListScreen: React.FC = () => {
     );
   };
 
-  // Renderizar item da lista - ATUALIZADO COM VALOR MENSAL
+  // Renderizar item da lista
   const renderGoalItem = ({ item: goal }: { item: Goal }) => {
     const progress = calculateProgress(goal);
     const statusColor = getStatusColor(goal.status);
@@ -174,7 +185,7 @@ export const GoalListScreen: React.FC = () => {
     return (
       <TouchableOpacity
         style={styles.goalCard}
-        onPress={() => handleGoalPress(goal)}
+        onPress={() => handleGoalPress(goal)} // ✅ Função corrigida
         activeOpacity={0.7}
       >
         {/* Header do card */}
@@ -204,7 +215,7 @@ export const GoalListScreen: React.FC = () => {
           </Text>
         )}
 
-        {/* Valor mensal necessário - NOVO */}
+        {/* Valor mensal necessário */}
         {!isCompleted && monthlyTarget > 0 && (
           <View style={styles.monthlyTargetContainer}>
             <View style={styles.monthlyTargetInfo}>
@@ -458,7 +469,6 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     lineHeight: 20,
   },
-  // NOVOS ESTILOS para valor mensal
   monthlyTargetContainer: {
     marginBottom: SPACING.sm,
     padding: SPACING.sm,
@@ -478,7 +488,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     flex: 1,
   },
-  // Estilos existentes continuam...
   progressContainer: {
     marginBottom: SPACING.md,
   },

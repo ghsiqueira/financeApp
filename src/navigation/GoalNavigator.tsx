@@ -13,7 +13,7 @@ export type GoalStackParamList = {
   GoalList: undefined;
   CreateGoal: undefined;
   EditGoal: { goalId: string };
-  GoalDetails: { goalId: string };
+  GoalDetail: { goalId: string }; // ✅ CORRIGIDO: mudado de GoalDetails para GoalDetail
 };
 
 const GoalStack = createNativeStackNavigator<GoalStackParamList>();
@@ -47,7 +47,7 @@ export const GoalNavigator: React.FC = () => {
         options={{ title: 'Editar Meta' }}
       />
       <GoalStack.Screen 
-        name="GoalDetails" 
+        name="GoalDetail"  // ✅ CORRIGIDO: mudado de GoalDetails para GoalDetail
         component={GoalDetailScreen}
         options={{ 
           title: 'Detalhes da Meta',

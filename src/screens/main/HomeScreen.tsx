@@ -370,7 +370,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Card key={goal._id} style={styles.goalCard}>
               <TouchableOpacity
                 onPress={() => navigation.navigate('Goals', {
-                  screen: 'GoalDetails',
+                  screen: 'GoalDetail',
                   params: { goalId: goal._id }
                 })}
               >

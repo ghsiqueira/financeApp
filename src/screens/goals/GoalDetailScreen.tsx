@@ -1,4 +1,3 @@
-// src/screens/goals/GoalDetailScreen.tsx
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -23,19 +22,12 @@ import {
   Button,
 } from '../../components/common';
 import { GoalService } from '../../services/GoalService';
-import { Goal } from '../../types';
+import { Goal, GoalStackParamList } from '../../types';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
 
-type GoalStackParamList = {
-  GoalList: undefined;
-  CreateGoal: undefined;
-  EditGoal: { goalId: string };
-  GoalDetails: { goalId: string };
-};
-
-type GoalDetailScreenNavigationProp = NativeStackNavigationProp<GoalStackParamList, 'GoalDetails'>;
-type GoalDetailScreenRouteProp = RouteProp<GoalStackParamList, 'GoalDetails'>;
+type GoalDetailScreenNavigationProp = NativeStackNavigationProp<GoalStackParamList, 'GoalDetail'>;
+type GoalDetailScreenRouteProp = RouteProp<GoalStackParamList, 'GoalDetail'>;
 
 interface Props {
   navigation: GoalDetailScreenNavigationProp;
@@ -52,22 +44,45 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const [addingValue, setAddingValue] = useState(false);
 
   useEffect(() => {
-    loadGoal();
+    console.log('🔍 GoalDetailScreen: goalId recebido:', goalId);
+    if (goalId && goalId !== 'undefined') {
+      loadGoal();
+    } else {
+      console.error('❌ GoalDetailScreen: goalId inválido');
+      Alert.alert('Erro', 'ID da meta inválido');
+      navigation.goBack();
+    }
   }, [goalId]);
+
+  // Recarregar quando voltar da tela de edição
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      if (goal && goalId && goalId !== 'undefined') {
+        loadGoal();
+      }
+    });
+    return unsubscribe;
+  }, [navigation, goal, goalId]);
 
   // Carregar detalhes da meta
   const loadGoal = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Carregando meta com ID:', goalId);
+      
       const response = await GoalService.getGoal(goalId);
+      console.log('📥 Resposta getGoal:', response);
       
       if (response.success && response.data) {
+        console.log('🎯 Goal carregado:', response.data);
         setGoal(response.data);
       } else {
-        Alert.alert('Erro', 'Meta não encontrada');
+        console.log('❌ Meta não encontrada na resposta');
+        Alert.alert('Erro', response.message || 'Meta não encontrada');
         navigation.goBack();
       }
     } catch (error: any) {
+      console.log('❌ Erro ao carregar meta:', error);
       Alert.alert('Erro', error.message || 'Erro ao carregar meta');
       navigation.goBack();
     } finally {
@@ -75,7 +90,7 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // Adicionar valor à meta
+  // Adicionar valor à meta - CRÍTICO: CORRIGIDO
   const handleAddValue = async () => {
     if (!goal || !addValue) return;
 
@@ -88,31 +103,36 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         return;
       }
 
+      // ✅ CRÍTICO: Usar goal._id ao invés de goal.id
+      console.log('💰 Adicionando valor:', valueToAdd, 'para goal._id:', goal._id);
       const response = await GoalService.addToGoal(goal._id, valueToAdd);
       
       if (response.success && response.data) {
+        console.log('✅ Valor adicionado com sucesso:', response.data);
         setGoal(response.data);
         setAddValue('');
         setShowAddValueModal(false);
         Alert.alert('Sucesso', 'Valor adicionado com sucesso!');
       } else {
+        console.log('❌ Erro na resposta:', response.message);
         Alert.alert('Erro', response.message || 'Erro ao adicionar valor');
       }
     } catch (error: any) {
+      console.log('❌ Erro ao adicionar valor:', error);
       Alert.alert('Erro', error.message || 'Erro ao adicionar valor');
     } finally {
       setAddingValue(false);
     }
   };
 
-  // Pausar/Reativar meta
+  // Pausar/Reativar meta - CORRIGIDO
   const handleTogglePause = async () => {
     if (!goal) return;
 
     try {
       const response = goal.status === 'paused' 
-        ? await GoalService.resumeGoal(goal._id)
-        : await GoalService.pauseGoal(goal._id);
+        ? await GoalService.resumeGoal(goal._id) // ✅ Usar goal._id
+        : await GoalService.pauseGoal(goal._id);  // ✅ Usar goal._id
       
       if (response.success && response.data) {
         setGoal(response.data);
@@ -123,12 +143,39 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  // Completar meta manualmente - CORRIGIDO
+  const handleCompleteGoal = async () => {
+    if (!goal) return;
+
+    Alert.alert(
+      'Completar Meta',
+      'Tem certeza que deseja marcar esta meta como concluída?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Completar',
+          onPress: async () => {
+            try {
+              const response = await GoalService.completeGoal(goal._id); // ✅ Usar goal._id
+              if (response.success && response.data) {
+                setGoal(response.data);
+                Alert.alert('Parabéns!', 'Meta concluída com sucesso! 🎉');
+              }
+            } catch (error: any) {
+              Alert.alert('Erro', error.message || 'Erro ao completar meta');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Compartilhar meta
   const handleShare = async () => {
     if (!goal) return;
 
     const progress = calculateProgress();
-    const shareText = `🎯 Meta: ${goal.title}\n💰 ${formatCurrency(goal.currentAmount)} de ${formatCurrency(goal.targetAmount)}\n📊 ${progress.toFixed(1)}% concluído\n📅 Prazo: ${formatDate(new Date(goal.targetDate || goal.endDate))}`;
+    const shareText = `🎯 Meta: ${goal.title}\n💰 ${formatCurrency(goal.currentAmount)} de ${formatCurrency(goal.targetAmount)}\n📊 ${progress.toFixed(1)}% concluído\n📅 Prazo: ${formatDate(new Date(goal.endDate))}`;
 
     try {
       await Share.share({
@@ -140,7 +187,7 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // Excluir meta
+  // Excluir meta - CORRIGIDO
   const handleDelete = () => {
     if (!goal) return;
 
@@ -154,7 +201,7 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              const response = await GoalService.deleteGoal(goal._id);
+              const response = await GoalService.deleteGoal(goal._id); // ✅ Usar goal._id
               if (response.success) {
                 Alert.alert('Sucesso', 'Meta excluída com sucesso!');
                 navigation.goBack();
@@ -176,18 +223,6 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     return Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
   };
 
-  // Calcular valor mensal necessário
-  const calculateMonthlyTarget = (): number => {
-    if (!goal) return 0;
-    const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
-    const daysRemaining = goal.daysRemaining || 0;
-    
-    if (daysRemaining <= 0 || goal.status === 'completed') return 0;
-    
-    const remainingMonths = Math.max(1, Math.ceil(daysRemaining / 30));
-    return remainingAmount / remainingMonths;
-  };
-
   // Obter cor do status
   const getStatusColor = () => {
     if (!goal) return COLORS.gray400;
@@ -199,6 +234,17 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  // Obter texto do status
+  const getStatusText = () => {
+    if (!goal) return 'Indefinido';
+    switch (goal.status) {
+      case 'completed': return 'Concluída';
+      case 'paused': return 'Pausada';
+      case 'active': return 'Ativa';
+      default: return 'Indefinido';
+    }
+  };
+
   if (loading) {
     return <Loading text="Carregando meta..." />;
   }
@@ -206,13 +252,14 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   if (!goal) {
     return (
       <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>Meta não encontrada</Text>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Meta não encontrada</Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   const progress = calculateProgress();
-  const monthlyTarget = calculateMonthlyTarget();
   const isCompleted = goal.status === 'completed';
   const isPaused = goal.status === 'paused';
 
@@ -230,7 +277,7 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           </TouchableOpacity>
           
           <TouchableOpacity 
-            onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })}
+            onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })} // ✅ Usar goal._id
             style={styles.headerButton}
           >
             <Ionicons name="create-outline" size={24} color={COLORS.textPrimary} />
@@ -249,8 +296,7 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.goalTitle}>{goal.title}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
               <Text style={[styles.statusText, { color: getStatusColor() }]}>
-                {goal.status === 'completed' ? 'Concluída' : 
-                 goal.status === 'paused' ? 'Pausada' : 'Ativa'}
+                {getStatusText()}
               </Text>
             </View>
           </View>
@@ -288,14 +334,14 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         </Card>
 
         {/* Valor mensal necessário */}
-        {!isCompleted && monthlyTarget > 0 && (
+        {!isCompleted && goal.monthlyTargetRemaining > 0 && (
           <Card style={styles.monthlyCard}>
             <View style={styles.monthlyHeader}>
               <Ionicons name="calendar" size={20} color={COLORS.primary} />
               <Text style={styles.sectionTitle}>Valor Mensal</Text>
             </View>
             <Text style={styles.monthlyAmount}>
-              {formatCurrency(monthlyTarget)}
+              {formatCurrency(goal.monthlyTargetRemaining)}
             </Text>
             <Text style={styles.monthlyDescription}>
               Economize por mês para atingir sua meta no prazo
@@ -311,11 +357,11 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             <View style={styles.dateItem}>
               <Text style={styles.dateLabel}>Data final</Text>
               <Text style={styles.dateValue}>
-                {formatDate(new Date(goal.targetDate || goal.endDate))}
+                {formatDate(new Date(goal.endDate))}
               </Text>
             </View>
             
-            {goal.daysRemaining && goal.daysRemaining > 0 && !isCompleted && (
+            {goal.daysRemaining > 0 && !isCompleted && (
               <View style={styles.dateItem}>
                 <Text style={styles.dateLabel}>Dias restantes</Text>
                 <Text style={[styles.dateValue, { color: COLORS.primary }]}>
@@ -345,6 +391,30 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={styles.actionButton}
                 variant={isPaused ? 'primary' : 'outline'}
               />
+            </View>
+
+            {/* Botão de completar meta se estiver próximo */}
+            {progress >= 95 && (
+              <TouchableOpacity
+                style={[styles.completeButton, { marginTop: SPACING.sm }]}
+                onPress={handleCompleteGoal}
+              >
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
+                <Text style={styles.completeButtonText}>Marcar como Concluída</Text>
+              </TouchableOpacity>
+            )}
+          </Card>
+        )}
+
+        {/* Card de celebração se completada */}
+        {isCompleted && (
+          <Card style={styles.celebrationCard}>
+            <View style={styles.celebrationContent}>
+              <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
+              <Text style={styles.celebrationTitle}>Meta Concluída!</Text>
+              <Text style={styles.celebrationText}>
+                Parabéns por alcançar sua meta de {formatCurrency(goal.targetAmount)}!
+              </Text>
             </View>
           </Card>
         )}
@@ -400,6 +470,18 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: SPACING.lg,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.lg,
+  },
+  errorText: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.regular,
+    color: COLORS.error,
+    textAlign: 'center',
   },
   mainCard: {
     marginBottom: SPACING.md,
@@ -523,7 +605,7 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   actionsCard: {
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.md,
   },
   actionsContainer: {
     gap: SPACING.sm,
@@ -531,11 +613,42 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
   },
-  errorText: {
-    fontSize: FONT_SIZES.lg,
+  completeButton: {
+    backgroundColor: COLORS.success,
+    borderRadius: BORDER_RADIUS.md,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+  },
+  completeButtonText: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.medium,
+    color: COLORS.white,
+  },
+  celebrationCard: {
+    backgroundColor: COLORS.success + '10',
+    borderColor: COLORS.success + '30',
+    borderWidth: 1,
+    marginBottom: SPACING.xl,
+  },
+  celebrationContent: {
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+  },
+  celebrationTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.success,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  celebrationText: {
+    fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
-    color: COLORS.error,
+    color: COLORS.textSecondary,
     textAlign: 'center',
-    marginTop: SPACING.xl,
   },
 });
