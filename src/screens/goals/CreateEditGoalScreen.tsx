@@ -85,7 +85,7 @@ export const CreateEditGoalScreen: React.FC<Props> = ({ navigation, route }) => 
 
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // Categorias para metas
+  // Categorias para metas (reduzidas para caber melhor na tela)
   const goalCategories = [
     'Emergência',
     'Viagem',
@@ -349,10 +349,8 @@ export const CreateEditGoalScreen: React.FC<Props> = ({ navigation, route }) => 
             </View>
           </Card>
         )}
-      </ScrollView>
 
-      {/* Botões fixos na parte inferior - SEMPRE VISÍVEIS */}
-      <SafeAreaView style={styles.safeFooter}>
+        {/* Botões no final da página */}
         <View style={styles.buttonsContainer}>
           <Button
             title="Cancelar"
@@ -368,7 +366,7 @@ export const CreateEditGoalScreen: React.FC<Props> = ({ navigation, route }) => 
             style={styles.saveButton}
           />
         </View>
-      </SafeAreaView>
+      </ScrollView>
     </View>
   );
 };
@@ -380,8 +378,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    paddingTop: SPACING.xl, // Espaço extra para status bar
+    paddingVertical: SPACING.sm, // Reduzido de md para sm
+    paddingTop: SPACING.md, // Reduzido de xl para md
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
@@ -403,7 +401,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    paddingBottom: SPACING.xl, // Espaço extra para os botões
   },
   formCard: {
     marginBottom: SPACING.md,
@@ -467,15 +464,11 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
   },
-  safeFooter: {
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
   buttonsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
     gap: SPACING.sm,
   },
   cancelButton: {

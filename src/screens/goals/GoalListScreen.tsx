@@ -1,4 +1,4 @@
-// src/screens/goals/GoalListScreen.tsx
+// src/screens/goals/GoalListScreen.tsx - VERSÃO COMPLETA COM VALOR MENSAL
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -94,7 +94,6 @@ export const GoalListScreen: React.FC = () => {
 
   // Navegação para criar nova meta
   const handleCreateGoal = () => {
-    // Usar any para evitar problemas de tipagem temporariamente
     (navigation as any).navigate('CreateGoal');
   };
 
@@ -152,12 +151,25 @@ export const GoalListScreen: React.FC = () => {
     );
   };
 
-  // Renderizar item da lista
+  // Renderizar item da lista - ATUALIZADO COM VALOR MENSAL
   const renderGoalItem = ({ item: goal }: { item: Goal }) => {
     const progress = calculateProgress(goal);
     const statusColor = getStatusColor(goal.status);
     const isCompleted = goal.status === 'completed';
     const daysRemaining = goal.daysRemaining || 0;
+    
+    // Calcular valor mensal necessário
+    const calculateMonthlyTarget = (goal: Goal): number => {
+      const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
+      const remainingDays = daysRemaining;
+      
+      if (remainingDays <= 0 || isCompleted) return 0;
+      
+      const remainingMonths = Math.max(1, Math.ceil(remainingDays / 30));
+      return remainingAmount / remainingMonths;
+    };
+    
+    const monthlyTarget = calculateMonthlyTarget(goal);
 
     return (
       <TouchableOpacity
@@ -190,6 +202,18 @@ export const GoalListScreen: React.FC = () => {
           <Text style={styles.goalDescription} numberOfLines={2}>
             {goal.description}
           </Text>
+        )}
+
+        {/* Valor mensal necessário - NOVO */}
+        {!isCompleted && monthlyTarget > 0 && (
+          <View style={styles.monthlyTargetContainer}>
+            <View style={styles.monthlyTargetInfo}>
+              <Ionicons name="calendar" size={16} color={COLORS.primary} />
+              <Text style={styles.monthlyTargetText}>
+                Economizar por mês: {formatCurrency(monthlyTarget)}
+              </Text>
+            </View>
+          </View>
         )}
 
         {/* Progresso */}
@@ -434,6 +458,27 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     lineHeight: 20,
   },
+  // NOVOS ESTILOS para valor mensal
+  monthlyTargetContainer: {
+    marginBottom: SPACING.sm,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.primary + '08',
+    borderRadius: BORDER_RADIUS.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+  },
+  monthlyTargetInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  monthlyTargetText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+    flex: 1,
+  },
+  // Estilos existentes continuam...
   progressContainer: {
     marginBottom: SPACING.md,
   },

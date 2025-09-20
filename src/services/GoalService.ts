@@ -1,4 +1,4 @@
-// src/services/GoalService.ts - VERSÃO CORRIGIDA
+// src/services/GoalService.ts - VERSÃO COMPLETA CORRIGIDA
 import apiService from './api';
 import { Goal, CreateGoalData, ApiResponse } from '../types';
 
@@ -14,6 +14,8 @@ export interface GoalFilters {
   status?: 'active' | 'completed' | 'paused';
   dateFrom?: string;
   dateTo?: string;
+  page?: number;
+  limit?: number;
 }
 
 // Interface GoalsResponse corrigida com data como array
@@ -82,7 +84,7 @@ export class GoalService {
   }
 
   /**
-   * Buscar todas as metas do usuário
+   * Buscar todas as metas do usuário - CORRIGIDO PARA USAR APISERVICE CORRETO
    */
   static async getGoals(
     page: number = 1,
@@ -90,29 +92,41 @@ export class GoalService {
     filters: GoalFilters = {}
   ): Promise<GoalsResponse> {
     try {
-      // Converter filtros para formato da API
-      const apiFilters = {
-        page,
-        limit,
-        ...filters,
-        // Remover campos que não são suportados pela API
-        isCompleted: undefined,
-      };
+      console.log('🔍 GoalService.getGoals: Iniciando busca...');
+      console.log('🔍 Parâmetros:', { page, limit, filters });
 
-      const response = await apiService.getGoals(page, limit, apiFilters);
+      // Usar o método específico do apiService
+      const response = await apiService.getGoals(page, limit, filters);
       
+      console.log('📥 Resposta do backend:', response);
+
       if (response.success && response.data) {
-        const goalsData = response.data.data || response.data;
-        const paginationData = response.data.pagination || { current: 1, pages: 1, total: 0 };
+        // O response.data pode ter diferentes estruturas dependendo da API
+        // Vamos acessar de forma segura usando notação de colchetes
+        const responseData = response.data as any;
+        const goalsData = responseData.goals || responseData.data || responseData;
+        const paginationData = responseData.pagination || { current: 1, pages: 1, total: 0 };
         
+        console.log('📊 Dados extraídos:');
+        console.log('  - goalsData:', goalsData);
+        console.log('  - goalsData.length:', goalsData?.length);
+        console.log('  - paginationData:', paginationData);
+
+        // Mapear cada meta para o formato esperado
+        const mappedGoals = Array.isArray(goalsData) ? 
+          goalsData.map((g: any) => this.mapGoal(g)) : [];
+
+        console.log('✅ Metas mapeadas:', mappedGoals.length);
+        console.log('🎯 Primeira meta mapeada:', mappedGoals[0]);
+
         return {
           success: true,
-          data: Array.isArray(goalsData) ? 
-            goalsData.map(g => this.mapGoal(g)) : [],
+          data: mappedGoals,
           pagination: paginationData,
         };
       }
       
+      console.log('❌ Resposta não successful');
       return {
         success: false,
         data: [],
@@ -120,7 +134,10 @@ export class GoalService {
         message: response.message || 'Erro ao carregar metas'
       };
     } catch (error: any) {
-      console.error('❌ Erro ao buscar metas:', error);
+      console.error('💥 GoalService.getGoals: Erro capturado:', error);
+      console.error('💥 Error message:', error.message);
+      console.error('💥 Error stack:', error.stack);
+      
       return {
         success: false,
         data: [],
@@ -135,8 +152,12 @@ export class GoalService {
    */
   static async getGoal(id: string): Promise<GoalResponse> {
     try {
+      console.log('🔍 GoalService.getGoal: Buscando meta:', id);
+      
       const response = await apiService.getGoal(id);
       
+      console.log('📥 Resposta getGoal:', response);
+
       if (response.success && response.data) {
         return {
           success: true,
@@ -162,9 +183,15 @@ export class GoalService {
    */
   static async createGoal(data: CreateGoalData): Promise<GoalResponse> {
     try {
+      console.log('➕ GoalService.createGoal:', data);
+      
       const mappedData = this.mapCreateData(data);
+      console.log('📤 Dados mapeados para envio:', mappedData);
+      
       const response = await apiService.createGoal(mappedData);
       
+      console.log('📥 Resposta createGoal:', response);
+
       if (response.success && response.data) {
         return {
           success: true,
@@ -190,8 +217,12 @@ export class GoalService {
    */
   static async updateGoal(id: string, data: UpdateGoalData): Promise<GoalResponse> {
     try {
+      console.log('✏️ GoalService.updateGoal:', { id, data });
+      
       const response = await apiService.updateGoal(id, data);
       
+      console.log('📥 Resposta updateGoal:', response);
+
       if (response.success && response.data) {
         return {
           success: true,
@@ -217,8 +248,12 @@ export class GoalService {
    */
   static async deleteGoal(id: string): Promise<{ success: boolean; message?: string }> {
     try {
+      console.log('🗑️ GoalService.deleteGoal:', id);
+      
       const response = await apiService.deleteGoal(id);
       
+      console.log('📥 Resposta deleteGoal:', response);
+
       return {
         success: response.success,
         message: response.message || 'Meta deletada com sucesso'
@@ -237,11 +272,15 @@ export class GoalService {
    */
   static async getActiveGoals(limit: number = 5): Promise<Goal[]> {
     try {
+      console.log('🔍 GoalService.getActiveGoals:', limit);
+      
       const response = await apiService.getActiveGoals(limit);
       
+      console.log('📥 Resposta getActiveGoals:', response);
+
       if (response.success && response.data) {
         return Array.isArray(response.data) ? 
-          response.data.map(g => this.mapGoal(g)) : [];
+          response.data.map((g: any) => this.mapGoal(g)) : [];
       }
       
       return [];
@@ -256,8 +295,12 @@ export class GoalService {
    */
   static async addToGoal(id: string, amount: number): Promise<GoalResponse> {
     try {
+      console.log('💰 GoalService.addToGoal:', { id, amount });
+      
       const response = await apiService.addToGoal(id, amount);
       
+      console.log('📥 Resposta addToGoal:', response);
+
       if (response.success && response.data) {
         return {
           success: true,

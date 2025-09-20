@@ -18,11 +18,13 @@ import {
   ProgressBar,
   CurrencyInput,
   CustomAlert,
+  Card,
+  Loading,
+  Button,
 } from '../../components/common';
-import { Card, Loading, Button } from '../../components/common/index';
 import { GoalService } from '../../services/GoalService';
 import { Goal } from '../../types';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
+import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { formatCurrency, formatDate } from '../../utils';
 
 type GoalStackParamList = {
@@ -86,25 +88,15 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         return;
       }
 
-      const newCurrentAmount = goal.currentAmount + valueToAdd;
+      const response = await GoalService.addToGoal(goal._id, valueToAdd);
       
-      await GoalService.updateGoal(goalId, {
-        currentAmount: newCurrentAmount,
-      });
-
-      // Recarregar meta
-      await loadGoal();
-      
-      setShowAddValueModal(false);
-      setAddValue('');
-      
-      // Verificar se a meta foi concluída
-      if (newCurrentAmount >= goal.targetAmount) {
-        Alert.alert(
-          '🎉 Parabéns!',
-          'Você atingiu sua meta! Continue assim!',
-          [{ text: 'Ok' }]
-        );
+      if (response.success && response.data) {
+        setGoal(response.data);
+        setAddValue('');
+        setShowAddValueModal(false);
+        Alert.alert('Sucesso', 'Valor adicionado com sucesso!');
+      } else {
+        Alert.alert('Erro', response.message || 'Erro ao adicionar valor');
       }
     } catch (error: any) {
       Alert.alert('Erro', error.message || 'Erro ao adicionar valor');
@@ -113,45 +105,98 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
+  // Pausar/Reativar meta
+  const handleTogglePause = async () => {
+    if (!goal) return;
+
+    try {
+      const response = goal.status === 'paused' 
+        ? await GoalService.resumeGoal(goal._id)
+        : await GoalService.pauseGoal(goal._id);
+      
+      if (response.success && response.data) {
+        setGoal(response.data);
+        Alert.alert('Sucesso', goal.status === 'paused' ? 'Meta reativada!' : 'Meta pausada!');
+      }
+    } catch (error: any) {
+      Alert.alert('Erro', error.message || 'Erro ao alterar status da meta');
+    }
+  };
+
   // Compartilhar meta
   const handleShare = async () => {
     if (!goal) return;
 
-    const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
-    const message = `🎯 Minha meta: ${goal.title}\n\n💰 Progresso: ${formatCurrency(goal.currentAmount)} de ${formatCurrency(goal.targetAmount)} (${progress.toFixed(0)}%)\n\n📅 Meta para: ${formatDate(goal.targetDate)}\n\n#FinanceApp #MetasFinanceiras`;
+    const progress = calculateProgress();
+    const shareText = `🎯 Meta: ${goal.title}\n💰 ${formatCurrency(goal.currentAmount)} de ${formatCurrency(goal.targetAmount)}\n📊 ${progress.toFixed(1)}% concluído\n📅 Prazo: ${formatDate(new Date(goal.targetDate || goal.endDate))}`;
 
     try {
       await Share.share({
-        message,
-        title: 'Compartilhar Meta',
+        message: shareText,
+        title: 'Minha Meta Financeira',
       });
     } catch (error) {
-      console.error('Erro ao compartilhar:', error);
+      console.log('Erro ao compartilhar:', error);
     }
   };
 
-  // Deletar meta
+  // Excluir meta
   const handleDelete = () => {
+    if (!goal) return;
+
     Alert.alert(
       'Excluir Meta',
-      `Tem certeza que deseja excluir a meta "${goal?.title}"?`,
+      `Tem certeza que deseja excluir a meta "${goal.title}"?`,
       [
         { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
+        { 
+          text: 'Excluir', 
           style: 'destructive',
           onPress: async () => {
             try {
-              await GoalService.deleteGoal(goalId);
-              Alert.alert('Sucesso', 'Meta excluída com sucesso!');
-              navigation.goBack();
+              const response = await GoalService.deleteGoal(goal._id);
+              if (response.success) {
+                Alert.alert('Sucesso', 'Meta excluída com sucesso!');
+                navigation.goBack();
+              } else {
+                Alert.alert('Erro', response.message || 'Erro ao excluir meta');
+              }
             } catch (error: any) {
               Alert.alert('Erro', error.message || 'Erro ao excluir meta');
             }
-          },
+          }
         },
       ]
     );
+  };
+
+  // Calcular progresso
+  const calculateProgress = (): number => {
+    if (!goal || goal.targetAmount <= 0) return 0;
+    return Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
+  };
+
+  // Calcular valor mensal necessário
+  const calculateMonthlyTarget = (): number => {
+    if (!goal) return 0;
+    const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
+    const daysRemaining = goal.daysRemaining || 0;
+    
+    if (daysRemaining <= 0 || goal.status === 'completed') return 0;
+    
+    const remainingMonths = Math.max(1, Math.ceil(daysRemaining / 30));
+    return remainingAmount / remainingMonths;
+  };
+
+  // Obter cor do status
+  const getStatusColor = () => {
+    if (!goal) return COLORS.gray400;
+    switch (goal.status) {
+      case 'completed': return COLORS.success;
+      case 'paused': return COLORS.warning;
+      case 'active': return COLORS.primary;
+      default: return COLORS.gray400;
+    }
   };
 
   if (loading) {
@@ -161,219 +206,154 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   if (!goal) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Meta não encontrada</Text>
-          <Button title="Voltar" onPress={() => navigation.goBack()} />
-        </View>
+        <Text style={styles.errorText}>Meta não encontrada</Text>
       </SafeAreaView>
     );
   }
 
-  const progress = Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
-  const remainingAmount = Math.max(goal.targetAmount - goal.currentAmount, 0);
-  const isCompleted = goal.status === 'completed' || goal.currentAmount >= goal.targetAmount;
-  const daysLeft = Math.ceil(
-    (new Date(goal.targetDate || goal.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-  );
+  const progress = calculateProgress();
+  const monthlyTarget = calculateMonthlyTarget();
+  const isCompleted = goal.status === 'completed';
+  const isPaused = goal.status === 'paused';
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header personalizado */}
+      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
         
         <View style={styles.headerActions}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={handleShare}
-          >
+          <TouchableOpacity onPress={handleShare} style={styles.headerButton}>
             <Ionicons name="share-outline" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
           
-          <TouchableOpacity
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })}
             style={styles.headerButton}
-            onPress={() => navigation.navigate('EditGoal', { goalId })}
           >
             <Ionicons name="create-outline" size={24} color={COLORS.textPrimary} />
+          </TouchableOpacity>
+          
+          <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
+            <Ionicons name="trash-outline" size={24} color={COLORS.error} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Card principal da meta */}
+        {/* Informações principais */}
         <Card style={styles.mainCard}>
-          <View style={styles.goalHeader}>
+          <View style={styles.titleContainer}>
             <Text style={styles.goalTitle}>{goal.title}</Text>
-            {goal.category && (
-              <View style={styles.categoryBadge}>
-                <Text style={styles.categoryText}>{goal.category}</Text>
-              </View>
-            )}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor() + '20' }]}>
+              <Text style={[styles.statusText, { color: getStatusColor() }]}>
+                {goal.status === 'completed' ? 'Concluída' : 
+                 goal.status === 'paused' ? 'Pausada' : 'Ativa'}
+              </Text>
+            </View>
           </View>
 
           {goal.description && (
-            <Text style={styles.goalDescription}>{goal.description}</Text>
+            <Text style={styles.description}>{goal.description}</Text>
           )}
 
-          <View style={styles.statusContainer}>
-            <View style={[
-              styles.statusBadge,
-              {
-                backgroundColor: isCompleted ? COLORS.success10 : 
-                                daysLeft < 0 ? COLORS.error10 : COLORS.primary10
-              }
-            ]}>
-              <Text style={[
-                styles.statusText,
-                {
-                  color: isCompleted ? COLORS.success : 
-                        daysLeft < 0 ? COLORS.error : COLORS.primary
-                }
-              ]}>
-                {isCompleted ? '✅ Concluída' : 
-                 daysLeft < 0 ? '⏰ Vencida' : 
-                 daysLeft === 0 ? '🔥 Último dia' : `⏳ ${daysLeft} dias restantes`}
-              </Text>
+          {goal.category && (
+            <View style={styles.categoryContainer}>
+              <Ionicons name="pricetag" size={16} color={COLORS.primary} />
+              <Text style={styles.categoryText}>{goal.category}</Text>
             </View>
-          </View>
+          )}
         </Card>
 
-        {/* Card de progresso */}
+        {/* Progresso */}
         <Card style={styles.progressCard}>
-          <Text style={styles.cardTitle}>Progresso da Meta</Text>
+          <Text style={styles.sectionTitle}>Progresso</Text>
           
           <View style={styles.progressInfo}>
-            <View style={styles.progressValues}>
-              <Text style={styles.currentValue}>
-                {formatCurrency(goal.currentAmount)}
-              </Text>
-              <Text style={styles.targetValue}>
-                de {formatCurrency(goal.targetAmount)}
+            <Text style={styles.currentAmount}>{formatCurrency(goal.currentAmount)}</Text>
+            <Text style={styles.targetAmount}>de {formatCurrency(goal.targetAmount)}</Text>
+          </View>
+
+          <ProgressBar 
+            progress={progress} 
+            color={getStatusColor()} 
+            height={12}
+            showText={false}
+            style={styles.progressBar}
+          />
+          
+          <Text style={styles.progressPercentage}>{progress.toFixed(1)}% concluído</Text>
+        </Card>
+
+        {/* Valor mensal necessário */}
+        {!isCompleted && monthlyTarget > 0 && (
+          <Card style={styles.monthlyCard}>
+            <View style={styles.monthlyHeader}>
+              <Ionicons name="calendar" size={20} color={COLORS.primary} />
+              <Text style={styles.sectionTitle}>Valor Mensal</Text>
+            </View>
+            <Text style={styles.monthlyAmount}>
+              {formatCurrency(monthlyTarget)}
+            </Text>
+            <Text style={styles.monthlyDescription}>
+              Economize por mês para atingir sua meta no prazo
+            </Text>
+          </Card>
+        )}
+
+        {/* Informações de prazo */}
+        <Card style={styles.dateCard}>
+          <Text style={styles.sectionTitle}>Prazo</Text>
+          
+          <View style={styles.dateInfo}>
+            <View style={styles.dateItem}>
+              <Text style={styles.dateLabel}>Data final</Text>
+              <Text style={styles.dateValue}>
+                {formatDate(new Date(goal.targetDate || goal.endDate))}
               </Text>
             </View>
             
-            <Text style={styles.progressPercentage}>
-              {progress.toFixed(1)}%
-            </Text>
-          </View>
-
-          <ProgressBar
-            progress={progress}
-            color={isCompleted ? COLORS.success : COLORS.primary}
-            backgroundColor={COLORS.gray200}
-            style={styles.progressBar}
-          />
-
-          {!isCompleted && (
-            <View style={styles.remainingInfo}>
-              <Text style={styles.remainingText}>
-                Faltam {formatCurrency(remainingAmount)} para atingir sua meta
-              </Text>
-            </View>
-          )}
-        </Card>
-
-        {/* Card de informações */}
-        <Card style={styles.infoCard}>
-          <Text style={styles.cardTitle}>Informações</Text>
-          
-          <View style={styles.infoList}>
-            <View style={styles.infoItem}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Data da Meta</Text>
-                <Text style={styles.infoValue}>{formatDate(goal.targetDate || goal.endDate)}</Text>
-              </View>
-            </View>
-
-            <View style={styles.infoItem}>
-              <View style={styles.infoIcon}>
-                <Ionicons name="time-outline" size={20} color={COLORS.primary} />
-              </View>
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>Criada em</Text>
-                <Text style={styles.infoValue}>{formatDate(goal.createdAt)}</Text>
-              </View>
-            </View>
-
-            {goal.updatedAt !== goal.createdAt && (
-              <View style={styles.infoItem}>
-                <View style={styles.infoIcon}>
-                  <Ionicons name="refresh-outline" size={20} color={COLORS.primary} />
-                </View>
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Última atualização</Text>
-                  <Text style={styles.infoValue}>{formatDate(goal.updatedAt)}</Text>
-                </View>
+            {goal.daysRemaining && goal.daysRemaining > 0 && !isCompleted && (
+              <View style={styles.dateItem}>
+                <Text style={styles.dateLabel}>Dias restantes</Text>
+                <Text style={[styles.dateValue, { color: COLORS.primary }]}>
+                  {goal.daysRemaining} dias
+                </Text>
               </View>
             )}
           </View>
         </Card>
 
-        {/* Estatísticas adicionais */}
-        {!isCompleted && daysLeft > 0 && (
-          <Card style={styles.statsCard}>
-            <Text style={styles.cardTitle}>Estatísticas</Text>
+        {/* Ações */}
+        {!isCompleted && (
+          <Card style={styles.actionsCard}>
+            <Text style={styles.sectionTitle}>Ações</Text>
             
-            <View style={styles.statsList}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {formatCurrency(remainingAmount / daysLeft)}
-                </Text>
-                <Text style={styles.statLabel}>Por dia restante</Text>
-              </View>
+            <View style={styles.actionsContainer}>
+              <Button
+                title="Adicionar Valor"
+                onPress={() => setShowAddValueModal(true)}
+                style={styles.actionButton}
+                variant="primary"
+              />
               
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {formatCurrency((remainingAmount / daysLeft) * 7)}
-                </Text>
-                <Text style={styles.statLabel}>Por semana</Text>
-              </View>
-              
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>
-                  {formatCurrency((remainingAmount / daysLeft) * 30)}
-                </Text>
-                <Text style={styles.statLabel}>Por mês</Text>
-              </View>
+              <Button
+                title={isPaused ? 'Reativar' : 'Pausar'}
+                onPress={handleTogglePause}
+                style={styles.actionButton}
+                variant={isPaused ? 'primary' : 'outline'}
+              />
             </View>
           </Card>
         )}
-
-        {/* Botão de excluir */}
-        <View style={styles.dangerZone}>
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={handleDelete}
-          >
-            <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-            <Text style={styles.deleteButtonText}>Excluir Meta</Text>
-          </TouchableOpacity>
-        </View>
       </ScrollView>
-
-      {/* Botão flutuante para adicionar valor */}
-      {!isCompleted && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setShowAddValueModal(true)}
-        >
-          <Ionicons name="add" size={24} color={COLORS.white} />
-        </TouchableOpacity>
-      )}
 
       {/* Modal para adicionar valor */}
       <CustomAlert
         visible={showAddValueModal}
         title="Adicionar Valor"
-        type="info"
         onConfirm={handleAddValue}
         onCancel={() => {
           setShowAddValueModal(false);
@@ -383,17 +363,13 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         cancelText="Cancelar"
         loading={addingValue}
       >
-        <View style={styles.modalContent}>
-          <Text style={styles.modalText}>
-            Quanto você quer adicionar à sua meta?
-          </Text>
-          <CurrencyInput
-            placeholder="R$ 0,00"
-            value={addValue}
-            onChangeText={setAddValue}
-            autoFocus
-          />
-        </View>
+        <CurrencyInput
+          label="Valor a adicionar"
+          placeholder="R$ 0,00"
+          value={addValue}
+          onChangeText={setAddValue}
+          autoFocus
+        />
       </CustomAlert>
     </SafeAreaView>
   );
@@ -414,233 +390,152 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
-  headerButton: {
-    padding: SPACING.sm,
-    borderRadius: 8,
-  },
   headerActions: {
     flexDirection: 'row',
     gap: SPACING.sm,
   },
+  headerButton: {
+    padding: SPACING.xs,
+  },
   content: {
     flex: 1,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-  },
-  errorText: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.lg,
+    padding: SPACING.lg,
   },
   mainCard: {
     marginBottom: SPACING.md,
-    padding: SPACING.lg,
   },
-  goalHeader: {
+  titleContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   goalTitle: {
     flex: 1,
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
-    marginRight: SPACING.md,
+    marginRight: SPACING.sm,
   },
-  categoryBadge: {
-    backgroundColor: COLORS.primary10,
+  statusBadge: {
     paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
-    borderRadius: 16,
+    borderRadius: BORDER_RADIUS.full,
   },
-  categoryText: {
+  statusText: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.medium,
-    color: COLORS.primary,
   },
-  goalDescription: {
-    fontSize: FONT_SIZES.base,
+  description: {
+    fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     lineHeight: 22,
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
-  statusContainer: {
-    alignItems: 'flex-start',
+  categoryContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
   },
-  statusBadge: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 20,
-  },
-  statusText: {
+  categoryText: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
   },
   progressCard: {
     marginBottom: SPACING.md,
-    padding: SPACING.lg,
   },
-  cardTitle: {
+  sectionTitle: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     marginBottom: SPACING.md,
   },
   progressInfo: {
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  currentAmount: {
+    fontSize: FONT_SIZES.xxl,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+  },
+  targetAmount: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.xs,
+  },
+  progressBar: {
+    marginVertical: SPACING.md,
+  },
+  progressPercentage: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+    textAlign: 'center',
+  },
+  monthlyCard: {
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.primary + '08',
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary,
+  },
+  monthlyHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: SPACING.sm,
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  progressValues: {
-    flex: 1,
-  },
-  currentValue: {
+  monthlyAmount: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.primary,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
   },
-  targetValue: {
+  monthlyDescription: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
-  },
-  progressPercentage: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
-  progressBar: {
-    height: 12,
-    borderRadius: 6,
-    marginBottom: SPACING.sm,
-  },
-  remainingInfo: {
-    backgroundColor: COLORS.backgroundSecondary,
-    padding: SPACING.sm,
-    borderRadius: 8,
-  },
-  remainingText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
     textAlign: 'center',
   },
-  infoCard: {
+  dateCard: {
     marginBottom: SPACING.md,
-    padding: SPACING.lg,
   },
-  infoList: {
+  dateInfo: {
     gap: SPACING.md,
   },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  infoIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  infoContent: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  infoValue: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-  },
-  statsCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.lg,
-  },
-  statsList: {
+  dateItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  statItem: {
-    flex: 1,
     alignItems: 'center',
-    padding: SPACING.sm,
   },
-  statValue: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    marginBottom: SPACING.xs,
-  },
-  statLabel: {
-    fontSize: FONT_SIZES.xs,
+  dateLabel: {
+    fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
-    textAlign: 'center',
   },
-  dangerZone: {
+  dateValue: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+  },
+  actionsCard: {
     marginBottom: SPACING.xl,
-    paddingTop: SPACING.lg,
   },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-    borderRadius: 8,
+  actionsContainer: {
     gap: SPACING.sm,
   },
-  deleteButtonText: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
-    color: COLORS.error,
+  actionButton: {
+    flex: 1,
   },
-  fab: {
-    position: 'absolute',
-    bottom: SPACING.xl,
-    right: SPACING.lg,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: COLORS.black,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 8,
-  },
-  modalContent: {
-    paddingVertical: SPACING.md,
-  },
-  modalText: {
-    fontSize: FONT_SIZES.base,
+  errorText: {
+    fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.regular,
-    color: COLORS.textPrimary,
+    color: COLORS.error,
     textAlign: 'center',
-    marginBottom: SPACING.md,
+    marginTop: SPACING.xl,
   },
 });

@@ -7,9 +7,8 @@ import {
   StyleSheet,
   Modal,
   ViewStyle,
-  Alert,
-  Animated,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -199,7 +198,7 @@ export const Select: React.FC<SelectProps> = ({
               </TouchableOpacity>
             </View>
             
-            <View style={styles.selectOptionsList}>
+            <ScrollView style={styles.selectOptionsList} showsVerticalScrollIndicator={false}>
               {options.map((option) => (
                 <TouchableOpacity
                   key={option.value}
@@ -220,7 +219,7 @@ export const Select: React.FC<SelectProps> = ({
                   )}
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -240,7 +239,15 @@ interface DatePickerProps {
   helperText?: string;
 }
 
-// Componente DatePicker que agora usa o Calendar avançado
+// Constantes para o calendário em português
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+];
+
+const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+// Componente DatePicker REFATORADO (sem duplicação)
 export const DatePicker: React.FC<DatePickerProps> = ({
   label,
   value,
@@ -251,15 +258,13 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   maximumDate,
   helperText,
 }) => {
+  const [isQuickSelectVisible, setIsQuickSelectVisible] = useState(false);
   const [isCalendarVisible, setIsCalendarVisible] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(value.getMonth());
+  const [currentYear, setCurrentYear] = useState(value.getFullYear());
 
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('pt-BR');
-  };
-
-  const handleDateSelect = (date: Date) => {
-    onDateChange(date);
-    setIsCalendarVisible(false);
   };
 
   const quickSelectOptions = [
@@ -272,8 +277,82 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   const handleQuickSelect = (months: number) => {
     const newDate = new Date();
     newDate.setMonth(newDate.getMonth() + months);
-    handleDateSelect(newDate);
+    onDateChange(newDate);
+    setIsQuickSelectVisible(false);
   };
+
+  const openCustomCalendar = () => {
+    setIsQuickSelectVisible(false);
+    setCurrentMonth(value.getMonth());
+    setCurrentYear(value.getFullYear());
+    setIsCalendarVisible(true);
+  };
+
+  // Gerar dias do mês para o calendário
+  const generateCalendarDays = () => {
+    const today = new Date();
+    const minDate = minimumDate || new Date(1900, 0, 1);
+    const maxDate = maximumDate || new Date(2100, 11, 31);
+    
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+    const days = [];
+    const currentDate = new Date(startDate);
+
+    for (let i = 0; i < 42; i++) {
+      const day = new Date(currentDate);
+      const isCurrentMonth = day.getMonth() === currentMonth;
+      const isToday = day.toDateString() === today.toDateString();
+      const isSelected = day.toDateString() === value.toDateString();
+      const isDisabled = day < minDate || day > maxDate;
+
+      days.push({
+        date: day,
+        day: day.getDate(),
+        isCurrentMonth,
+        isToday,
+        isSelected,
+        isDisabled,
+      });
+
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return days;
+  };
+
+  const navigateMonth = (direction: 'prev' | 'next') => {
+    if (direction === 'prev') {
+      if (currentMonth === 0) {
+        setCurrentMonth(11);
+        setCurrentYear(currentYear - 1);
+      } else {
+        setCurrentMonth(currentMonth - 1);
+      }
+    } else {
+      if (currentMonth === 11) {
+        setCurrentMonth(0);
+        setCurrentYear(currentYear + 1);
+      } else {
+        setCurrentMonth(currentMonth + 1);
+      }
+    }
+  };
+
+  const handleDatePress = (date: Date) => {
+    const minDate = minimumDate || new Date(1900, 0, 1);
+    const maxDate = maximumDate || new Date(2100, 11, 31);
+    
+    if (date >= minDate && date <= maxDate) {
+      onDateChange(date);
+      setIsCalendarVisible(false);
+    }
+  };
+
+  const calendarDays = generateCalendarDays();
 
   return (
     <View style={styles.datePickerContainer}>
@@ -289,7 +368,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           styles.datePickerButton,
           error && styles.datePickerButtonError,
         ]}
-        onPress={() => setIsCalendarVisible(true)}
+        onPress={() => setIsQuickSelectVisible(true)}
       >
         <Ionicons name="calendar-outline" size={20} color={COLORS.gray400} />
         <Text style={styles.datePickerButtonText}>
@@ -304,12 +383,12 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       
       {error && <Text style={styles.datePickerError}>{error}</Text>}
 
-      {/* Modal de Seleção */}
+      {/* Modal de Seleção Rápida */}
       <Modal
-        visible={isCalendarVisible}
+        visible={isQuickSelectVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setIsCalendarVisible(false)}
+        onRequestClose={() => setIsQuickSelectVisible(false)}
       >
         <View style={styles.dateModalOverlay}>
           <View style={styles.dateModal}>
@@ -318,7 +397,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
                 {label || 'Selecionar Data'}
               </Text>
               <TouchableOpacity 
-                onPress={() => setIsCalendarVisible(false)}
+                onPress={() => setIsQuickSelectVisible(false)}
                 style={styles.dateModalClose}
               >
                 <Ionicons name="close" size={24} color={COLORS.gray600} />
@@ -341,14 +420,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               
               <TouchableOpacity
                 style={styles.customDateButton}
-                onPress={() => {
-                  setIsCalendarVisible(false);
-                  // Aqui você pode abrir o calendário completo ou implementar um picker de data nativo
-                  Alert.alert(
-                    'Data personalizada',
-                    'Em breve você poderá selecionar qualquer data no calendário!'
-                  );
-                }}
+                onPress={openCustomCalendar}
               >
                 <Ionicons name="calendar" size={20} color={COLORS.primary} />
                 <Text style={styles.customDateButtonText}>Escolher data personalizada</Text>
@@ -358,11 +430,107 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             <View style={styles.dateModalButtons}>
               <TouchableOpacity
                 style={styles.dateModalButtonCancel}
-                onPress={() => setIsCalendarVisible(false)}
+                onPress={() => setIsQuickSelectVisible(false)}
               >
                 <Text style={styles.dateModalButtonTextCancel}>
                   Cancelar
                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal do Calendário Personalizado */}
+      <Modal
+        visible={isCalendarVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsCalendarVisible(false)}
+      >
+        <View style={styles.calendarModalOverlay}>
+          <View style={styles.calendarModal}>
+            {/* Header */}
+            <View style={styles.calendarHeader}>
+              <Text style={styles.calendarTitle}>{label || 'Selecionar Data'}</Text>
+              <TouchableOpacity onPress={() => setIsCalendarVisible(false)} style={styles.calendarCloseButton}>
+                <Ionicons name="close" size={24} color={COLORS.gray600} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Navigation */}
+            <View style={styles.calendarNavigation}>
+              <TouchableOpacity
+                onPress={() => navigateMonth('prev')}
+                style={styles.calendarNavButton}
+              >
+                <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+
+              <Text style={styles.calendarMonthYear}>
+                {MONTHS[currentMonth]} {currentYear}
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => navigateMonth('next')}
+                style={styles.calendarNavButton}
+              >
+                <Ionicons name="chevron-forward" size={24} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Weekdays */}
+            <View style={styles.calendarWeekdaysContainer}>
+              {WEEKDAYS.map((weekday) => (
+                <Text key={weekday} style={styles.calendarWeekdayText}>
+                  {weekday}
+                </Text>
+              ))}
+            </View>
+
+            {/* Calendar Grid */}
+            <ScrollView style={styles.calendarGrid}>
+              <View style={styles.calendarRows}>
+                {Array.from({ length: 6 }, (_, weekIndex) => (
+                  <View key={weekIndex} style={styles.calendarRow}>
+                    {calendarDays.slice(weekIndex * 7, (weekIndex + 1) * 7).map((dayData, dayIndex) => (
+                      <TouchableOpacity
+                        key={`${weekIndex}-${dayIndex}`}
+                        style={[
+                          styles.calendarDayButton,
+                          !dayData.isCurrentMonth && styles.calendarDayButtonOtherMonth,
+                          dayData.isToday && styles.calendarDayButtonToday,
+                          dayData.isSelected && styles.calendarDayButtonSelected,
+                          dayData.isDisabled && styles.calendarDayButtonDisabled,
+                        ]}
+                        onPress={() => handleDatePress(dayData.date)}
+                        disabled={dayData.isDisabled}
+                      >
+                        <Text
+                          style={[
+                            styles.calendarDayText,
+                            !dayData.isCurrentMonth && styles.calendarDayTextOtherMonth,
+                            dayData.isToday && styles.calendarDayTextToday,
+                            dayData.isSelected && styles.calendarDayTextSelected,
+                            dayData.isDisabled && styles.calendarDayTextDisabled,
+                          ]}
+                        >
+                          {dayData.day}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={styles.calendarFooter}>
+              <TouchableOpacity
+                style={styles.calendarCancelButton}
+                onPress={() => setIsCalendarVisible(false)}
+              >
+                <Text style={styles.calendarCancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -384,7 +552,7 @@ interface CurrencyInputProps {
   autoFocus?: boolean;
 }
 
-// Componente CurrencyInput CORRIGIDO
+// Componente CurrencyInput
 export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   label,
   placeholder = "0,00",
@@ -399,43 +567,32 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   const [inputValue, setInputValue] = React.useState('');
 
   const formatCurrencyRealTime = (text: string): string => {
-    // Remove tudo exceto números
     const numbers = text.replace(/\D/g, '');
     
     if (!numbers) return '';
     
-    // Para valores pequenos, mostra de forma mais natural
     if (numbers.length === 1) {
-      return numbers; // 1 → "1"
+      return numbers;
     } else if (numbers.length === 2) {
-      return numbers; // 12 → "12"
+      return numbers;
     } else if (numbers.length === 3) {
-      return `${numbers.slice(0, 1)},${numbers.slice(1)}`; // 123 → "1,23"
+      return `${numbers.slice(0, 1)},${numbers.slice(1)}`;
     } else {
-      // Para valores maiores
       const integerPart = numbers.slice(0, -2);
       const decimalPart = numbers.slice(-2);
-      
-      // Adiciona pontos de milhares
       const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-      
       return `${formattedInteger},${decimalPart}`;
     }
   };
 
   const formatCurrencyFinal = (text: string): string => {
-    // Remove tudo exceto números
     const numbers = text.replace(/\D/g, '');
     
     if (!numbers) return '';
     
-    // Converte para centavos
     const cents = parseInt(numbers) || 0;
-    
-    // Converte para reais
     const reais = cents / 100;
     
-    // Formata como moeda brasileira
     return reais.toLocaleString('pt-BR', {
       style: 'currency',
       currency: 'BRL',
@@ -443,16 +600,12 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   };
 
   const handleInputChange = (text: string) => {
-    // Remove tudo exceto números
     const numbers = text.replace(/\D/g, '');
-    
-    // Formata em tempo real no próprio campo
     const formatted = formatCurrencyRealTime(numbers);
     setInputValue(formatted);
   };
 
   const handleModalSubmit = () => {
-    // Converte o valor formatado para o formato final com R$
     const numbers = inputValue.replace(/\D/g, '');
     const formatted = formatCurrencyFinal(numbers);
     onChangeText(formatted);
@@ -466,7 +619,6 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   };
 
   const openModal = () => {
-    // Pré-popular com valor atual se existir
     if (value) {
       const numbers = value.replace(/\D/g, '');
       const formatted = formatCurrencyRealTime(numbers);
@@ -772,7 +924,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
     marginHorizontal: SPACING.lg,
-    maxHeight: '80%',
+    maxHeight: '70%', // Máximo 70% da altura da tela
     minWidth: '80%',
     ...SHADOWS.lg,
   },
@@ -793,7 +945,7 @@ const styles = StyleSheet.create({
     padding: SPACING.xs,
   },
   selectOptionsList: {
-    maxHeight: 300,
+    maxHeight: 250, // Altura máxima para o scroll
   },
   selectOption: {
     flexDirection: 'row',
@@ -816,7 +968,6 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.medium,
     color: COLORS.primary,
   },
-
   // DatePicker
   datePickerContainer: {
     marginBottom: SPACING.md,
@@ -863,7 +1014,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 
-  // Date Modal
+  // Date Modal (Opções rápidas)
   dateModalOverlay: {
     flex: 1,
     backgroundColor: COLORS.overlay,
@@ -945,6 +1096,132 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dateModalButtonTextCancel: {
+    fontSize: FONT_SIZES.base,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+  },
+
+  // Calendar Modal (Calendário personalizado)
+  calendarModalOverlay: {
+    flex: 1,
+    backgroundColor: COLORS.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarModal: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    marginHorizontal: SPACING.lg,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    ...SHADOWS.lg,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  calendarTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+  },
+  calendarCloseButton: {
+    padding: SPACING.xs,
+  },
+  calendarNavigation: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  calendarNavButton: {
+    padding: SPACING.xs,
+  },
+  calendarMonthYear: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+  },
+  calendarWeekdaysContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.sm,
+  },
+  calendarWeekdayText: {
+    flex: 1,
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+  },
+  calendarGrid: {
+    maxHeight: 250,
+  },
+  calendarRows: {
+    paddingHorizontal: SPACING.lg,
+  },
+  calendarRow: {
+    flexDirection: 'row',
+    marginBottom: SPACING.xs,
+  },
+  calendarDayButton: {
+    flex: 1,
+    aspectRatio: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 1,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  calendarDayButtonOtherMonth: {
+    opacity: 0.3,
+  },
+  calendarDayButtonToday: {
+    backgroundColor: COLORS.primary10,
+  },
+  calendarDayButtonSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  calendarDayButtonDisabled: {
+    opacity: 0.2,
+  },
+  calendarDayText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.textPrimary,
+  },
+  calendarDayTextOtherMonth: {
+    color: COLORS.textSecondary,
+  },
+  calendarDayTextToday: {
+    color: COLORS.primary,
+    fontFamily: FONTS.bold,
+  },
+  calendarDayTextSelected: {
+    color: COLORS.white,
+    fontFamily: FONTS.bold,
+  },
+  calendarDayTextDisabled: {
+    color: COLORS.gray400,
+  },
+  calendarFooter: {
+    padding: SPACING.lg,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  calendarCancelButton: {
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    backgroundColor: COLORS.gray100,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  calendarCancelButtonText: {
     fontSize: FONT_SIZES.base,
     fontFamily: FONTS.medium,
     color: COLORS.textSecondary,

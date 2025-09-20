@@ -90,8 +90,10 @@ export const useTransactions = (filters?: TransactionFilters) => {
 
   const deleteTransaction = useCallback(async (id: string) => {
     try {
-      await TransactionService.deleteTransaction(id);
-      setTransactions(prev => prev.filter(t => t._id !== id));
+      const response = await TransactionService.deleteTransaction(id);
+      if (response.success) {
+        setTransactions(prev => prev.filter(t => t._id !== id));
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao deletar transação');
     }
@@ -99,8 +101,10 @@ export const useTransactions = (filters?: TransactionFilters) => {
 
   const duplicateTransaction = useCallback(async (id: string) => {
     try {
-      const newTransaction = await TransactionService.duplicateTransaction(id);
-      setTransactions(prev => [newTransaction, ...prev]);
+      const response = await TransactionService.duplicateTransaction(id);
+      if (response.success && response.data) {
+        setTransactions(prev => [response.data!, ...prev]);
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao duplicar transação');
     }
@@ -126,7 +130,7 @@ export const useTransactions = (filters?: TransactionFilters) => {
   };
 };
 
-// Hook para gerenciar metas - CORRIGIDO
+// Hook para gerenciar metas - CORRIGIDO COM DEBUG
 export const useGoals = () => {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,35 +139,50 @@ export const useGoals = () => {
 
   const loadGoals = useCallback(async () => {
     try {
+      console.log('🔵 useGoals: Iniciando carregamento...');
       setLoading(true);
       setError(null);
       
+      console.log('🔵 useGoals: Chamando GoalService.getGoals()...');
       const response: GoalsResponse = await GoalService.getGoals();
       
+      console.log('🔵 useGoals: Resposta recebida:', response);
+      console.log('🔵 useGoals: response.success:', response.success);
+      console.log('🔵 useGoals: response.data:', response.data);
+      console.log('🔵 useGoals: response.data length:', response.data?.length);
+      
       if (response.success && response.data) {
+        console.log('✅ useGoals: Metas carregadas com sucesso:', response.data.length, 'metas');
         setGoals(response.data);
       } else if (!response.success) {
+        console.log('❌ useGoals: Falha na resposta:', response.message);
         setError(response.message || 'Erro ao carregar metas');
         setGoals([]);
       }
     } catch (err: any) {
+      console.log('💥 useGoals: Erro capturado:', err);
+      console.log('💥 useGoals: Error message:', err.message);
       setError(err.message || 'Erro ao carregar metas');
       setGoals([]);
     } finally {
+      console.log('🔵 useGoals: Finalizando carregamento...');
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
   const refresh = useCallback(() => {
+    console.log('🔄 useGoals: Refresh iniciado');
     setRefreshing(true);
     loadGoals();
   }, [loadGoals]);
 
   const addToGoal = useCallback(async (id: string, amount: number) => {
     try {
-      const updatedGoal = await GoalService.addToGoal(id, amount);
-      setGoals(prev => prev.map(g => g._id === id ? updatedGoal : g));
+      const response = await GoalService.addToGoal(id, amount);
+      if (response.success && response.data) {
+        setGoals(prev => prev.map(g => g._id === id ? response.data! : g));
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao adicionar valor à meta');
     }
@@ -171,8 +190,10 @@ export const useGoals = () => {
 
   const pauseGoal = useCallback(async (id: string) => {
     try {
-      const updatedGoal = await GoalService.pauseGoal(id);
-      setGoals(prev => prev.map(g => g._id === id ? updatedGoal : g));
+      const response = await GoalService.pauseGoal(id);
+      if (response.success && response.data) {
+        setGoals(prev => prev.map(g => g._id === id ? response.data! : g));
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao pausar meta');
     }
@@ -180,8 +201,10 @@ export const useGoals = () => {
 
   const resumeGoal = useCallback(async (id: string) => {
     try {
-      const updatedGoal = await GoalService.resumeGoal(id);
-      setGoals(prev => prev.map(g => g._id === id ? updatedGoal : g));
+      const response = await GoalService.resumeGoal(id);
+      if (response.success && response.data) {
+        setGoals(prev => prev.map(g => g._id === id ? response.data! : g));
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao reativar meta');
     }
@@ -189,16 +212,31 @@ export const useGoals = () => {
 
   const deleteGoal = useCallback(async (id: string) => {
     try {
-      await GoalService.deleteGoal(id);
-      setGoals(prev => prev.filter(g => g._id !== id));
+      console.log('🗑️ useGoals: Deletando meta:', id);
+      const response = await GoalService.deleteGoal(id);
+      if (response.success) {
+        setGoals(prev => prev.filter(g => g._id !== id));
+        console.log('✅ useGoals: Meta deletada com sucesso');
+      }
     } catch (err: any) {
+      console.log('❌ useGoals: Erro ao deletar:', err.message);
       Alert.alert('Erro', err.message || 'Erro ao deletar meta');
     }
   }, []);
 
   useEffect(() => {
+    console.log('🎯 useGoals: useEffect executado - carregando metas...');
     loadGoals();
   }, [loadGoals]);
+
+  // Log do estado atual
+  useEffect(() => {
+    console.log('📊 useGoals: Estado atual:');
+    console.log('  - goals.length:', goals.length);
+    console.log('  - loading:', loading);
+    console.log('  - error:', error);
+    console.log('  - refreshing:', refreshing);
+  }, [goals, loading, error, refreshing]);
 
   return {
     goals,
@@ -245,8 +283,10 @@ export const useBudgets = () => {
 
   const adjustBudgetLimit = useCallback(async (id: string, newLimit: number) => {
     try {
-      const updatedBudget = await BudgetService.adjustBudgetLimit(id, newLimit);
-      setBudgets(prev => prev.map(b => b._id === id ? updatedBudget : b));
+      const response = await BudgetService.adjustBudgetLimit(id, newLimit);
+      if (response.success && response.data) {
+        setBudgets(prev => prev.map(b => b._id === id ? response.data! : b));
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao ajustar limite do orçamento');
     }
@@ -254,8 +294,10 @@ export const useBudgets = () => {
 
   const deleteBudget = useCallback(async (id: string) => {
     try {
-      await BudgetService.deleteBudget(id);
-      setBudgets(prev => prev.filter(b => b._id !== id));
+      const response = await BudgetService.deleteBudget(id);
+      if (response.success) {
+        setBudgets(prev => prev.filter(b => b._id !== id));
+      }
     } catch (err: any) {
       Alert.alert('Erro', err.message || 'Erro ao deletar orçamento');
     }
