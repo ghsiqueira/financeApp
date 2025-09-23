@@ -1,4 +1,4 @@
-// src/navigation/TransactionNavigator.tsx - ATUALIZADO
+// src/navigation/TransactionNavigator.tsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { TransactionListScreen } from '../screens/transactions/TransactionListScreen';
@@ -14,11 +14,11 @@ export type TransactionStackParamList = {
   TransactionDetails: { transactionId: string };
 };
 
-const TransactionStack = createNativeStackNavigator<TransactionStackParamList>();
+const Stack = createNativeStackNavigator<TransactionStackParamList>();
 
 export const TransactionNavigator: React.FC = () => {
   return (
-    <TransactionStack.Navigator
+    <Stack.Navigator
       initialRouteName="TransactionList"
       screenOptions={{
         headerStyle: {
@@ -28,29 +28,42 @@ export const TransactionNavigator: React.FC = () => {
         headerTitleStyle: {
           fontFamily: FONTS.bold,
         },
-        headerShown: false, // Usar header customizado nas telas
+        headerBackTitle: '',
       }}
     >
-      <TransactionStack.Screen 
+      <Stack.Screen 
         name="TransactionList" 
         component={TransactionListScreen}
-        options={{ title: 'Transações' }}
+        options={{ 
+          title: 'Transações',
+          headerShown: false,
+        }}
       />
-      <TransactionStack.Screen 
+      <Stack.Screen 
         name="CreateTransaction" 
         component={CreateTransactionScreen}
-        options={{ title: 'Nova Transação' }}
+        options={{ 
+          title: 'Nova Transação',
+          headerShown: false,
+          presentation: 'modal',
+        }}
       />
-      <TransactionStack.Screen 
+      <Stack.Screen 
         name="EditTransaction" 
         component={EditTransactionScreen}
-        options={{ title: 'Editar Transação' }}
+        options={{ 
+          title: 'Editar Transação',
+          headerShown: false,
+        }}
       />
-      <TransactionStack.Screen 
+      <Stack.Screen 
         name="TransactionDetails" 
         component={TransactionDetailScreen}
-        options={{ title: 'Detalhes da Transação' }}
+        options={{ 
+          title: 'Detalhes da Transação',
+          headerShown: false,
+        }}
       />
-    </TransactionStack.Navigator>
+    </Stack.Navigator>
   );
 };

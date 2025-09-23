@@ -1,4 +1,4 @@
-// src/services/TransactionService.ts - VERSÃO FINAL CORRIGIDA
+// src/services/TransactionService.ts - VERSÃO CORRIGIDA
 import apiService from './api';
 import { Transaction, CreateTransactionData, FinancialSummary, TransactionFilters, PaginatedResponse, ApiResponse } from '../types';
 
@@ -30,48 +30,84 @@ export class TransactionService {
   private static readonly BASE_PATH = '/transactions';
 
   /**
-   * Mapear Transaction da API para compatibilidade
+   * Mapear Transaction da API para compatibilidade - VERSÃO CORRIGIDA
    */
   private static mapTransaction(apiTransaction: any): Transaction {
-    return {
-      ...apiTransaction,
-      id: apiTransaction._id || apiTransaction.id,
+    // ✅ CORREÇÃO: Não adicionar campos padrão que sobrescrevem os dados da API
+    console.log('🔄 Mapeando transação da API:', JSON.stringify(apiTransaction, null, 2));
+    
+    const mapped: Transaction = {
       _id: apiTransaction._id || apiTransaction.id,
-      userId: apiTransaction.userId || '',
-      description: apiTransaction.description || '',
-      amount: apiTransaction.amount || 0,
-      type: apiTransaction.type || 'expense',
+      id: apiTransaction.id || apiTransaction._id,
+      userId: apiTransaction.userId,
+      description: apiTransaction.description,
+      amount: Number(apiTransaction.amount),
+      type: apiTransaction.type,
       category: this.ensureCategory(apiTransaction.category),
-      date: apiTransaction.date || new Date().toISOString(),
-      isRecurring: apiTransaction.isRecurring || false,
+      date: apiTransaction.date,
+      isRecurring: Boolean(apiTransaction.isRecurring),
       recurringDay: apiTransaction.recurringDay,
       budgetId: apiTransaction.budgetId,
-      createdAt: apiTransaction.createdAt || new Date().toISOString(),
-      updatedAt: apiTransaction.updatedAt || new Date().toISOString(),
+      notes: apiTransaction.notes,
+      createdAt: apiTransaction.createdAt,
+      updatedAt: apiTransaction.updatedAt,
     };
+    
+    console.log('✅ Transação mapeada:', JSON.stringify(mapped, null, 2));
+    return mapped;
   }
 
   /**
-   * Garantir que category é um objeto Category válido
+   * Garantir que category é um objeto Category válido - VERSÃO CORRIGIDA
    */
   private static ensureCategory(category: any): any {
-    if (typeof category === 'string') {
+    console.log('🏷️ Processando categoria:', JSON.stringify(category, null, 2));
+    
+    if (!category) {
+      console.log('⚠️ Categoria não fornecida, usando padrão');
       return { 
-        _id: category, 
-        id: category, 
-        name: 'Categoria', 
-        icon: '💰', 
+        _id: 'default', 
+        id: 'default', 
+        name: 'Sem categoria', 
+        icon: '📝', 
         color: '#4CAF50', 
         type: 'expense' as const, 
         isDefault: false, 
         createdAt: new Date().toISOString() 
       };
     }
-    return category || {
+    
+    // Se já é um objeto category válido, retornar como está
+    if (typeof category === 'object' && category.name) {
+      console.log('✅ Categoria já é objeto válido:', category.name);
+      return {
+        ...category,
+        id: category.id || category._id,
+        _id: category._id || category.id,
+      };
+    }
+    
+    // Se é string, criar objeto básico
+    if (typeof category === 'string') {
+      console.log('🔄 Convertendo categoria string para objeto:', category);
+      return { 
+        _id: category, 
+        id: category, 
+        name: 'Categoria', 
+        icon: '📝', 
+        color: '#4CAF50', 
+        type: 'expense' as const, 
+        isDefault: false, 
+        createdAt: new Date().toISOString() 
+      };
+    }
+    
+    console.log('⚠️ Categoria em formato desconhecido, usando padrão');
+    return {
       _id: 'default',
       id: 'default',
       name: 'Sem categoria',
-      icon: '💰',
+      icon: '📝',
       color: '#4CAF50',
       type: 'expense' as const,
       isDefault: false,
@@ -92,6 +128,7 @@ export class TransactionService {
       isRecurring: data.isRecurring || false,
       recurringDay: data.recurringDay,
       budgetId: data.budgetId,
+      notes: data.notes,
     };
   }
 
@@ -228,19 +265,36 @@ export class TransactionService {
   }
 
   /**
-   * Buscar transação por ID
+   * Buscar transação por ID - VERSÃO CORRIGIDA
    */
   static async getTransaction(id: string): Promise<TransactionResponse> {
     try {
+      console.log('🔍 Buscando transação por ID:', id);
       const response = await apiService.getTransaction(id);
+      console.log('📡 Resposta da API para getTransaction:', JSON.stringify(response, null, 2));
       
       if (response.success && response.data) {
+        // ✅ CORREÇÃO: Verificar se response.data.data existe (estrutura aninhada)
+        let transactionData = response.data as any;
+        
+        // Se há estrutura aninhada response.data.data, usar essa
+        if (transactionData.data && transactionData.data._id) {
+          console.log('🔄 Detectada estrutura aninhada, extraindo response.data.data');
+          transactionData = transactionData.data;
+        }
+        
+        console.log('📊 Dados da transação extraídos:', JSON.stringify(transactionData, null, 2));
+        
+        const mappedTransaction = this.mapTransaction(transactionData);
+        console.log('✅ Transação mapeada:', JSON.stringify(mappedTransaction, null, 2));
+        
         return {
           success: true,
-          data: this.mapTransaction(response.data),
+          data: mappedTransaction,
         };
       }
       
+      console.log('❌ Resposta não contém dados válidos');
       return {
         success: false,
         message: response.message || 'Transação não encontrada'
@@ -263,9 +317,15 @@ export class TransactionService {
       const response = await apiService.createTransaction(mappedData);
       
       if (response.success && response.data) {
+        // Verificar estrutura aninhada
+        let transactionData = response.data as any;
+        if (transactionData.data && transactionData.data._id) {
+          transactionData = transactionData.data;
+        }
+        
         return {
           success: true,
-          data: this.mapTransaction(response.data),
+          data: this.mapTransaction(transactionData),
         };
       }
       
@@ -290,9 +350,15 @@ export class TransactionService {
       const response = await apiService.updateTransaction(id, data);
       
       if (response.success && response.data) {
+        // Verificar estrutura aninhada
+        let transactionData = response.data as any;
+        if (transactionData.data && transactionData.data._id) {
+          transactionData = transactionData.data;
+        }
+        
         return {
           success: true,
-          data: this.mapTransaction(response.data),
+          data: this.mapTransaction(transactionData),
         };
       }
       

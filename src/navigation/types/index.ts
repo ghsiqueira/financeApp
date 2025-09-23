@@ -1,3 +1,4 @@
+// src/navigation/types.ts
 import { NavigatorScreenParams } from '@react-navigation/native';
 
 // Root Stack Navigator
@@ -28,7 +29,7 @@ export type TransactionStackParamList = {
   TransactionList: undefined;
   CreateTransaction: undefined;
   EditTransaction: { transactionId: string };
-  TransactionDetail: { transactionId: string };
+  TransactionDetails: { transactionId: string };
 };
 
 // Goal Stack Navigator
@@ -49,7 +50,7 @@ export type BudgetStackParamList = {
 
 // Profile Stack Navigator
 export type ProfileStackParamList = {
-  ProfileMain: undefined;
+  Profile: undefined;
   Settings: undefined;
   EditProfile: undefined;
   Categories: NavigatorScreenParams<CategoryStackParamList>;
@@ -62,7 +63,7 @@ export type CategoryStackParamList = {
   EditCategory: { categoryId: string };
 };
 
-// Navigation Props Helper Types
+// Global declaration para tipagem automática
 declare global {
   namespace ReactNavigation {
     interface RootParamList extends RootStackParamList {}

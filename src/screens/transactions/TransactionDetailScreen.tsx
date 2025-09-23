@@ -1,4 +1,4 @@
-// src/screens/transactions/TransactionDetailScreen.tsx - VERSÃO MELHORADA
+// src/screens/transactions/TransactionDetailScreen.tsx - VERSÃO CORRIGIDA
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -36,43 +36,76 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
   const { transactionId } = route.params;
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!transactionId || transactionId === 'undefined') {
-      Alert.alert('Erro', 'ID da transação inválido');
-      navigation.goBack();
+    console.log('🔍 TransactionDetailScreen - Parâmetros recebidos:', { transactionId });
+    
+    if (!transactionId || transactionId === 'undefined' || transactionId === 'null') {
+      console.error('❌ ID da transação inválido:', transactionId);
+      Alert.alert('Erro', 'ID da transação inválido', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
       return;
     }
+    
     loadTransaction();
   }, [transactionId]);
 
   const loadTransaction = async () => {
     try {
+      console.log('📡 Carregando transação com ID:', transactionId);
       setLoading(true);
+      setError(null);
+      
       const response = await TransactionService.getTransaction(transactionId);
+      console.log('📊 Resposta do getTransaction:', JSON.stringify(response, null, 2));
       
       if (response.success && response.data) {
+        console.log('✅ Transação carregada com sucesso:', response.data);
         setTransaction(response.data);
       } else {
-        Alert.alert('Erro', 'Transação não encontrada');
-        navigation.goBack();
+        console.error('❌ Erro na resposta:', response.message);
+        setError(response.message || 'Transação não encontrada');
+        Alert.alert('Erro', 'Transação não encontrada', [
+          { text: 'OK', onPress: () => navigation.goBack() }
+        ]);
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao carregar transação');
-      navigation.goBack();
+      console.error('❌ Erro ao carregar transação:', error);
+      setError(error.message || 'Erro ao carregar transação');
+      Alert.alert('Erro', error.message || 'Erro ao carregar transação', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleEdit = () => {
-    if (transaction) {
-      navigation.navigate('EditTransaction', { transactionId: transaction._id });
+    if (!transaction) {
+      Alert.alert('Erro', 'Transação não carregada');
+      return;
     }
+
+    console.log('✏️ Editando transação:', transaction._id || transaction.id);
+    
+    // Usar _id primeiro, depois id como fallback
+    const idToUse = transaction._id || transaction.id;
+    
+    if (!idToUse) {
+      Alert.alert('Erro', 'ID da transação não encontrado');
+      return;
+    }
+    
+    navigation.navigate('EditTransaction', { transactionId: idToUse });
   };
 
   const handleDelete = () => {
-    if (!transaction) return;
+    if (!transaction) {
+      Alert.alert('Erro', 'Transação não carregada');
+      return;
+    }
 
     Alert.alert(
       'Confirmar Exclusão',
@@ -84,16 +117,47 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
           style: 'destructive',
           onPress: async () => {
             try {
-              await TransactionService.deleteTransaction(transaction._id);
-              Alert.alert('Sucesso', 'Transação excluída com sucesso!');
-              navigation.goBack();
+              const idToUse = transaction._id || transaction.id;
+              console.log('🗑️ Deletando transação:', idToUse);
+              
+              await TransactionService.deleteTransaction(idToUse);
+              Alert.alert('Sucesso', 'Transação excluída com sucesso!', [
+                { text: 'OK', onPress: () => navigation.goBack() }
+              ]);
             } catch (error: any) {
+              console.error('❌ Erro ao excluir transação:', error);
               Alert.alert('Erro', error.message || 'Erro ao excluir transação');
             }
           },
         },
       ]
     );
+  };
+
+  // Função para obter nome da categoria de forma segura
+  const getCategoryName = (): string => {
+    if (!transaction?.category) return 'Sem categoria';
+    
+    if (typeof transaction.category === 'string') {
+      return transaction.category || 'Sem categoria';
+    }
+    
+    if (typeof transaction.category === 'object') {
+      return transaction.category.name || 'Sem categoria';
+    }
+    
+    return 'Sem categoria';
+  };
+
+  // Função para obter ícone da categoria de forma segura
+  const getCategoryIcon = (): string => {
+    if (!transaction?.category) return '📝';
+    
+    if (typeof transaction.category === 'object') {
+      return transaction.category.icon || '📝';
+    }
+    
+    return '📝';
   };
 
   const getBudgetInfo = (): { hasBudget: false } | { 
@@ -126,22 +190,49 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detalhes da Transação</Text>
+          <View style={styles.headerActions} />
+        </View>
         <Loading />
       </SafeAreaView>
     );
   }
 
-  if (!transaction) {
+  if (error || !transaction) {
     return (
       <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Detalhes da Transação</Text>
+          <View style={styles.headerActions} />
+        </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Transação não encontrada</Text>
+          <Text style={styles.errorText}>
+            {error || 'Transação não encontrada'}
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadTransaction}>
+            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
   const budgetInfo = getBudgetInfo();
+
+  // Log para debug - remover em produção
+  console.log('🎯 Dados da transação para exibição:', {
+    amount: transaction.amount,
+    description: transaction.description,
+    category: transaction.category,
+    type: transaction.type
+  });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -184,11 +275,11 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
               styles.transactionAmountLarge,
               { color: transaction.type === 'income' ? COLORS.success : COLORS.error }
             ]}>
-              {transaction.type === 'income' ? '+' : '-'} {formatCurrency(transaction.amount)}
+              {transaction.type === 'income' ? '+' : '-'} {formatCurrency(transaction.amount || 0)}
             </Text>
 
             <Text style={styles.transactionDescription}>
-              {transaction.description}
+              {transaction.description || 'Sem descrição'}
             </Text>
 
             {transaction.isRecurring && (
@@ -208,13 +299,13 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
           <View style={styles.detailRow}>
             <View style={styles.detailIcon}>
               <Text style={styles.categoryEmoji}>
-                {transaction.category?.icon || '📝'}
+                {getCategoryIcon()}
               </Text>
             </View>
             <View style={styles.detailContent}>
               <Text style={styles.detailLabel}>Categoria</Text>
               <Text style={styles.detailValue}>
-                {transaction.category?.name || 'Sem categoria'}
+                {getCategoryName()}
               </Text>
             </View>
           </View>
@@ -347,6 +438,19 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
               </View>
             </View>
           )}
+
+          {/* Debug info - remover em produção */}
+          <View style={styles.detailRow}>
+            <View style={styles.detailIcon}>
+              <Ionicons name="code-outline" size={20} color={COLORS.gray500} />
+            </View>
+            <View style={styles.detailContent}>
+              <Text style={styles.detailLabel}>ID da Transação</Text>
+              <Text style={styles.detailValue}>
+                {transaction._id || transaction.id || 'Não encontrado'}
+              </Text>
+            </View>
+          </View>
         </Card>
       </ScrollView>
 
@@ -625,14 +729,30 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     marginLeft: SPACING.xs,
   },
+  
+  // Estados de erro
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: SPACING.xl,
   },
   errorText: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.medium,
     color: COLORS.gray600,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  retryButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
 });

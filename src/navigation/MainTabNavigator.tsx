@@ -1,6 +1,9 @@
+// src/navigation/MainTabNavigator.tsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
+
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { TransactionNavigator } from './TransactionNavigator';
 import { GoalNavigator } from './GoalNavigator';
@@ -15,6 +18,7 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 export const MainTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
+      initialRouteName="Home"
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           let iconName: keyof typeof Ionicons.glyphMap;
@@ -49,9 +53,10 @@ export const MainTabNavigator: React.FC = () => {
         tabBarStyle: {
           backgroundColor: COLORS.white,
           borderTopColor: COLORS.gray200,
-          paddingBottom: 5,
+          borderTopWidth: 1,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 5,
           paddingTop: 5,
-          height: 60,
+          height: Platform.OS === 'ios' ? 85 : 60,
         },
         tabBarLabelStyle: {
           fontFamily: FONTS.medium,
@@ -64,37 +69,62 @@ export const MainTabNavigator: React.FC = () => {
         headerTitleStyle: {
           fontFamily: FONTS.bold,
         },
+        tabBarHideOnKeyboard: true, // Esconde tab bar quando teclado abrir
       })}
     >
       <Tab.Screen 
         name="Home" 
         component={HomeScreen}
-        options={{ title: 'Início' }}
+        options={{ 
+          title: 'Início',
+          tabBarLabel: 'Início',
+          headerShown: false, // HomeScreen tem header customizado
+        }}
       />
       <Tab.Screen 
         name="Transactions" 
         component={TransactionNavigator}
-        options={{ title: 'Transações', headerShown: false }}
+        options={{ 
+          title: 'Transações',
+          tabBarLabel: 'Transações',
+          headerShown: false, // TransactionNavigator gerencia seus próprios headers
+        }}
       />
       <Tab.Screen 
         name="Goals" 
         component={GoalNavigator}
-        options={{ title: 'Metas', headerShown: false }}
+        options={{ 
+          title: 'Metas',
+          tabBarLabel: 'Metas',
+          headerShown: false, // GoalNavigator gerencia seus próprios headers
+        }}
       />
       <Tab.Screen 
         name="Budgets" 
         component={BudgetNavigator}
-        options={{ title: 'Orçamentos', headerShown: false }}
+        options={{ 
+          title: 'Orçamentos',
+          tabBarLabel: 'Orçamentos',
+          headerShown: false, // BudgetNavigator gerencia seus próprios headers
+        }}
       />
       <Tab.Screen 
         name="Reports" 
         component={ReportsScreen}
-        options={{ title: 'Relatórios' }}
+        options={{ 
+          title: 'Relatórios',
+          tabBarLabel: 'Relatórios',
+          headerShown: false, // ReportsScreen tem header customizado
+        }}
       />
       <Tab.Screen 
         name="Profile" 
         component={ProfileNavigator}
-        options={{ title: 'Perfil', headerShown: false }}
+        options={{ 
+          title: 'Perfil',
+          tabBarLabel: 'Perfil',
+          headerShown: false, // ProfileNavigator gerencia seus próprios headers
+        }}
       />
     </Tab.Navigator>
   );

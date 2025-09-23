@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,25 +6,28 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Switch,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Button, Input, Card, Loading, CustomAlert } from '../../components/common';
-import { CategoryService } from '../../services/CategoryService';
+import { useFocusEffect } from '@react-navigation/native';
+
+import { Loading, Card, Input, Button } from '../../components/common';
+import { CalendarDatePicker } from '../../components/common/Calendar';
 import { TransactionService } from '../../services/TransactionService';
+import { CategoryService } from '../../services/CategoryService';
 import { BudgetService } from '../../services/BudgetService';
-import { TransactionStackParamList, Category, Budget, CreateTransactionData } from '../../types';
-import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, VALIDATION_RULES } from '../../constants';
+import { Category, Budget, CreateTransactionData } from '../../types';
+import { TransactionStackParamList } from '../../navigation/TransactionNavigator';
+import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-type CreateTransactionScreenNavigationProp = NativeStackNavigationProp<
-  TransactionStackParamList,
-  'CreateTransaction'
->;
-
-interface Props {
-  navigation: CreateTransactionScreenNavigationProp;
+interface CreateTransactionScreenProps {
+  navigation: NativeStackNavigationProp<TransactionStackParamList, 'CreateTransaction'>;
 }
 
 interface FormData {
@@ -32,32 +35,22 @@ interface FormData {
   amount: string;
   type: 'income' | 'expense';
   category: string;
+  budgetId?: string;
   date: string;
   isRecurring: boolean;
   recurringDay: string;
-  budgetId?: string;
+  notes?: string;
 }
 
 interface FormErrors {
-  description?: string;
-  amount?: string;
-  category?: string;
-  date?: string;
-  recurringDay?: string;
+  [key: string]: string;
 }
 
-export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
+export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [budgetsLoading, setBudgetsLoading] = useState(true);
   const [categories, setCategories] = useState<Category[]>([]);
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertConfig, setAlertConfig] = useState({
-    title: '',
-    message: '',
-    type: 'info' as 'info' | 'success' | 'error' | 'warning',
-  });
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const [formData, setFormData] = useState<FormData>({
     description: '',
@@ -66,117 +59,209 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
     category: '',
     date: new Date().toISOString().split('T')[0],
     isRecurring: false,
-    recurringDay: '',
-    budgetId: '',
+    recurringDay: '1',
+    notes: '',
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+  const [showAmountModal, setShowAmountModal] = useState(false);
+  const [amountModalValue, setAmountModalValue] = useState('');
+  const amountInputRef = useRef<TextInput>(null);
 
-  // Carregar categorias
+  // Resetar formulário quando a tela ganhar foco
+  useFocusEffect(
+    React.useCallback(() => {
+      // Resetar apenas se não estiver carregando
+      if (!loading) {
+        setFormData({
+          description: '',
+          amount: '',
+          type: 'expense',
+          category: '',
+          date: new Date().toISOString().split('T')[0],
+          isRecurring: false,
+          recurringDay: '1',
+          notes: '',
+        });
+        setErrors({});
+        setShowAmountModal(false);
+        setAmountModalValue('');
+      }
+    }, [loading])
+  );
+
   useEffect(() => {
-    loadCategories();
-  }, [formData.type]);
+    loadInitialData();
+  }, []);
 
-  // Carregar orçamentos
-  useEffect(() => {
-    if (formData.type === 'expense') {
-      loadBudgets();
-    } else {
-      setBudgets([]);
-      setBudgetsLoading(false);
-    }
-  }, [formData.type]);
-
-  const loadCategories = async () => {
+  const loadInitialData = async () => {
     try {
-      setCategoriesLoading(true);
-      const response = await CategoryService.getCategories({ type: formData.type });
-      setCategories(response.data || []);
-    } catch (error: any) {
-      console.error('Erro ao carregar categorias:', error);
-      showAlertMessage('Erro', 'Não foi possível carregar as categorias', 'error');
+      await Promise.all([
+        loadCategories(),
+        loadBudgets()
+      ]);
+    } catch (error) {
+      console.error('Erro ao carregar dados iniciais:', error);
     } finally {
       setCategoriesLoading(false);
     }
   };
 
-  const loadBudgets = async () => {
+  const loadCategories = async () => {
     try {
-      setBudgetsLoading(true);
-      const currentBudgets = await BudgetService.getCurrentBudgets();
-      setBudgets(currentBudgets);
-    } catch (error: any) {
-      console.error('Erro ao carregar orçamentos:', error);
-      setBudgets([]);
-    } finally {
-      setBudgetsLoading(false);
+      const response = await CategoryService.getCategories();
+      if (response.success && response.data) {
+        // Filtrar e remover duplicatas
+        const filteredCategories = response.data
+          .filter(cat => cat.type === formData.type)
+          .filter((cat, index, self) => 
+            index === self.findIndex(c => c.name === cat.name)
+          );
+        setCategories(filteredCategories);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar categorias:', error);
     }
   };
 
-  const showAlertMessage = (title: string, message: string, type: 'info' | 'success' | 'error' | 'warning' = 'info') => {
-    setAlertConfig({ title, message, type });
-    setShowAlert(true);
+  const loadBudgets = async () => {
+    try {
+      const response = await BudgetService.getBudgets();
+      if (response.success && response.data) {
+        const activeBudgets = response.data.filter(budget => true);
+        setBudgets(activeBudgets);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar orçamentos:', error);
+    }
   };
+
+  useEffect(() => {
+    if (!categoriesLoading) {
+      loadCategories();
+      setFormData(prev => ({ ...prev, category: '', budgetId: '' }));
+    }
+  }, [formData.type]);
 
   const handleInputChange = (field: keyof FormData, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Limpar erro do campo quando usuário digitar
-    if (errors[field as keyof FormErrors]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
 
-    // Resetar categoria ao mudar o tipo
-    if (field === 'type') {
-      setFormData(prev => ({ ...prev, category: '', budgetId: '' }));
+  const formatCurrency = (value: string): string => {
+    const numericValue = value.replace(/\D/g, '');
+    
+    if (numericValue === '') return '';
+    
+    const floatValue = parseInt(numericValue) / 100;
+    
+    return floatValue.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const parseCurrency = (value: string): number => {
+    if (!value) return 0;
+    const cleanValue = value.replace(/\./g, '').replace(',', '.');
+    return parseFloat(cleanValue) || 0;
+  };
+
+  const handleAmountModalOpen = () => {
+    const currentAmount = parseCurrency(formData.amount);
+    setAmountModalValue(currentAmount > 0 ? (currentAmount * 100).toString() : '');
+    setShowAmountModal(true);
+  };
+
+  const handleAmountModalChange = (value: string) => {
+    const numericValue = value.replace(/\D/g, '');
+    
+    if (numericValue.length <= 9) {
+      setAmountModalValue(numericValue);
     }
+  };
+
+  const handleAmountModalConfirm = () => {
+    const formattedValue = formatCurrency(amountModalValue);
+    handleInputChange('amount', formattedValue);
+    setShowAmountModal(false);
+    
+    Vibration.vibrate(50);
+  };
+
+  const handleAmountModalCancel = () => {
+    setShowAmountModal(false);
+    setAmountModalValue('');
+  };
+
+  const getValidIconName = (iconName: string): string => {
+    const iconMap: { [key: string]: string } = {
+      'dumbbell': 'barbell-outline',
+      'utensils': 'restaurant-outline',
+      '🍽️': 'restaurant-outline',
+      'scissors': 'cut-outline',
+      'fuel': 'car-outline',
+      'shopping-bag': 'bag-outline',
+      'file-text': 'document-text-outline',
+      '📚': 'library-outline',
+      'pill': 'medical-outline',
+      '🎬': 'film-outline',
+      'smile': 'happy-outline',
+      '🏠': 'home-outline',
+      '💰': 'cash-outline',
+      '🏥': 'medical-outline',
+      '🚗': 'car-outline',
+      'plane': 'airplane-outline',
+      'gift': 'gift-outline',
+      'calendar': 'calendar-outline',
+    };
+    
+    return iconMap[iconName] || iconName;
+  };
+
+  const getAmountDisplay = (): string => {
+    if (!formData.amount) return '0,00';
+    return formData.amount;
+  };
+
+  const getAmountPreview = (): string => {
+    const numericValue = amountModalValue.replace(/\D/g, '');
+    if (!numericValue) return 'R$ 0,00';
+    
+    const floatValue = parseInt(numericValue) / 100;
+    return floatValue.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    });
   };
 
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    // Validar descrição
     if (!formData.description.trim()) {
       newErrors.description = 'Descrição é obrigatória';
-    } else if (formData.description.length < 2) {
-      newErrors.description = 'Descrição deve ter pelo menos 2 caracteres';
     }
 
-    // Validar valor
-    const amount = parseFloat(formData.amount.replace(',', '.'));
-    if (!formData.amount.trim()) {
-      newErrors.amount = 'Valor é obrigatório';
-    } else if (isNaN(amount) || amount <= 0) {
-      newErrors.amount = 'Digite um valor válido maior que zero';
-    } else if (amount > VALIDATION_RULES.amount.max) {
-      newErrors.amount = `Valor máximo é ${VALIDATION_RULES.amount.max.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`;
+    const amount = parseCurrency(formData.amount);
+    if (amount <= 0) {
+      newErrors.amount = 'Digite um valor maior que zero';
+    } else if (amount > 999999.99) {
+      newErrors.amount = 'Valor máximo é R$ 999.999,99';
     }
 
-    // Validar categoria
     if (!formData.category) {
       newErrors.category = 'Selecione uma categoria';
     }
 
-    // Validar data
     if (!formData.date) {
       newErrors.date = 'Data é obrigatória';
-    } else {
-      const selectedDate = new Date(formData.date);
-      const today = new Date();
-      const maxDate = new Date();
-      maxDate.setFullYear(today.getFullYear() + 1);
-      
-      if (selectedDate > maxDate) {
-        newErrors.date = 'Data não pode ser superior a 1 ano no futuro';
-      }
     }
 
-    // Validar dia recorrente
     if (formData.isRecurring) {
       const recurringDay = parseInt(formData.recurringDay);
-      if (!formData.recurringDay.trim()) {
-        newErrors.recurringDay = 'Dia recorrente é obrigatório';
-      } else if (isNaN(recurringDay) || recurringDay < 1 || recurringDay > 31) {
+      if (isNaN(recurringDay) || recurringDay < 1 || recurringDay > 31) {
         newErrors.recurringDay = 'Dia deve estar entre 1 e 31';
       }
     }
@@ -187,7 +272,7 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      showAlertMessage('Dados inválidos', 'Por favor, corrija os erros antes de continuar', 'error');
+      Alert.alert('Dados inválidos', 'Por favor, corrija os erros antes de continuar');
       return;
     }
 
@@ -196,83 +281,74 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
 
       const transactionData: CreateTransactionData = {
         description: formData.description.trim(),
-        amount: parseFloat(formData.amount.replace(',', '.')),
+        amount: parseCurrency(formData.amount),
         type: formData.type,
         category: formData.category,
-        date: formData.date,
+        date: new Date(formData.date).toISOString(),
         isRecurring: formData.isRecurring,
         ...(formData.isRecurring && { recurringDay: parseInt(formData.recurringDay) }),
         ...(formData.budgetId && { budgetId: formData.budgetId }),
+        ...(formData.notes && { notes: formData.notes.trim() }),
       };
 
-      // Verificar duplicatas se necessário
-      const duplicates = await TransactionService.checkDuplicates(transactionData);
-      
-      if (duplicates.length > 0) {
-        showAlertMessage(
-          'Possível duplicata',
-          `Encontramos ${duplicates.length} transação(ões) similar(es). Deseja continuar mesmo assim?`,
-          'warning'
-        );
-        return;
-      }
+      const response = await TransactionService.createTransaction(transactionData);
 
-      await TransactionService.createTransaction(transactionData);
-      
-      showAlertMessage(
-        'Sucesso!',
-        'Transação criada com sucesso',
-        'success'
-      );
-      
-      // Voltar para a lista após um breve delay
-      setTimeout(() => {
+      if (response.success) {
+        // Resetar formulário
+        setFormData({
+          description: '',
+          amount: '',
+          type: 'expense',
+          category: '',
+          date: new Date().toISOString().split('T')[0],
+          isRecurring: false,
+          recurringDay: '1',
+          notes: '',
+        });
+        setErrors({});
+        setShowAmountModal(false);
+        setAmountModalValue('');
+
+        // Navegar de volta
         navigation.goBack();
-      }, 1500);
-
+        
+        // Mostrar feedback de sucesso
+        setTimeout(() => {
+          Alert.alert('Sucesso!', 'Transação criada com sucesso');
+        }, 300);
+      } else {
+        Alert.alert('Erro', response.message || 'Não foi possível criar a transação');
+      }
     } catch (error: any) {
       console.error('Erro ao criar transação:', error);
-      showAlertMessage(
-        'Erro',
-        error.message || 'Não foi possível criar a transação',
-        'error'
-      );
+      Alert.alert('Erro', error.message || 'Não foi possível criar a transação');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (value: string): string => {
-    const numericValue = value.replace(/\D/g, '');
-    const floatValue = parseInt(numericValue) / 100;
-    return floatValue.toLocaleString('pt-BR', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
-
-  const handleAmountChange = (value: string) => {
-    const formatted = formatCurrency(value);
-    handleInputChange('amount', formatted);
-  };
-
   const renderTypeSelector = () => (
-    <Card style={styles.typeSelector}>
+    <Card style={styles.card}>
       <Text style={styles.sectionTitle}>Tipo de Transação</Text>
-      <View style={styles.typeButtons}>
+      <View style={styles.typeContainer}>
         <TouchableOpacity
           style={[
             styles.typeButton,
             formData.type === 'expense' && styles.typeButtonActive,
-            { borderColor: COLORS.error, backgroundColor: formData.type === 'expense' ? COLORS.error : 'transparent' }
+            { borderColor: COLORS.error }
           ]}
           onPress={() => handleInputChange('type', 'expense')}
         >
-          <Ionicons 
-            name="arrow-down" 
-            size={20} 
-            color={formData.type === 'expense' ? COLORS.white : COLORS.error} 
-          />
+          <View style={[
+            styles.typeIconContainer,
+            { backgroundColor: formData.type === 'expense' ? COLORS.white : COLORS.error + '20' }
+          ]}>
+            <Ionicons 
+              name="arrow-down" 
+              size={20} 
+              color={formData.type === 'expense' ? COLORS.error : COLORS.error} 
+            />
+          </View>
           <Text style={[
             styles.typeButtonText,
             { color: formData.type === 'expense' ? COLORS.white : COLORS.error }
@@ -285,15 +361,20 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
           style={[
             styles.typeButton,
             formData.type === 'income' && styles.typeButtonActive,
-            { borderColor: COLORS.success, backgroundColor: formData.type === 'income' ? COLORS.success : 'transparent' }
+            { borderColor: COLORS.success }
           ]}
           onPress={() => handleInputChange('type', 'income')}
         >
-          <Ionicons 
-            name="arrow-up" 
-            size={20} 
-            color={formData.type === 'income' ? COLORS.white : COLORS.success} 
-          />
+          <View style={[
+            styles.typeIconContainer,
+            { backgroundColor: formData.type === 'income' ? COLORS.white : COLORS.success + '20' }
+          ]}>
+            <Ionicons 
+              name="arrow-up" 
+              size={20} 
+              color={formData.type === 'income' ? COLORS.success : COLORS.success} 
+            />
+          </View>
           <Text style={[
             styles.typeButtonText,
             { color: formData.type === 'income' ? COLORS.white : COLORS.success }
@@ -305,39 +386,73 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
     </Card>
   );
 
+  const renderAmountInput = () => (
+    <Card style={styles.card}>
+      <Text style={styles.sectionTitle}>Valor</Text>
+      <TouchableOpacity 
+        style={[
+          styles.amountButton,
+          errors.amount && styles.amountButtonError
+        ]}
+        onPress={handleAmountModalOpen}
+      >
+        <Ionicons 
+          name="cash" 
+          size={24} 
+          color={formData.amount ? COLORS.primary : COLORS.gray400}
+        />
+        <View style={styles.amountContent}>
+          <Text style={styles.amountLabel}>Valor da transação</Text>
+          <Text style={[
+            styles.amountValue,
+            !formData.amount && styles.amountValuePlaceholder
+          ]}>
+            R$ {getAmountDisplay()}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={COLORS.gray400} />
+      </TouchableOpacity>
+      {errors.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
+    </Card>
+  );
+
   const renderCategorySelector = () => (
-    <Card>
+    <Card style={styles.card}>
       <Text style={styles.sectionTitle}>Categoria</Text>
       {categoriesLoading ? (
         <View style={styles.loadingContainer}>
-          <Loading size="small" text="Carregando categorias..." />
-        </View>
-      ) : categories.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>Nenhuma categoria encontrada</Text>
-          <Button
-            title="Criar Categoria"
-            variant="outline"
-            size="sm"
-            onPress={() => navigation.navigate('Categories' as any)}
-          />
+          <Loading size="small" />
+          <Text style={styles.loadingText}>Carregando categorias...</Text>
         </View>
       ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryScroll}>
-          {categories.map(category => (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesContainer}
+        >
+          {categories.map((category) => (
             <TouchableOpacity
               key={category._id}
               style={[
-                styles.categoryItem,
-                formData.category === category._id && styles.categoryItemActive,
-                { borderColor: category.color }
+                styles.categoryButton,
+                formData.category === category._id && styles.categoryButtonActive,
+                { borderColor: formData.category === category._id ? category.color : COLORS.gray200 }
               ]}
               onPress={() => handleInputChange('category', category._id)}
             >
-              <Text style={styles.categoryIcon}>{category.icon}</Text>
+              <View style={[
+                styles.categoryIconContainer,
+                { backgroundColor: formData.category === category._id ? category.color : category.color + '20' }
+              ]}>
+                <Ionicons
+                  name={getValidIconName(category.icon) as any}
+                  size={24}
+                  color={formData.category === category._id ? COLORS.white : category.color}
+                />
+              </View>
               <Text style={[
-                styles.categoryName,
-                formData.category === category._id && { color: category.color }
+                styles.categoryButtonText,
+                { color: formData.category === category._id ? category.color : COLORS.gray600 }
               ]}>
                 {category.name}
               </Text>
@@ -349,87 +464,138 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
     </Card>
   );
 
-  const renderBudgetSelector = () => {
-    if (formData.type === 'income' || budgets.length === 0) return null;
+  const renderRecurringSection = () => (
+    <Card style={styles.card}>
+      <View style={styles.recurringHeader}>
+        <View style={styles.recurringTitleContainer}>
+          <Ionicons name="refresh" size={20} color={COLORS.primary} />
+          <Text style={styles.recurringTitle}>Transação Recorrente</Text>
+        </View>
+        <TouchableOpacity
+          style={[
+            styles.recurringToggle,
+            formData.isRecurring && styles.recurringToggleActive
+          ]}
+          onPress={() => handleInputChange('isRecurring', !formData.isRecurring)}
+        >
+          <View style={[
+            styles.recurringToggleCircle,
+            formData.isRecurring && styles.recurringToggleCircleActive
+          ]} />
+        </TouchableOpacity>
+      </View>
 
-    return (
-      <Card>
-        <Text style={styles.sectionTitle}>Orçamento (Opcional)</Text>
-        {budgetsLoading ? (
-          <View style={styles.loadingContainer}>
-            <Loading size="small" text="Carregando orçamentos..." />
-          </View>
-        ) : (
-          <View style={styles.budgetList}>
+      <Text style={styles.recurringDescription}>
+        A transação será automaticamente criada todos os meses no dia especificado
+      </Text>
+
+      {formData.isRecurring && (
+        <View style={styles.recurringDayContainer}>
+          <Text style={styles.recurringDayLabel}>Repetir todo dia</Text>
+          <View style={styles.recurringDaySelector}>
             <TouchableOpacity
-              style={[
-                styles.budgetItem,
-                !formData.budgetId && styles.budgetItemActive
-              ]}
-              onPress={() => handleInputChange('budgetId', '')}
+              style={styles.recurringDayButton}
+              onPress={() => {
+                const currentDay = parseInt(formData.recurringDay);
+                const newDay = currentDay > 1 ? currentDay - 1 : 31;
+                handleInputChange('recurringDay', newDay.toString());
+              }}
             >
-              <Text style={styles.budgetName}>Nenhum orçamento</Text>
+              <Ionicons name="chevron-back" size={20} color={COLORS.primary} />
             </TouchableOpacity>
             
-            {budgets.map(budget => (
-              <TouchableOpacity
-                key={budget._id}
-                style={[
-                  styles.budgetItem,
-                  formData.budgetId === budget._id && styles.budgetItemActive
-                ]}
-                onPress={() => handleInputChange('budgetId', budget._id)}
-              >
-                <View style={styles.budgetInfo}>
-                  <Text style={styles.budgetName}>{budget.name}</Text>
-                  <Text style={styles.budgetUsage}>
-                    {budget.usage?.toFixed(1)}% usado
-                  </Text>
-                </View>
-                <View style={styles.budgetProgress}>
-                  <View style={[
-                    styles.budgetProgressFill,
-                    { 
-                      width: `${Math.min(budget.usage || 0, 100)}%`,
-                      backgroundColor: budget.isOverBudget ? COLORS.error : COLORS.primary
-                    }
-                  ]} />
-                </View>
-              </TouchableOpacity>
-            ))}
+            <View style={styles.recurringDayDisplay}>
+              <Text style={styles.recurringDayNumber}>{formData.recurringDay}</Text>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.recurringDayButton}
+              onPress={() => {
+                const currentDay = parseInt(formData.recurringDay);
+                const newDay = currentDay < 31 ? currentDay + 1 : 1;
+                handleInputChange('recurringDay', newDay.toString());
+              }}
+            >
+              <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
           </View>
-        )}
-      </Card>
-    );
-  };
-
-  const renderRecurringOptions = () => (
-    <Card>
-      <View style={styles.recurringHeader}>
-        <Text style={styles.sectionTitle}>Transação Recorrente</Text>
-        <Switch
-          value={formData.isRecurring}
-          onValueChange={(value) => handleInputChange('isRecurring', value)}
-          trackColor={{ false: COLORS.gray300, true: COLORS.primary20 }}
-          thumbColor={formData.isRecurring ? COLORS.primary : COLORS.gray400}
-        />
-      </View>
-      
-      {formData.isRecurring && (
-        <Input
-          label="Dia do mês para repetir"
-          placeholder="Ex: 15"
-          value={formData.recurringDay}
-          onChangeText={(value) => handleInputChange('recurringDay', value)}
-          keyboardType="numeric"
-          error={errors.recurringDay}
-          maxLength={2}
-        />
+          {errors.recurringDay && <Text style={styles.errorText}>{errors.recurringDay}</Text>}
+        </View>
       )}
     </Card>
   );
 
-  if (categoriesLoading && categories.length === 0) {
+  const renderAmountModal = () => (
+    <Modal
+      visible={showAmountModal}
+      transparent
+      animationType="slide"
+      onRequestClose={handleAmountModalCancel}
+    >
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.modalOverlay}
+      >
+        <TouchableOpacity 
+          style={styles.modalBackdrop} 
+          activeOpacity={1} 
+          onPress={handleAmountModalCancel}
+        >
+          <View style={styles.modalContent}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Digite o valor</Text>
+                <TouchableOpacity onPress={handleAmountModalCancel}>
+                  <Ionicons name="close" size={24} color={COLORS.gray600} />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.modalAmountContainer}>
+                <Text style={styles.modalAmountPreview}>
+                  {getAmountPreview()}
+                </Text>
+              </View>
+
+              <View style={styles.modalInputContainer}>
+                <TextInput
+                  ref={amountInputRef}
+                  style={styles.modalInput}
+                  value={amountModalValue}
+                  onChangeText={handleAmountModalChange}
+                  placeholder="000000"
+                  placeholderTextColor={COLORS.gray400}
+                  keyboardType="numeric"
+                  autoFocus
+                  selectTextOnFocus
+                  maxLength={9}
+                />
+                <Text style={styles.modalInputHelper}>
+                  Digite apenas números (ex: 1500 para R$ 15,00)
+                </Text>
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity 
+                  style={styles.modalButtonCancel} 
+                  onPress={handleAmountModalCancel}
+                >
+                  <Text style={styles.modalButtonCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.modalButtonConfirm} 
+                  onPress={handleAmountModalConfirm}
+                >
+                  <Text style={styles.modalButtonConfirmText}>Confirmar</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  if (categoriesLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <Loading text="Carregando formulário..." />
@@ -440,73 +606,56 @@ export const CreateTransactionScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Seletor de tipo */}
         {renderTypeSelector()}
+        {renderAmountInput()}
 
-        {/* Campos básicos */}
-        <Card>
+        <Card style={styles.card}>
           <Input
             label="Descrição"
             placeholder="Ex: Almoço no restaurante"
             value={formData.description}
             onChangeText={(value) => handleInputChange('description', value)}
             error={errors.description}
-            required
             maxLength={100}
           />
 
-          <Input
-            label="Valor"
-            placeholder="0,00"
-            value={formData.amount}
-            onChangeText={handleAmountChange}
-            keyboardType="numeric"
-            error={errors.amount}
-            required
-            leftIcon="cash-outline"
-          />
-
-          <Input
+          <CalendarDatePicker
             label="Data"
-            value={formData.date}
-            onChangeText={(value) => handleInputChange('date', value)}
+            value={new Date(formData.date)}
+            onDateChange={(date) => handleInputChange('date', date.toISOString().split('T')[0])}
             error={errors.date}
             required
-            rightIcon="calendar-outline"
+            helperText="Selecione a data da transação"
           />
         </Card>
 
-        {/* Seletor de categoria */}
         {renderCategorySelector()}
+        {renderRecurringSection()}
 
-        {/* Seletor de orçamento */}
-        {renderBudgetSelector()}
+        <Card style={styles.card}>
+          <Input
+            label="Observações (opcional)"
+            placeholder="Adicione detalhes sobre esta transação..."
+            value={formData.notes || ''}
+            onChangeText={(value) => handleInputChange('notes', value)}
+            multiline
+            numberOfLines={3}
+            maxLength={500}
+          />
+        </Card>
 
-        {/* Opções de recorrência */}
-        {renderRecurringOptions()}
-
-        {/* Botão de salvar */}
-        <View style={styles.buttonContainer}>
+        <View style={styles.submitContainer}>
           <Button
             title="Criar Transação"
             onPress={handleSubmit}
             loading={loading}
-            fullWidth
+            disabled={loading}
+            style={styles.submitButton}
           />
         </View>
-
-        {/* Espaçamento final */}
-        <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Alert customizado */}
-      <CustomAlert
-        visible={showAlert}
-        title={alertConfig.title}
-        message={alertConfig.message}
-        type={alertConfig.type}
-        onConfirm={() => setShowAlert(false)}
-      />
+      {renderAmountModal()}
     </SafeAreaView>
   );
 };
@@ -518,132 +667,304 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: SPACING.md,
+    padding: SPACING.md,
   },
-  typeSelector: {
-    marginTop: SPACING.md,
+  card: {
+    marginBottom: SPACING.md,
   },
   sectionTitle: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
+    color: COLORS.gray900,
+    marginBottom: SPACING.md,
   },
-  typeButtons: {
+  
+  typeContainer: {
     flexDirection: 'row',
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
   typeButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.md,
     borderWidth: 2,
     borderRadius: BORDER_RADIUS.md,
-    gap: SPACING.xs,
+    backgroundColor: COLORS.white,
   },
   typeButtonActive: {
-    // Styles aplicados via backgroundColor dinâmico
+    backgroundColor: COLORS.primary,
+  },
+  typeIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
   },
   typeButtonText: {
     fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bold,
   },
-  loadingContainer: {
-    paddingVertical: SPACING.lg,
-  },
-  emptyContainer: {
+
+  amountButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: SPACING.lg,
-    gap: SPACING.sm,
-  },
-  emptyText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  categoryScroll: {
-    marginBottom: SPACING.xs,
-  },
-  categoryItem: {
-    alignItems: 'center',
-    padding: SPACING.sm,
-    marginRight: SPACING.sm,
-    borderWidth: 2,
-    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.gray50,
     borderRadius: BORDER_RADIUS.md,
+    borderWidth: 2,
+    borderColor: COLORS.gray200,
+  },
+  amountButtonError: {
+    borderColor: COLORS.error,
+  },
+  amountContent: {
+    flex: 1,
+    marginLeft: SPACING.md,
+  },
+  amountLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray600,
+    marginBottom: 2,
+  },
+  amountValue: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
+  },
+  amountValuePlaceholder: {
+    color: COLORS.gray400,
+  },
+
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.lg,
+  },
+  loadingText: {
+    marginLeft: SPACING.sm,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray600,
+  },
+  categoriesContainer: {
+    paddingHorizontal: SPACING.xs,
+  },
+  categoryButton: {
+    alignItems: 'center',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+    marginHorizontal: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 2,
+    backgroundColor: COLORS.white,
     minWidth: 80,
   },
-  categoryItemActive: {
-    backgroundColor: COLORS.primary10,
+  categoryButtonActive: {
+    backgroundColor: COLORS.white,
   },
-  categoryIcon: {
-    fontSize: 24,
-    marginBottom: SPACING.xs,
-  },
-  categoryName: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-    textAlign: 'center',
-  },
-  budgetList: {
-    gap: SPACING.xs,
-  },
-  budgetItem: {
-    padding: SPACING.sm,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  budgetItemActive: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary10,
-  },
-  budgetInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  categoryIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: SPACING.xs,
   },
-  budgetName: {
+  categoryButtonText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
+    textAlign: 'center',
   },
-  budgetUsage: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
-  budgetProgress: {
-    height: 4,
-    backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.full,
-    overflow: 'hidden',
-  },
-  budgetProgressFill: {
-    height: '100%',
-  },
+
   recurringHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: SPACING.sm,
   },
-  buttonContainer: {
-    paddingVertical: SPACING.lg,
+  recurringTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  bottomSpacing: {
-    height: SPACING.xl,
+  recurringTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
+    marginLeft: SPACING.sm,
   },
+  recurringToggle: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.gray300,
+    justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  recurringToggleActive: {
+    backgroundColor: COLORS.primary,
+  },
+  recurringToggleCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: COLORS.white,
+    alignSelf: 'flex-start',
+  },
+  recurringToggleCircleActive: {
+    alignSelf: 'flex-end',
+  },
+  recurringDescription: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray600,
+    marginBottom: SPACING.lg,
+  },
+  recurringDayContainer: {
+    alignItems: 'center',
+  },
+  recurringDayLabel: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray700,
+    marginBottom: SPACING.md,
+  },
+  recurringDaySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  recurringDayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recurringDayDisplay: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recurringDayNumber: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+  },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: BORDER_RADIUS.lg,
+    borderTopRightRadius: BORDER_RADIUS.lg,
+    paddingTop: SPACING.lg,
+    ...SHADOWS.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
+  },
+  modalAmountContainer: {
+    alignItems: 'center',
+    paddingVertical: SPACING.xl,
+    backgroundColor: COLORS.gray50,
+    marginHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.lg,
+  },
+  modalAmountPreview: {
+    fontSize: 32,
+    fontFamily: FONTS.bold,
+    color: COLORS.primary,
+  },
+  modalInputContainer: {
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.lg,
+  },
+  modalInput: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    textAlign: 'center',
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 2,
+    borderBottomColor: COLORS.primary,
+    color: COLORS.gray900,
+  },
+  modalInputHelper: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray600,
+    textAlign: 'center',
+    marginTop: SPACING.sm,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    paddingHorizontal: SPACING.lg,
+    paddingBottom: SPACING.xl,
+    gap: SPACING.md,
+  },
+  modalButtonCancel: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.gray200,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  modalButtonCancelText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray700,
+  },
+  modalButtonConfirm: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
+  },
+  modalButtonConfirmText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+  },
+  
+  submitContainer: {
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.xl,
+  },
+  submitButton: {
+    marginTop: SPACING.md,
+  },
+  
   errorText: {
-    fontSize: FONT_SIZES.xs,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
     color: COLORS.error,
     marginTop: SPACING.xs,
-    fontFamily: FONTS.regular,
   },
 });

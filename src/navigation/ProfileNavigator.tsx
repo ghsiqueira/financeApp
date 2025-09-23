@@ -5,10 +5,8 @@ import {
   ProfileScreen,
   SettingsScreen,
   EditProfileScreen,
-  CategoryListScreen,
-  CreateCategoryScreen,
-  EditCategoryScreen
 } from '../screens/PlaceholderScreens';
+import { CategoryNavigator } from './CategoryNavigator';
 import { COLORS, FONTS } from '../constants';
 
 export type ProfileStackParamList = {
@@ -16,15 +14,14 @@ export type ProfileStackParamList = {
   Settings: undefined;
   EditProfile: undefined;
   Categories: undefined;
-  CreateCategory: undefined;
-  EditCategory: { categoryId: string };
 };
 
-const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const Stack = createNativeStackNavigator<ProfileStackParamList>();
 
 export const ProfileNavigator: React.FC = () => {
   return (
-    <ProfileStack.Navigator
+    <Stack.Navigator
+      initialRouteName="Profile"
       screenOptions={{
         headerStyle: {
           backgroundColor: COLORS.primary,
@@ -32,39 +29,70 @@ export const ProfileNavigator: React.FC = () => {
         headerTintColor: COLORS.white,
         headerTitleStyle: {
           fontFamily: FONTS.bold,
+          fontSize: 18,
+        },
+        headerBackTitle: '',
+        headerShadowVisible: true,
+        contentStyle: {
+          backgroundColor: COLORS.background,
         },
       }}
     >
-      <ProfileStack.Screen 
+      <Stack.Screen 
         name="Profile" 
         component={ProfileScreen}
-        options={{ title: 'Perfil' }}
+        options={{ 
+          title: 'Perfil',
+          headerShown: false,
+          contentStyle: {
+            backgroundColor: COLORS.background,
+          },
+        }}
       />
-      <ProfileStack.Screen 
+      <Stack.Screen 
         name="Settings" 
         component={SettingsScreen}
-        options={{ title: 'Configurações' }}
+        options={{ 
+          title: 'Configurações',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: COLORS.primary,
+          },
+          headerTintColor: COLORS.white,
+          headerTitleStyle: {
+            fontFamily: FONTS.bold,
+            fontSize: 18,
+          },
+        }}
       />
-      <ProfileStack.Screen 
+      <Stack.Screen 
         name="EditProfile" 
         component={EditProfileScreen}
-        options={{ title: 'Editar Perfil' }}
+        options={{ 
+          title: 'Editar Perfil',
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: COLORS.primary,
+          },
+          headerTintColor: COLORS.white,
+          headerTitleStyle: {
+            fontFamily: FONTS.bold,
+            fontSize: 18,
+          },
+        }}
       />
-      <ProfileStack.Screen 
+      <Stack.Screen 
         name="Categories" 
-        component={CategoryListScreen}
-        options={{ title: 'Categorias' }}
+        component={CategoryNavigator}
+        options={{ 
+          title: 'Categorias',
+          headerShown: false,
+          presentation: 'card',
+          contentStyle: {
+            backgroundColor: COLORS.background,
+          },
+        }}
       />
-      <ProfileStack.Screen 
-        name="CreateCategory" 
-        component={CreateCategoryScreen}
-        options={{ title: 'Nova Categoria' }}
-      />
-      <ProfileStack.Screen 
-        name="EditCategory" 
-        component={EditCategoryScreen}
-        options={{ title: 'Editar Categoria' }}
-      />
-    </ProfileStack.Navigator>
+    </Stack.Navigator>
   );
 };

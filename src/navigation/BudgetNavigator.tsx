@@ -18,6 +18,7 @@ const Stack = createNativeStackNavigator<BudgetStackParamList>();
 export const BudgetNavigator: React.FC = () => {
   return (
     <Stack.Navigator
+      initialRouteName="BudgetList"
       screenOptions={{
         headerStyle: {
           backgroundColor: COLORS.primary,
@@ -26,27 +27,42 @@ export const BudgetNavigator: React.FC = () => {
         headerTitleStyle: {
           fontFamily: FONTS.bold,
         },
+        headerBackTitle: '',
+        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen 
         name="BudgetList" 
         component={BudgetListScreen}
-        options={{ title: 'Orçamentos' }}
+        options={{ 
+          title: 'Orçamentos',
+          headerShown: false,
+        }}
       />
       <Stack.Screen 
         name="CreateBudget" 
         component={CreateEditBudgetScreen}
-        options={{ title: 'Novo Orçamento' }}
+        options={{ 
+          title: 'Novo Orçamento',
+          headerShown: false,
+          presentation: 'modal',
+        }}
       />
       <Stack.Screen 
         name="EditBudget" 
         component={CreateEditBudgetScreen}
-        options={{ title: 'Editar Orçamento' }}
+        options={{ 
+          title: 'Editar Orçamento',
+          headerShown: false,
+        }}
       />
       <Stack.Screen 
         name="BudgetDetail" 
         component={BudgetDetailScreen}
-        options={{ title: 'Detalhes do Orçamento' }}
+        options={{ 
+          title: 'Detalhes do Orçamento',
+          headerShown: false,
+        }}
       />
     </Stack.Navigator>
   );
