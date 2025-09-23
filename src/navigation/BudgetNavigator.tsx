@@ -1,9 +1,8 @@
-
+// src/navigation/BudgetNavigator.tsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BudgetListScreen } from '../screens/budgets/BudgetListScreen';
-import { CreateBudgetScreen } from '../screens/budgets/CreateBudgetScreen';
-import { EditBudgetScreen } from '../screens/budgets/EditBudgetScreen';
+import { CreateEditBudgetScreen } from '../screens/budgets/CreateEditBudgetScreen';
 import { BudgetDetailScreen } from '../screens/budgets/BudgetDetailScreen';
 import { COLORS, FONTS } from '../constants';
 
@@ -11,7 +10,7 @@ export type BudgetStackParamList = {
   BudgetList: undefined;
   CreateBudget: undefined;
   EditBudget: { budgetId: string };
-  BudgetDetails: { budgetId: string };
+  BudgetDetail: { budgetId: string };
 };
 
 const Stack = createNativeStackNavigator<BudgetStackParamList>();
@@ -36,16 +35,16 @@ export const BudgetNavigator: React.FC = () => {
       />
       <Stack.Screen 
         name="CreateBudget" 
-        component={CreateBudgetScreen}
+        component={CreateEditBudgetScreen}
         options={{ title: 'Novo Orçamento' }}
       />
       <Stack.Screen 
         name="EditBudget" 
-        component={EditBudgetScreen}
+        component={CreateEditBudgetScreen}
         options={{ title: 'Editar Orçamento' }}
       />
       <Stack.Screen 
-        name="BudgetDetails" 
+        name="BudgetDetail" 
         component={BudgetDetailScreen}
         options={{ title: 'Detalhes do Orçamento' }}
       />

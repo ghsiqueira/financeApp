@@ -1,4 +1,4 @@
-// src/screens/budgets/BudgetListScreen.tsx
+// src/screens/budgets/BudgetListScreen.tsx - VERSÃO CORRIGIDA COM NAVEGAÇÃO
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -11,17 +11,27 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Importações do projeto
 import { useBudgets } from '../../hooks';
 import { Budget } from '../../types';
-import { formatCurrency, formatDate } from '../../utils';
-import { EmptyState, Loading, Card } from '../../components/common';
+import { formatCurrency } from '../../utils';
+import { EmptyState, Loading, Card, ProgressBar } from '../../components/common';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-export const BudgetListScreen: React.FC = () => {
-  const navigation = useNavigation();
+// Types de navegação
+type BudgetStackParamList = {
+  BudgetList: undefined;
+  CreateBudget: undefined;
+  EditBudget: { budgetId: string };
+  BudgetDetail: { budgetId: string };
+};
+
+interface BudgetListScreenProps {
+  navigation: NativeStackNavigationProp<BudgetStackParamList>;
+}
+
+export const BudgetListScreen: React.FC<BudgetListScreenProps> = ({ navigation }) => {
   const { budgets, loading, refreshing, error, refresh, deleteBudget } = useBudgets();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | 'over' | 'inactive'>('all');
 
@@ -56,9 +66,17 @@ export const BudgetListScreen: React.FC = () => {
     return COLORS.success;
   };
 
+  // Obter nome da categoria
+  const getCategoryName = (budget: Budget): string => {
+    if (typeof budget.category === 'string') {
+      return budget.category;
+    }
+    return budget.category?.name || 'Categoria não definida';
+  };
+
   // Confirmar exclusão de orçamento
   const confirmDelete = (budget: Budget) => {
-    const categoryName = typeof budget.category === 'string' ? budget.category : String(budget.category);
+    const categoryName = getCategoryName(budget);
     Alert.alert(
       'Excluir Orçamento',
       `Tem certeza que deseja excluir o orçamento para "${categoryName}"?`,
@@ -76,20 +94,17 @@ export const BudgetListScreen: React.FC = () => {
     );
   };
 
-  // Navegação para criar novo orçamento
+  // Navegação
   const handleCreateBudget = () => {
-    // Usar any para evitar problemas de tipagem temporariamente
-    (navigation as any).navigate('CreateBudget');
+    navigation.navigate('CreateBudget');
   };
 
-  // Navegação para detalhes do orçamento
   const handleBudgetPress = (budget: Budget) => {
-    (navigation as any).navigate('BudgetDetail', { budgetId: budget._id });
+    navigation.navigate('BudgetDetail', { budgetId: budget._id });
   };
 
-  // Navegação para editar orçamento
   const handleEditBudget = (budget: Budget) => {
-    (navigation as any).navigate('EditBudget', { budgetId: budget._id });
+    navigation.navigate('EditBudget', { budgetId: budget._id });
   };
 
   // Renderizar filtros
@@ -141,11 +156,47 @@ export const BudgetListScreen: React.FC = () => {
     );
   };
 
+  // Renderizar resumo no topo
+  const renderSummary = () => {
+    if (budgets.length === 0) return null;
+
+    const totalLimit = budgets.reduce((sum, b) => sum + (b.monthlyLimit || 0), 0);
+    const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
+    const overBudgetCount = budgets.filter(b => b.isOverBudget).length;
+
+    return (
+      <Card style={styles.summaryCard}>
+        <Text style={styles.summaryTitle}>Resumo do Mês</Text>
+        <View style={styles.summaryItems}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Total Gasto</Text>
+            <Text style={[styles.summaryValue, { color: COLORS.error }]}>
+              {formatCurrency(totalSpent)}
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Total Limite</Text>
+            <Text style={styles.summaryValue}>
+              {formatCurrency(totalLimit)}
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Excedidos</Text>
+            <Text style={[styles.summaryValue, { color: COLORS.error }]}>
+              {overBudgetCount}
+            </Text>
+          </View>
+        </View>
+      </Card>
+    );
+  };
+
   // Renderizar item da lista
   const renderBudgetItem = ({ item: budget }: { item: Budget }) => {
     const progress = calculateProgress(budget);
     const budgetColor = getBudgetColor(budget);
     const remaining = budget.monthlyLimit - budget.spent;
+    const categoryName = getCategoryName(budget);
 
     return (
       <TouchableOpacity
@@ -164,7 +215,7 @@ export const BudgetListScreen: React.FC = () => {
                 style={styles.categoryIcon}
               />
               <Text style={styles.budgetTitle}>
-                {typeof budget.category === 'string' ? budget.category : String(budget.category)}
+                {categoryName}
               </Text>
             </View>
             <View style={styles.statusContainer}>
@@ -240,58 +291,43 @@ export const BudgetListScreen: React.FC = () => {
               <Text style={[styles.progressStatus, { color: budgetColor }]}>
                 {budget.isOverBudget ? 'Orçamento excedido' : 
                  progress >= 90 ? 'Atenção ao limite' :
-                 progress >= 70 ? 'Monitorar gastos' : 'Dentro do orçamento'}
+                 progress >= 70 ? 'Próximo do limite' : 'Dentro do limite'}
               </Text>
             )}
           </View>
-          <View style={styles.progressBarContainer}>
-            <View
-              style={[
-                styles.progressBar,
-                {
-                  width: `${Math.min(progress, 100)}%`,
-                  backgroundColor: budgetColor,
-                },
-              ]}
-            />
-            {/* Barra de excesso se houver */}
-            {progress > 100 && (
-              <View
-                style={[
-                  styles.progressBarOverflow,
-                  {
-                    width: `${Math.min(progress - 100, 20)}%`,
-                    backgroundColor: COLORS.error,
-                  },
-                ]}
-              />
-            )}
-          </View>
+          <ProgressBar 
+            progress={progress} 
+            color={budgetColor} 
+            height={8}
+            showText={false}
+            style={styles.progressBar}
+          />
         </View>
 
-        {/* Informações adicionais - Removido description e monthlyTargetRemaining */}
-        <View style={styles.budgetFooter}>
-          <View style={styles.budgetInfo}>
-            <Ionicons name="calendar-outline" size={16} color={COLORS.gray600} />
-            <Text style={styles.budgetInfoText}>
-              {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-            </Text>
-          </View>
-          <View style={styles.budgetInfo}>
-            <Ionicons name="trending-down-outline" size={16} color={COLORS.gray600} />
-            <Text style={styles.budgetInfoText}>
-              Orçamento mensal
-            </Text>
-          </View>
+        {/* Período */}
+        <View style={styles.periodContainer}>
+          <Ionicons name="calendar-outline" size={16} color={COLORS.gray600} />
+          <Text style={styles.periodText}>
+            {getMonthName(budget.month)} {budget.year}
+          </Text>
         </View>
       </TouchableOpacity>
     );
   };
 
+  // Função auxiliar para nome do mês
+  const getMonthName = (month: number): string => {
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    return months[month - 1] || 'Mês inválido';
+  };
+
   // Renderizar estado vazio
   const renderEmptyState = () => (
     <EmptyState
-      icon="wallet-outline"
+      icon="pie-chart-outline"
       title="Nenhum orçamento encontrado"
       description={
         selectedFilter === 'all'
@@ -306,41 +342,6 @@ export const BudgetListScreen: React.FC = () => {
       onAction={selectedFilter === 'all' ? handleCreateBudget : undefined}
     />
   );
-
-  // Renderizar resumo no topo
-  const renderSummary = () => {
-    if (budgets.length === 0) return null;
-
-    const totalLimit = budgets.reduce((sum, b) => sum + (b.monthlyLimit || 0), 0);
-    const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
-    const overBudgetCount = budgets.filter(b => b.isOverBudget).length;
-
-    return (
-      <Card style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Resumo do Mês</Text>
-        <View style={styles.summaryItems}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Total Gasto</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.expense }]}>
-              {formatCurrency(totalSpent)}
-            </Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Total Limite</Text>
-            <Text style={styles.summaryValue}>
-              {formatCurrency(totalLimit)}
-            </Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Orçamentos Excedidos</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.error }]}>
-              {overBudgetCount}
-            </Text>
-          </View>
-        </View>
-      </Card>
-    );
-  };
 
   if (loading && budgets.length === 0) {
     return <Loading text="Carregando orçamentos..." />;
@@ -560,21 +561,14 @@ const styles = StyleSheet.create({
   },
   valuesContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: SPACING.md,
     backgroundColor: COLORS.gray50,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.sm,
     padding: SPACING.sm,
   },
   valueItem: {
     flex: 1,
     alignItems: 'center',
-  },
-  valueDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: COLORS.gray200,
-    marginHorizontal: SPACING.sm,
   },
   valueLabel: {
     fontSize: FONT_SIZES.xs,
@@ -583,9 +577,14 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.xs,
   },
   valueAmount: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
+  },
+  valueDivider: {
+    width: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: SPACING.sm,
   },
   progressContainer: {
     marginBottom: SPACING.sm,
@@ -603,44 +602,17 @@ const styles = StyleSheet.create({
   },
   progressStatus: {
     fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.full,
-    overflow: 'hidden',
-    position: 'relative',
+    fontFamily: FONTS.regular,
   },
   progressBar: {
-    height: '100%',
-    borderRadius: BORDER_RADIUS.full,
+    marginBottom: SPACING.xs,
   },
-  progressBarOverflow: {
-    position: 'absolute',
-    top: 0,
-    left: '100%',
-    height: '100%',
-  },
-  budgetDescription: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    lineHeight: 20,
-    marginBottom: SPACING.sm,
-  },
-  budgetFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
-  },
-  budgetInfo: {
+  periodContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.xs,
   },
-  budgetInfoText: {
+  periodText: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.regular,
     color: COLORS.gray600,
