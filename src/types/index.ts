@@ -16,19 +16,22 @@ export interface AuthResponse {
   user: User;
 }
 
-// Transaction types
+// Transaction types - CORRIGIDO COM TODOS OS CAMPOS
+export type TransactionType = 'income' | 'expense'; // ✅ ADICIONADO
+
 export interface Transaction {
   _id: string;
   id: string; // Para compatibilidade
   userId: string;
   description: string;
   amount: number;
-  type: 'income' | 'expense';
+  type: TransactionType; // ✅ USANDO O TIPO CORRETO
   category: Category;
   date: string;
   isRecurring: boolean;
   recurringDay?: number;
-  budgetId?: Budget;
+  budgetId?: Budget | string; // ✅ PERMITE AMBOS
+  notes?: string; // ✅ ADICIONADO
   createdAt: string;
   updatedAt: string;
 }
@@ -36,17 +39,29 @@ export interface Transaction {
 export interface CreateTransactionData {
   description: string;
   amount: number;
-  type: 'income' | 'expense';
+  type: TransactionType; // ✅ USANDO O TIPO CORRETO
   category: string;
   date?: string;
   isRecurring?: boolean;
   recurringDay?: number;
   budgetId?: string;
+  notes?: string; // ✅ ADICIONADO
+}
+
+export interface UpdateTransactionData {
+  description?: string;
+  amount?: number;
+  type?: TransactionType;
+  category?: string;
+  date?: string;
+  isRecurring?: boolean;
+  recurringDay?: number;
+  budgetId?: string | undefined; // ✅ CORRIGIDO PARA ACEITAR undefined
+  notes?: string;
 }
 
 // Goal types - CORRIGIDO baseado na resposta da API
 export interface Goal {
-  goal: Goal;
   _id: string;
   id?: string; // Para compatibilidade opcional
   userId: string;

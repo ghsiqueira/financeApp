@@ -1,4 +1,4 @@
-// src/screens/budgets/BudgetListScreen.tsx - VERSÃO CORRIGIDA COM NAVEGAÇÃO
+// src/screens/budgets/BudgetListScreen.tsx - VERSÃO CORRIGIDA COMPLETA
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -79,7 +79,7 @@ export const BudgetListScreen: React.FC<BudgetListScreenProps> = ({ navigation }
     const categoryName = getCategoryName(budget);
     Alert.alert(
       'Excluir Orçamento',
-      `Tem certeza que deseja excluir o orçamento para "${categoryName}"?`,
+      `Tem certeza que deseja excluir o orçamento "${budget.name}" para "${categoryName}"?`,
       [
         {
           text: 'Cancelar',
@@ -135,63 +135,26 @@ export const BudgetListScreen: React.FC<BudgetListScreenProps> = ({ navigation }
             >
               {filter.label}
             </Text>
-            <View
-              style={[
-                styles.filterCount,
-                selectedFilter === filter.key && styles.filterCountActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterCountText,
-                  selectedFilter === filter.key && styles.filterCountTextActive,
-                ]}
-              >
-                {filter.count}
-              </Text>
-            </View>
+            {filter.count > 0 && (
+              <View style={[
+                styles.filterBadge,
+                selectedFilter === filter.key && styles.filterBadgeActive,
+              ]}>
+                <Text style={[
+                  styles.filterBadgeText,
+                  selectedFilter === filter.key && styles.filterBadgeTextActive,
+                ]}>
+                  {filter.count}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
     );
   };
 
-  // Renderizar resumo no topo
-  const renderSummary = () => {
-    if (budgets.length === 0) return null;
-
-    const totalLimit = budgets.reduce((sum, b) => sum + (b.monthlyLimit || 0), 0);
-    const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
-    const overBudgetCount = budgets.filter(b => b.isOverBudget).length;
-
-    return (
-      <Card style={styles.summaryCard}>
-        <Text style={styles.summaryTitle}>Resumo do Mês</Text>
-        <View style={styles.summaryItems}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Total Gasto</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.error }]}>
-              {formatCurrency(totalSpent)}
-            </Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Total Limite</Text>
-            <Text style={styles.summaryValue}>
-              {formatCurrency(totalLimit)}
-            </Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>Excedidos</Text>
-            <Text style={[styles.summaryValue, { color: COLORS.error }]}>
-              {overBudgetCount}
-            </Text>
-          </View>
-        </View>
-      </Card>
-    );
-  };
-
-  // Renderizar item da lista
+  // Renderizar item do orçamento
   const renderBudgetItem = ({ item: budget }: { item: Budget }) => {
     const progress = calculateProgress(budget);
     const budgetColor = getBudgetColor(budget);
@@ -204,20 +167,18 @@ export const BudgetListScreen: React.FC<BudgetListScreenProps> = ({ navigation }
         onPress={() => handleBudgetPress(budget)}
         activeOpacity={0.7}
       >
-        {/* Header do card */}
+        {/* Header */}
         <View style={styles.budgetHeader}>
-          <View style={styles.budgetTitleContainer}>
-            <View style={styles.categoryInfo}>
-              <Ionicons 
-                name="pricetag" 
-                size={20} 
-                color={budgetColor} 
-                style={styles.categoryIcon}
-              />
-              <Text style={styles.budgetTitle}>
+          <View style={styles.budgetInfo}>
+            <View style={styles.titleContainer}>
+              <Text style={styles.budgetName} numberOfLines={1}>
+                {budget.name}
+              </Text>
+              <Text style={styles.categoryName} numberOfLines={1}>
                 {categoryName}
               </Text>
             </View>
+            
             <View style={styles.statusContainer}>
               {!budget.isActive && (
                 <View style={[styles.statusBadge, { backgroundColor: COLORS.gray400 + '20' }]}>
@@ -343,33 +304,94 @@ export const BudgetListScreen: React.FC<BudgetListScreenProps> = ({ navigation }
     />
   );
 
-  if (loading && budgets.length === 0) {
-    return <Loading text="Carregando orçamentos..." />;
+  // Header com resumo
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <View style={styles.summaryContainer}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Orçamentos</Text>
+          <Text style={styles.summaryValue}>{budgets.length}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Ativos</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.success }]}>
+            {budgets.filter(b => b.isActive).length}
+          </Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Excedidos</Text>
+          <Text style={[styles.summaryValue, { color: COLORS.error }]}>
+            {budgets.filter(b => b.isOverBudget).length}
+          </Text>
+        </View>
+      </View>
+      {renderFilters()}
+    </View>
+  );
+
+  // Loading state
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Orçamentos</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleCreateBudget}
+          >
+            <Ionicons name="add" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+        <Loading />
+      </SafeAreaView>
+    );
+  }
+
+  // Error state
+  if (error && budgets.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Orçamentos</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={handleCreateBudget}
+          >
+            <Ionicons name="add" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={COLORS.error} />
+          <Text style={styles.errorTitle}>Erro ao carregar orçamentos</Text>
+          <Text style={styles.errorMessage}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={refresh}>
+            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Orçamentos</Text>
-        <TouchableOpacity style={styles.addButton} onPress={handleCreateBudget}>
+        <Text style={styles.title}>Orçamentos</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleCreateBudget}
+        >
           <Ionicons name="add" size={24} color={COLORS.white} />
         </TouchableOpacity>
       </View>
 
-      {/* Filtros */}
-      {renderFilters()}
-
-      {/* Lista de orçamentos */}
+      {/* Lista */}
       <FlatList
         data={filteredBudgets}
         renderItem={renderBudgetItem}
         keyExtractor={(item) => item._id}
-        contentContainerStyle={[
-          styles.listContainer,
-          filteredBudgets.length === 0 && styles.listContainerEmpty,
-        ]}
-        showsVerticalScrollIndicator={false}
+        ListHeaderComponent={budgets.length > 0 ? renderHeader : undefined}
+        ListEmptyComponent={renderEmptyState}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -378,17 +400,12 @@ export const BudgetListScreen: React.FC<BudgetListScreenProps> = ({ navigation }
             tintColor={COLORS.primary}
           />
         }
-        ListHeaderComponent={renderSummary}
-        ListEmptyComponent={renderEmptyState}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        contentContainerStyle={[
+          styles.listContainer,
+          filteredBudgets.length === 0 && styles.emptyContainer
+        ]}
+        showsVerticalScrollIndicator={false}
       />
-
-      {/* Botão flutuante para criar orçamento */}
-      {filteredBudgets.length > 0 && (
-        <TouchableOpacity style={styles.floatingButton} onPress={handleCreateBudget}>
-          <Ionicons name="add" size={28} color={COLORS.white} />
-        </TouchableOpacity>
-      )}
     </SafeAreaView>
   );
 };
@@ -402,41 +419,75 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
     backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray100,
     ...SHADOWS.sm,
   },
-  headerTitle: {
+  title: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.gray900,
   },
   addButton: {
     backgroundColor: COLORS.primary,
+    width: 44,
+    height: 44,
     borderRadius: BORDER_RADIUS.full,
-    width: 40,
-    height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    ...SHADOWS.md,
+  },
+  listContainer: {
+    padding: SPACING.md,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  headerContainer: {
+    marginBottom: SPACING.lg,
+  },
+  summaryContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
+  },
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  summaryLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray600,
+    marginBottom: SPACING.xs,
+  },
+  summaryValue: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
   },
   filtersContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
     backgroundColor: COLORS.white,
-    gap: SPACING.xs,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.xs,
+    ...SHADOWS.sm,
   },
   filterButton: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.xs,
     borderRadius: BORDER_RADIUS.md,
-    backgroundColor: COLORS.gray100,
-    gap: SPACING.xs,
   },
   filterButtonActive: {
     backgroundColor: COLORS.primary,
@@ -449,72 +500,32 @@ const styles = StyleSheet.create({
   filterButtonTextActive: {
     color: COLORS.white,
   },
-  filterCount: {
-    backgroundColor: COLORS.gray300,
+  filterBadge: {
+    backgroundColor: COLORS.gray100,
     borderRadius: BORDER_RADIUS.full,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    marginLeft: SPACING.xs,
+    minWidth: 20,
+    alignItems: 'center',
   },
-  filterCountActive: {
+  filterBadgeActive: {
     backgroundColor: COLORS.white,
   },
-  filterCountText: {
+  filterBadgeText: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.bold,
     color: COLORS.gray600,
   },
-  filterCountTextActive: {
+  filterBadgeTextActive: {
     color: COLORS.primary,
-  },
-  summaryCard: {
-    margin: SPACING.md,
-    marginBottom: SPACING.sm,
-    padding: SPACING.md,
-  },
-  summaryTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-  },
-  summaryItems: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  summaryItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  summaryLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-    textAlign: 'center',
-  },
-  summaryValue: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
-  listContainer: {
-    paddingHorizontal: SPACING.md,
-    paddingBottom: SPACING.xl,
-  },
-  listContainerEmpty: {
-    flex: 1,
-  },
-  separator: {
-    height: SPACING.md,
   },
   budgetCard: {
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
-    padding: SPACING.md,
-    ...SHADOWS.card,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.sm,
   },
   budgetHeader: {
     flexDirection: 'row',
@@ -522,72 +533,73 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: SPACING.md,
   },
-  budgetTitleContainer: {
+  budgetInfo: {
     flex: 1,
-    marginRight: SPACING.sm,
   },
-  categoryInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  titleContainer: {
     marginBottom: SPACING.xs,
   },
-  categoryIcon: {
-    marginRight: SPACING.xs,
-  },
-  budgetTitle: {
+  budgetName: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.gray900,
+    marginBottom: 2,
+  },
+  categoryName: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray600,
   },
   statusContainer: {
     flexDirection: 'row',
-    gap: SPACING.xs,
+    marginTop: SPACING.xs,
   },
   statusBadge: {
     paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
+    paddingVertical: 4,
+    borderRadius: BORDER_RADIUS.sm,
+    marginRight: SPACING.xs,
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
+    fontFamily: FONTS.bold,
   },
   menuContainer: {
     flexDirection: 'row',
-    gap: SPACING.xs,
   },
   menuButton: {
-    padding: SPACING.xs,
+    padding: SPACING.sm,
+    marginLeft: SPACING.xs,
   },
   valuesContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: SPACING.md,
-    backgroundColor: COLORS.gray50,
-    borderRadius: BORDER_RADIUS.sm,
-    padding: SPACING.sm,
   },
   valueItem: {
     flex: 1,
     alignItems: 'center',
   },
-  valueLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  valueAmount: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
   valueDivider: {
     width: 1,
-    backgroundColor: COLORS.border,
+    height: 30,
+    backgroundColor: COLORS.gray200,
     marginHorizontal: SPACING.sm,
   },
+  valueLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray600,
+    marginBottom: 4,
+  },
+  valueAmount: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
+  },
   progressContainer: {
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   progressInfo: {
     flexDirection: 'row',
@@ -598,35 +610,54 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
+    color: COLORS.gray700,
   },
   progressStatus: {
     fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
+    fontFamily: FONTS.medium,
   },
   progressBar: {
-    marginBottom: SPACING.xs,
+    borderRadius: BORDER_RADIUS.sm,
   },
   periodContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
   },
   periodText: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
     color: COLORS.gray600,
+    marginLeft: SPACING.xs,
   },
-  floatingButton: {
-    position: 'absolute',
-    bottom: SPACING.xl,
-    right: SPACING.xl,
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.full,
-    width: 56,
-    height: 56,
+  errorContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    ...SHADOWS.lg,
+    padding: SPACING.xl,
+  },
+  errorTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.error,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  errorMessage: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray600,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  retryButtonText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
 });

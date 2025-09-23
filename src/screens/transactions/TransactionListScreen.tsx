@@ -1,4 +1,4 @@
-// src/screens/transactions/TransactionListScreen.tsx - VERSÃO COMPLETA COM DEBUG
+// src/screens/transactions/TransactionListScreen.tsx - VERSÃO COMPLETA ATUALIZADA
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -12,16 +12,25 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useTransactions } from '../../hooks/useTransactions';
 import { TransactionService } from '../../services/TransactionService';
 import apiService from '../../services/api';
 import { Loading, Card } from '../../components/common';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '../../constants';
+import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 import { Transaction } from '../../types';
 
+// Types para navegação
+type TransactionStackParamList = {
+  TransactionList: undefined;
+  CreateTransaction: undefined;
+  EditTransaction: { transactionId: string };
+  TransactionDetails: { transactionId: string };
+};
+
 interface TransactionListScreenProps {
-  navigation: any;
+  navigation: NativeStackNavigationProp<TransactionStackParamList>;
 }
 
 // Função para formatar currency
@@ -69,57 +78,6 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
   // State local para controlar o refresh
   const [refreshing, setRefreshing] = useState(false);
 
-  // FUNÇÃO DE DEBUG TEMPORÁRIA
-  const debugAPI = async () => {
-    console.log('=== INICIANDO DEBUG COMPLETO ===');
-    
-    try {
-      // 1. Teste direto do apiService
-      console.log('1. Testando apiService.getTransactions...');
-      const apiResponse = await apiService.getTransactions({});
-      console.log('📡 Resposta do apiService:', JSON.stringify(apiResponse, null, 2));
-
-      // 2. Teste do TransactionService
-      console.log('2. Testando TransactionService.getTransactions...');
-      const serviceResponse = await TransactionService.getTransactions({});
-      console.log('🔧 Resposta do TransactionService:', JSON.stringify(serviceResponse, null, 2));
-
-      // 3. Teste de transações recentes
-      console.log('3. Testando TransactionService.getRecentTransactions...');
-      const recentResponse = await TransactionService.getRecentTransactions(5);
-      console.log('📋 Transações recentes:', JSON.stringify(recentResponse, null, 2));
-
-      // 4. Verificar estado atual do hook
-      console.log('4. Estado atual do hook:');
-      console.log('- transactions:', transactions.length, transactions);
-      console.log('- loading:', loading);
-      console.log('- error:', error);
-      console.log('- pagination:', pagination);
-      console.log('- isEmpty:', isEmpty);
-      console.log('- hasMore:', hasMore);
-
-      // 5. Testar criação de transação
-      console.log('5. Testando criação de transação...');
-      const testTransaction = {
-        description: 'Teste Debug',
-        amount: 100,
-        type: 'expense' as const,
-        category: 'test',
-        date: new Date().toISOString(),
-        isRecurring: false,
-      };
-      
-      const createResponse = await TransactionService.createTransaction(testTransaction);
-      console.log('➕ Resposta da criação:', JSON.stringify(createResponse, null, 2));
-
-    } catch (err: any) {
-      console.error('❌ Erro no debug:', err);
-      Alert.alert('Erro no Debug', err.message);
-    }
-    
-    console.log('=== FIM DEBUG ===');
-  };
-
   // Carregar transações quando a tela recebe foco
   useFocusEffect(
     useCallback(() => {
@@ -151,7 +109,7 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteTransaction(transaction.id);
+              await deleteTransaction(transaction._id); // ✅ CORRIGIDO - usar _id
               Alert.alert('Sucesso', 'Transação excluída com sucesso!');
             } catch (error: any) {
               Alert.alert('Erro', error.message);
@@ -164,87 +122,159 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
 
   // Função para navegar para detalhes
   const handleViewTransaction = (transaction: Transaction) => {
-    navigation.navigate('TransactionDetails', { transactionId: transaction.id });
+    navigation.navigate('TransactionDetails', { transactionId: transaction._id });
   };
 
   // Função para navegar para edição
   const handleEditTransaction = (transaction: Transaction) => {
-    navigation.navigate('EditTransaction', { transactionId: transaction.id });
+    navigation.navigate('EditTransaction', { transactionId: transaction._id });
   };
 
-  // Renderizar item da lista
-  const renderTransactionItem = ({ item }: { item: Transaction }) => (
-    <TouchableOpacity
-      style={styles.transactionItem}
-      onPress={() => handleViewTransaction(item)}
-      activeOpacity={0.7}
-    >
-      <Card style={styles.transactionCard}>
-        <View style={styles.transactionHeader}>
-          <View style={styles.transactionInfo}>
-            <View style={[
-              styles.categoryIcon,
-              { backgroundColor: item.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
-            ]}>
-              <Ionicons
-                name={item.type === 'income' ? 'arrow-up' : 'arrow-down'}
-                size={24}
-                color={item.type === 'income' ? COLORS.success : COLORS.error}
-              />
-            </View>
-            <View style={styles.transactionDetails}>
-              <Text style={styles.transactionDescription} numberOfLines={1}>
-                {item.description}
-              </Text>
-              <Text style={styles.transactionCategory} numberOfLines={1}>
-                {item.category?.name || 'Sem categoria'}
-              </Text>
-              <Text style={styles.transactionDate}>
-                {formatDate(item.date)}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.transactionAmount}>
-            <Text
-              style={[
-                styles.amountText,
-                { color: item.type === 'income' ? COLORS.success : COLORS.error }
-              ]}
-            >
-              {item.type === 'income' ? '+' : '-'} {formatCurrency(item.amount)}
-            </Text>
-            
-            {item.isRecurring && (
-              <View style={styles.recurringBadge}>
-                <Ionicons name="refresh" size={12} color={COLORS.info} />
-                <Text style={styles.recurringText}>Recorrente</Text>
+  // Renderizar item da lista - VERSÃO MELHORADA COM BUDGET
+  const renderTransactionItem = ({ item }: { item: Transaction }) => {
+    const getBudgetInfo = () => {
+      // Se a transação tem budget associado
+      if (item.budgetId && typeof item.budgetId === 'object') {
+        return {
+          hasBudget: true,
+          budgetName: item.budgetId.name || 'Orçamento',
+          categoryName: item.budgetId.category?.name || item.category?.name || 'Sem categoria',
+          isOverBudget: item.budgetId.isOverBudget || false,
+          spent: item.budgetId.spent || 0,
+          limit: item.budgetId.monthlyLimit || 0,
+        };
+      }
+      return {
+        hasBudget: false,
+        categoryName: item.category?.name || 'Sem categoria',
+      };
+    };
+
+    const budgetInfo = getBudgetInfo();
+
+    return (
+      <TouchableOpacity
+        style={styles.transactionItem}
+        onPress={() => handleViewTransaction(item)}
+        activeOpacity={0.7}
+      >
+        <Card style={styles.transactionCard}>
+          <View style={styles.transactionHeader}>
+            <View style={styles.transactionInfo}>
+              {/* Ícone da categoria/tipo */}
+              <View style={[
+                styles.categoryIcon,
+                { backgroundColor: item.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
+              ]}>
+                <Ionicons
+                  name={item.type === 'income' ? 'arrow-up' : 'arrow-down'}
+                  size={24}
+                  color={item.type === 'income' ? COLORS.success : COLORS.error}
+                />
               </View>
-            )}
+              
+              <View style={styles.transactionDetails}>
+                <Text style={styles.transactionDescription} numberOfLines={1}>
+                  {item.description}
+                </Text>
+                
+                {/* Categoria */}
+                <Text style={styles.transactionCategory} numberOfLines={1}>
+                  {budgetInfo.categoryName}
+                </Text>
+                
+                {/* NOVA SEÇÃO: Informação do orçamento se existir */}
+                {budgetInfo.hasBudget && (
+                  <View style={styles.budgetInfo}>
+                    <Ionicons 
+                      name="wallet-outline" 
+                      size={12} 
+                      color={budgetInfo.isOverBudget ? COLORS.error : COLORS.primary} 
+                    />
+                    <Text style={[
+                      styles.budgetText,
+                      { color: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary }
+                    ]} numberOfLines={1}>
+                      {budgetInfo.budgetName}
+                    </Text>
+                    {budgetInfo.isOverBudget && (
+                      <View style={styles.overBudgetBadge}>
+                        <Text style={styles.overBudgetText}>Excedido</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+                
+                <Text style={styles.transactionDate}>
+                  {formatDate(item.date)}
+                </Text>
+              </View>
+            </View>
+            
+            <View style={styles.transactionAmount}>
+              <Text
+                style={[
+                  styles.amountText,
+                  { color: item.type === 'income' ? COLORS.success : COLORS.error }
+                ]}
+              >
+                {item.type === 'income' ? '+' : '-'} {formatCurrency(item.amount)}
+              </Text>
+              
+              {/* NOVA SEÇÃO: Badges e progresso do orçamento */}
+              <View style={styles.badges}>
+                {item.isRecurring && (
+                  <View style={styles.recurringBadge}>
+                    <Ionicons name="refresh" size={12} color={COLORS.info} />
+                    <Text style={styles.recurringText}>Recorrente</Text>
+                  </View>
+                )}
+                
+                {/* Mostrar progresso do orçamento se aplicável */}
+                {budgetInfo.hasBudget && item.type === 'expense' && (
+                  <View style={styles.budgetProgress}>
+                    <Text style={styles.budgetProgressText}>
+                      {formatCurrency(budgetInfo.spent || 0)} / {formatCurrency(budgetInfo.limit || 0)}
+                    </Text>
+                    <View style={styles.progressBarContainer}>
+                      <View 
+                        style={[
+                          styles.progressBar,
+                          { 
+                            width: `${Math.min(((budgetInfo.spent || 0) / (budgetInfo.limit || 1)) * 100, 100)}%`,
+                            backgroundColor: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary
+                          }
+                        ]} 
+                      />
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
           </View>
-        </View>
 
-        {/* Botões de ação */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.editButton]}
-            onPress={() => handleEditTransaction(item)}
-          >
-            <Ionicons name="create" size={16} color={COLORS.info} />
-            <Text style={styles.editButtonText}>Editar</Text>
-          </TouchableOpacity>
+          {/* Botões de ação */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => handleEditTransaction(item)}
+            >
+              <Ionicons name="create" size={16} color={COLORS.info} />
+              <Text style={styles.editButtonText}>Editar</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionButton, styles.deleteButton]}
-            onPress={() => handleDeleteTransaction(item)}
-          >
-            <Ionicons name="trash" size={16} color={COLORS.error} />
-            <Text style={styles.deleteButtonText}>Excluir</Text>
-          </TouchableOpacity>
-        </View>
-      </Card>
-    </TouchableOpacity>
-  );
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleDeleteTransaction(item)}
+            >
+              <Ionicons name="trash" size={16} color={COLORS.error} />
+              <Text style={styles.deleteButtonText}>Excluir</Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+      </TouchableOpacity>
+    );
+  };
 
   // Renderizar estado vazio
   const renderEmptyState = () => (
@@ -324,23 +354,6 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
         </TouchableOpacity>
       </View>
 
-      {/* BOTÃO DE DEBUG TEMPORÁRIO - REMOVER DEPOIS */}
-      <TouchableOpacity
-        style={styles.debugButton}
-        onPress={debugAPI}
-      >
-        <Text style={styles.debugButtonText}>
-          DEBUG: Testar API
-        </Text>
-      </TouchableOpacity>
-
-      {/* Info do estado atual */}
-      <View style={styles.debugInfo}>
-        <Text style={styles.debugText}>
-          Transações: {transactions.length} | Loading: {loading ? 'SIM' : 'NÃO'} | Error: {error || 'NENHUM'}
-        </Text>
-      </View>
-
       {/* Erro */}
       {renderError()}
 
@@ -386,6 +399,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     backgroundColor: COLORS.primary,
+    ...SHADOWS.sm,
   },
   title: {
     fontSize: FONT_SIZES.xl,
@@ -400,74 +414,54 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  debugButton: {
-    backgroundColor: 'red',
-    padding: 10,
-    margin: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-  },
-  debugButtonText: {
-    color: 'white',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  debugInfo: {
-    backgroundColor: 'yellow',
-    padding: 8,
-    marginHorizontal: 10,
-    borderRadius: 5,
-  },
-  debugText: {
-    color: 'black',
-    fontSize: 12,
-    textAlign: 'center',
-  },
   listContainer: {
     padding: SPACING.md,
   },
+  
+  // Estilos dos itens de transação
   transactionItem: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   transactionCard: {
     padding: SPACING.md,
   },
   transactionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: SPACING.sm,
   },
   transactionInfo: {
-    flexDirection: 'row',
     flex: 1,
-    alignItems: 'center',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   categoryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
+    marginRight: SPACING.sm,
   },
   transactionDetails: {
     flex: 1,
   },
   transactionDescription: {
     fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
     marginBottom: 2,
   },
   transactionCategory: {
     fontSize: FONT_SIZES.sm,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray600,
     marginBottom: 2,
   },
   transactionDate: {
     fontSize: FONT_SIZES.xs,
-    color: COLORS.textHint,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray500,
   },
   transactionAmount: {
     alignItems: 'flex-end',
@@ -475,21 +469,77 @@ const styles = StyleSheet.create({
   amountText: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
-    marginBottom: SPACING.xs,
+  },
+
+  // NOVOS ESTILOS PARA INFORMAÇÕES DO ORÇAMENTO
+  budgetInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+    marginBottom: 2,
+  },
+  budgetText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.medium,
+    marginLeft: 4,
+    flex: 1,
+  },
+  overBudgetBadge: {
+    backgroundColor: COLORS.error + '20',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
+    marginLeft: 4,
+  },
+  overBudgetText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.bold,
+    color: COLORS.error,
+  },
+  
+  // Badges e progresso
+  badges: {
+    alignItems: 'flex-end',
+    marginTop: 4,
   },
   recurringBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.infoLight,
-    paddingHorizontal: SPACING.xs,
+    backgroundColor: COLORS.info + '20',
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 12,
+    borderRadius: BORDER_RADIUS.sm,
+    marginBottom: 4,
   },
   recurringText: {
     fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.medium,
     color: COLORS.info,
     marginLeft: 2,
   },
+  budgetProgress: {
+    alignItems: 'flex-end',
+    marginTop: 4,
+  },
+  budgetProgressText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray600,
+  },
+  progressBarContainer: {
+    width: 60,
+    height: 3,
+    backgroundColor: COLORS.gray200,
+    borderRadius: BORDER_RADIUS.sm,
+    marginTop: 2,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: BORDER_RADIUS.sm,
+  },
+
+  // Botões de ação
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
@@ -501,55 +551,31 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: SPACING.sm,
     paddingVertical: SPACING.xs,
-    borderRadius: 6,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
     marginLeft: SPACING.sm,
   },
   editButton: {
-    backgroundColor: COLORS.infoLight,
+    backgroundColor: COLORS.info + '20',
   },
   editButtonText: {
     fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
     color: COLORS.info,
     marginLeft: 4,
   },
   deleteButton: {
-    backgroundColor: COLORS.errorLight,
+    backgroundColor: COLORS.error + '20',
   },
   deleteButtonText: {
     fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
     color: COLORS.error,
     marginLeft: 4,
   },
-  footerLoader: {
-    paddingVertical: SPACING.md,
-    alignItems: 'center',
-  },
-  errorContainer: {
-    backgroundColor: COLORS.errorLight,
-    padding: SPACING.md,
-    margin: SPACING.md,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: COLORS.error,
-    fontSize: FONT_SIZES.sm,
-    textAlign: 'center',
-    marginBottom: SPACING.sm,
-  },
-  retryButton: {
-    backgroundColor: COLORS.error,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: 6,
-  },
-  retryText: {
-    color: COLORS.white,
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-  },
+
+  // Estados vazios e erros
   emptyStateContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -557,30 +583,62 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
   },
   emptyStateIcon: {
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
   },
   emptyStateTitle: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.gray700,
     textAlign: 'center',
     marginBottom: SPACING.sm,
   },
   emptyStateDescription: {
     fontSize: FONT_SIZES.md,
-    color: COLORS.textSecondary,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray500,
     textAlign: 'center',
-    marginBottom: SPACING.xl,
+    marginBottom: SPACING.lg,
   },
   emptyStateButton: {
     backgroundColor: COLORS.primary,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
-    borderRadius: 8,
+    borderRadius: BORDER_RADIUS.md,
   },
   emptyStateButtonText: {
-    color: COLORS.white,
     fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+  },
+  footerLoader: {
+    paddingVertical: SPACING.lg,
+    alignItems: 'center',
+  },
+  errorContainer: {
+    backgroundColor: COLORS.error + '10',
+    padding: SPACING.md,
+    margin: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.error + '30',
+  },
+  errorText: {
+    fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
+    color: COLORS.error,
+    textAlign: 'center',
+    marginBottom: SPACING.sm,
+  },
+  retryButton: {
+    backgroundColor: COLORS.error,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.sm,
+    alignSelf: 'center',
+  },
+  retryText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
   },
 });

@@ -1,11 +1,10 @@
+// src/navigation/TransactionNavigator.tsx - ATUALIZADO
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { TransactionListScreen } from '../screens/transactions/TransactionListScreen'; // USAR A TELA REAL
+import { TransactionListScreen } from '../screens/transactions/TransactionListScreen';
 import { CreateTransactionScreen } from '../screens/transactions/CreateTransactionScreen';
-import { 
-  EditTransactionScreen,
-  TransactionDetailScreen
-} from '../screens/PlaceholderScreens';
+import { TransactionDetailScreen } from '../screens/transactions/TransactionDetailScreen';
+import { EditTransactionScreen } from '../screens/transactions/EditTransactionScreen';
 import { COLORS, FONTS } from '../constants';
 
 export type TransactionStackParamList = {
@@ -20,7 +19,7 @@ const TransactionStack = createNativeStackNavigator<TransactionStackParamList>()
 export const TransactionNavigator: React.FC = () => {
   return (
     <TransactionStack.Navigator
-      initialRouteName="TransactionList" // DEFINIR TELA INICIAL
+      initialRouteName="TransactionList"
       screenOptions={{
         headerStyle: {
           backgroundColor: COLORS.primary,
@@ -29,6 +28,7 @@ export const TransactionNavigator: React.FC = () => {
         headerTitleStyle: {
           fontFamily: FONTS.bold,
         },
+        headerShown: false, // Usar header customizado nas telas
       }}
     >
       <TransactionStack.Screen 

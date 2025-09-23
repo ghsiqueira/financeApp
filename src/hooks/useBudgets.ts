@@ -1,4 +1,4 @@
-// src/hooks/useBudgets.ts - VERSÃO COM DEBUG PARA IDENTIFICAR PROBLEMA
+// src/hooks/useBudgets.ts - VERSÃO CORRIGIDA
 import { useState, useEffect, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { BudgetService } from '../services/BudgetService';
@@ -46,6 +46,7 @@ export const useBudgets = (): UseBudgetsReturn => {
         
         setBudgets(response.data);
         console.log('💾 Estado budgets atualizado');
+        setError(null); // Limpar erro em caso de sucesso
       } else {
         console.log('❌ Resposta com erro:', response.message);
         setError(response.message || 'Erro ao carregar orçamentos');
@@ -55,18 +56,17 @@ export const useBudgets = (): UseBudgetsReturn => {
       console.error('❌ Erro capturado no useBudgets:', err);
       console.error('❌ Stack trace:', err.stack);
       setError(err.message || 'Erro ao carregar orçamentos');
-      setBudgets([]); // Limpar lista em caso de erro
+      setBudgets([]);
     } finally {
-      console.log('🏁 Finalizando carregamento...');
+      console.log('🏁 useBudgets.loadBudgets - Finalizando');
       setLoading(false);
       setRefreshing(false);
-      console.log('🏁 Estados finais: loading=false, refreshing=false');
     }
   }, []);
 
-  // Refresh dos orçamentos
+  // Função refresh
   const refresh = useCallback(async () => {
-    console.log('♻️ useBudgets.refresh - Iniciando refresh...');
+    console.log('♻️ useBudgets.refresh - Iniciando refresh');
     await loadBudgets(true);
   }, [loadBudgets]);
 
@@ -76,23 +76,23 @@ export const useBudgets = (): UseBudgetsReturn => {
       console.log('🗑️ useBudgets.deleteBudget - ID:', id);
       
       const response = await BudgetService.deleteBudget(id);
-      console.log('📡 Resposta da exclusão:', response);
       
       if (response.success) {
-        console.log('✅ Orçamento excluído com sucesso');
+        console.log('✅ Orçamento deletado com sucesso');
+        // Atualizar lista removendo o item deletado
         setBudgets(prev => {
           const updated = prev.filter(budget => budget._id !== id);
           console.log('📊 Lista atualizada após exclusão:', updated.length, 'itens');
           return updated;
         });
-        Alert.alert('Sucesso', 'Orçamento excluído com sucesso!');
+        Alert.alert('Sucesso', 'Orçamento deletado com sucesso!');
       } else {
-        console.log('❌ Erro na exclusão:', response.message);
-        Alert.alert('Erro', response.message || 'Erro ao excluir orçamento');
+        console.log('❌ Erro ao deletar:', response.message);
+        Alert.alert('Erro', response.message || 'Erro ao deletar orçamento');
       }
     } catch (err: any) {
       console.error('❌ Erro ao deletar orçamento:', err);
-      Alert.alert('Erro', err.message || 'Erro ao excluir orçamento');
+      Alert.alert('Erro', err.message || 'Erro ao deletar orçamento');
     }
   }, []);
 
@@ -102,10 +102,10 @@ export const useBudgets = (): UseBudgetsReturn => {
       console.log('💰 useBudgets.adjustBudgetLimit - ID:', id, 'Novo limite:', newLimit);
       
       const response = await BudgetService.adjustBudgetLimit(id, newLimit);
-      console.log('📡 Resposta do ajuste de limite:', response);
       
       if (response.success && response.data) {
         console.log('✅ Limite ajustado com sucesso');
+        // Atualizar o orçamento específico na lista
         setBudgets(prev => {
           const updated = prev.map(budget => 
             budget._id === id ? response.data! : budget
@@ -115,7 +115,7 @@ export const useBudgets = (): UseBudgetsReturn => {
         });
         Alert.alert('Sucesso', 'Limite ajustado com sucesso!');
       } else {
-        console.log('❌ Erro no ajuste de limite:', response.message);
+        console.log('❌ Erro ao ajustar limite:', response.message);
         Alert.alert('Erro', response.message || 'Erro ao ajustar limite');
       }
     } catch (err: any) {
@@ -124,24 +124,23 @@ export const useBudgets = (): UseBudgetsReturn => {
     }
   }, []);
 
-  // Carregar orçamentos ao montar o componente
+  // Carregar orçamentos na inicialização
   useEffect(() => {
-    console.log('🎯 useBudgets - useEffect disparado, carregando orçamentos...');
+    console.log('🎯 useBudgets: useEffect executado - carregando orçamentos...');
     loadBudgets();
   }, [loadBudgets]);
 
-  // Log do estado atual sempre que mudar
+  // Log do estado atual para debug
   useEffect(() => {
-    console.log('📊 useBudgets - Estado atual:');
+    console.log('📊 useBudgets: Estado atual:');
     console.log('  - budgets.length:', budgets.length);
     console.log('  - loading:', loading);
-    console.log('  - refreshing:', refreshing);
     console.log('  - error:', error);
-    
+    console.log('  - refreshing:', refreshing);
     if (budgets.length > 0) {
-      console.log('  - primeiros orçamentos:', budgets.slice(0, 2));
+      console.log('  - primeiro orçamento:', budgets[0]);
     }
-  }, [budgets, loading, refreshing, error]);
+  }, [budgets, loading, error, refreshing]);
 
   return {
     budgets,
