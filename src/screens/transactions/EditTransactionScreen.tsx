@@ -1,136 +1,105 @@
-// src/screens/transactions/EditTransactionScreen.tsx - CÓDIGO COMPLETO FINAL
+// src/screens/transactions/EditTransactionScreen.tsx - VERSÃO COM EMOJIS
 import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  ScrollView,
   StyleSheet,
-  ActivityIndicator,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { CalendarDatePicker } from '../../components/common/Calendar';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 
-import { TransactionStackParamList } from '../../navigation/TransactionNavigator';
-import { TransactionService, UpdateTransactionData } from '../../services/TransactionService';
+import { Card, Button, Loading } from '../../components/common';
 import { CategoryService } from '../../services/CategoryService';
+import { TransactionService } from '../../services/TransactionService';
 import { BudgetService } from '../../services/BudgetService';
-import { Transaction, Category, Budget, TransactionType } from '../../types';
-import { parseCurrency, formatCurrency } from '../../utils';
-import { Card } from '../../components/common';
+import { Category, Budget, UpdateTransactionData } from '../../types';
+import { COLORS, SPACING, BORDER_RADIUS, FONT_SIZES } from '../../constants';
+import { formatCurrency } from '../../utils';
 
-type EditTransactionNavigationProp = StackNavigationProp<TransactionStackParamList, 'EditTransaction'>;
-type EditTransactionRouteProp = RouteProp<TransactionStackParamList, 'EditTransaction'>;
+type RootStackParamList = {
+  TransactionList: undefined;
+  EditTransaction: { transactionId: string };
+};
+
+type EditTransactionScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'EditTransaction'>;
+type EditTransactionScreenRouteProp = RouteProp<RootStackParamList, 'EditTransaction'>;
 
 interface Props {
-  navigation: EditTransactionNavigationProp;
-  route: EditTransactionRouteProp;
+  navigation: EditTransactionScreenNavigationProp;
+  route: EditTransactionScreenRouteProp;
 }
 
 export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) => {
   const { transactionId } = route.params;
-  
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [transaction, setTransaction] = useState<Transaction | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [budgets, setBudgets] = useState<Budget[]>([]);
   
-  // Form data
   const [description, setDescription] = useState('');
-  const [amount, setAmount] = useState('R$ 0,00');
-  const [type, setType] = useState<TransactionType>('expense');
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState<'income' | 'expense'>('expense');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedBudget, setSelectedBudget] = useState<Budget | null>(null);
   const [date, setDate] = useState(new Date());
   const [notes, setNotes] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringDay, setRecurringDay] = useState<number | undefined>(undefined);
-  
-  // UI states
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [showRecurringSelector, setShowRecurringSelector] = useState(false);
+  const [recurringDay, setRecurringDay] = useState(1);
+
   const [showCategorySelector, setShowCategorySelector] = useState(false);
   const [showBudgetSelector, setShowBudgetSelector] = useState(false);
+  const [showRecurringSelector, setShowRecurringSelector] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
-    loadData();
+    loadTransaction();
+    loadCategories();
+    loadBudgets();
   }, []);
-
-  useEffect(() => {
-    if (isRecurring && !recurringDay) {
-      setRecurringDay(date.getDate());
-    } else if (!isRecurring) {
-      setRecurringDay(undefined);
-    }
-  }, [isRecurring, date]);
-
-  const loadData = async () => {
-    try {
-      await Promise.all([
-        loadTransaction(),
-        loadCategories(),
-        loadBudgets(),
-      ]);
-    } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-    }
-  };
 
   const loadTransaction = async () => {
     try {
       const response = await TransactionService.getTransaction(transactionId);
-      
       if (response.success && response.data) {
-        const txn = response.data;
-        setTransaction(txn);
+        const transaction = response.data;
         
-        // Preencher form
-        setDescription(txn.description || '');
-        setAmount(formatCurrency(txn.amount || 0));
-        setType(txn.type || 'expense');
-        
-        // Categoria
-        if (txn.category) {
-          if (typeof txn.category === 'string') {
-            // Se categoria é string, criar objeto básico temporário
-            setSelectedCategory({
-              _id: txn.category,
-              id: txn.category,
-              name: 'Categoria',
-              icon: 'wallet-outline',
-              color: '#4CAF50',
-              type: txn.type || 'expense',
-              isDefault: false,
-              createdAt: new Date().toISOString()
-            });
-          } else {
-            setSelectedCategory(txn.category);
-          }
+        setDescription(transaction.description);
+        setAmount(formatCurrency(transaction.amount));
+        setType(transaction.type);
+        setDate(new Date(transaction.date));
+        setNotes(transaction.notes || '');
+        setIsRecurring(transaction.isRecurring || false);
+        setRecurringDay(transaction.recurringDay || 1);
+
+        if (transaction.category) {
+          const cat = typeof transaction.category === 'object' 
+            ? transaction.category 
+            : null;
+          if (cat) setSelectedCategory(cat);
         }
-        
-        // Budget
-        if (txn.budgetId && typeof txn.budgetId === 'object') {
-          setSelectedBudget(txn.budgetId);
+
+        if (transaction.budgetId) {
+          const budget = typeof transaction.budgetId === 'object' 
+            ? transaction.budgetId 
+            : null;
+          if (budget) setSelectedBudget(budget);
         }
-        
-        setDate(new Date(txn.date));
-        setNotes(txn.notes || '');
-        setIsRecurring(txn.isRecurring || false);
-        setRecurringDay(txn.recurringDay);
-        
-      } else {
-        Alert.alert('Erro', 'Transação não encontrada');
-        navigation.goBack();
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao carregar transação:', error);
-      Alert.alert('Erro', error.message || 'Erro ao carregar transação');
+      Alert.alert('Erro', 'Não foi possível carregar a transação');
       navigation.goBack();
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -138,50 +107,23 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
     try {
       const response = await CategoryService.getCategories();
       if (response.success && response.data) {
-        // Filtrar categorias duplicadas e garantir ícones válidos
-        const uniqueCategories = response.data.filter((category, index, array) => {
-          // Remover duplicatas baseado no nome e tipo
-          const isDuplicate = array.findIndex(c => c.name === category.name && c.type === category.type) !== index;
-          return !isDuplicate;
-        }).map(category => {
-          // Mapear ícones para nomes válidos do Ionicons
-          const iconMap: { [key: string]: string } = {
-            '🏠': 'home-outline',
-            '💰': 'cash-outline', 
-            '🍽️': 'restaurant-outline',
-            '🚗': 'car-outline',
-            '🏥': 'medical-outline',
-            '📚': 'library-outline',
-            '🎬': 'film-outline',
-            '✂️': 'cut-outline',
-            '🎁': 'gift-outline',
-            '⛽': 'car-outline',
-            '🛍️': 'bag-outline',
-            '📄': 'document-text-outline',
-            '💊': 'medical-outline',
-            '😊': 'happy-outline',
-            '✈️': 'airplane-outline',
-            '📅': 'calendar-outline',
-            'dumbbell': 'barbell-outline',
-            'utensils': 'restaurant-outline', 
-            'scissors': 'cut-outline',
-            'fuel': 'car-outline',
-            'shopping-bag': 'bag-outline',
-            'file-text': 'document-text-outline',
-            'pill': 'medical-outline',
-            'smile': 'happy-outline',
-            'plane': 'airplane-outline',
-            'gift': 'gift-outline',
-            'calendar': 'calendar-outline',
-          };
+        const categoryMap = new Map<string, Category>();
+        
+        response.data.forEach(category => {
+          const hasValidIcon = category.icon && category.icon.trim() !== '' && category.icon !== '?';
+          const hasValidColor = category.color && category.color.trim() !== '';
+          const categoryName = category.name.toLowerCase().trim();
           
-          return {
-            ...category,
-            icon: iconMap[category.icon] || category.icon || (category.type === 'income' ? 'cash-outline' : 'wallet-outline'),
-            color: category.color || (category.type === 'income' ? '#4CAF50' : '#F44336')
-          };
+          if (hasValidIcon && hasValidColor) {
+            const existing = categoryMap.get(categoryName);
+            if (!existing || (existing.icon === '?' && category.icon !== '?')) {
+              categoryMap.set(categoryName, category);
+            }
+          }
         });
         
+        const uniqueCategories = Array.from(categoryMap.values());
+        console.log('Categorias únicas carregadas:', uniqueCategories.length);
         setCategories(uniqueCategories);
       }
     } catch (error) {
@@ -197,8 +139,6 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
       }
     } catch (error) {
       console.error('Erro ao carregar orçamentos:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -217,6 +157,10 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
     if (isRecurring) {
       setRecurringDay(selectedDate.getDate());
     }
+  };
+
+  const parseCurrency = (value: string): number => {
+    return parseFloat(value.replace(/[^\d,]/g, '').replace(',', '.')) || 0;
   };
 
   const validateForm = (): boolean => {
@@ -272,8 +216,14 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
     }
   };
 
-  // Filtrar categorias e orçamentos por tipo
+  const getDaysInCurrentMonth = () => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    return new Date(year, month + 1, 0).getDate();
+  };
+
   const filteredCategories = categories.filter(cat => cat.type === type);
+  
   const filteredBudgets = budgets.filter(budget => {
     if (type !== 'expense') return false;
     if (!budget.category) return false;
@@ -281,9 +231,8 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
     const categoryId = typeof budget.category === 'string' 
       ? budget.category 
       : budget.category._id || budget.category.id;
-    const selectedCategoryId = selectedCategory?._id || selectedCategory?.id;
     
-    return categoryId === selectedCategoryId;
+    return categoryId === (selectedCategory?._id || selectedCategory?.id);
   });
 
   const CategorySelector = () => (
@@ -298,7 +247,7 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
       <ScrollView style={styles.selectorList}>
         {filteredCategories.map((category) => (
           <TouchableOpacity
-            key={category._id || category.id}
+            key={category._id}
             style={[
               styles.categoryItem,
               selectedCategory?._id === category._id && styles.selectedCategoryItem
@@ -306,9 +255,8 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
             onPress={() => {
               setSelectedCategory(category);
               setShowCategorySelector(false);
-              // Reset budget quando trocar categoria
-              if (selectedBudget && type === 'expense') {
-                const budgetCategoryId = typeof selectedBudget.category === 'string'
+              if (selectedBudget) {
+                const budgetCategoryId = typeof selectedBudget.category === 'string' 
                   ? selectedBudget.category
                   : selectedBudget.category?._id || selectedBudget.category?.id;
                 
@@ -323,11 +271,7 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
                 styles.categoryIconContainer,
                 { backgroundColor: category.color + '20' }
               ]}>
-                <Ionicons 
-                  name={category.icon as any}
-                  size={16} 
-                  color={category.color}
-                />
+                <Text style={{ fontSize: 20 }}>{category.icon}</Text>
               </View>
               <Text style={styles.categoryName}>{category.name}</Text>
             </View>
@@ -379,7 +323,7 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
         <View style={styles.daySelector}>
           <Text style={styles.daySelectorLabel}>Ou escolha um dia específico:</Text>
           <View style={styles.dayGrid}>
-            {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+            {Array.from({ length: getDaysInCurrentMonth() }, (_, i) => i + 1).map((day) => (
               <TouchableOpacity
                 key={day}
                 style={[
@@ -425,15 +369,12 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
             setShowBudgetSelector(false);
           }}
         >
-          <Text style={styles.budgetName}>Sem orçamento</Text>
-          {!selectedBudget && (
-            <Ionicons name="checkmark" size={20} color="#4CAF50" />
-          )}
+          <Text style={styles.budgetName}>Nenhum orçamento</Text>
         </TouchableOpacity>
-        
+
         {filteredBudgets.map((budget) => (
           <TouchableOpacity
-            key={budget._id || budget.id}
+            key={budget._id}
             style={[
               styles.budgetItem,
               selectedBudget?._id === budget._id && styles.selectedBudgetItem
@@ -446,7 +387,7 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
             <View style={styles.budgetInfo}>
               <Text style={styles.budgetName}>{budget.name}</Text>
               <Text style={styles.budgetDetails}>
-                {formatCurrency(budget.spent || 0)} / {formatCurrency(budget.monthlyLimit)}
+                {formatCurrency(budget.spent)} / {formatCurrency(budget.monthlyLimit)}
               </Text>
             </View>
             {selectedBudget?._id === budget._id && (
@@ -459,265 +400,250 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
   );
 
   if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
-          <Text style={styles.loadingText}>Carregando transação...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    return <Loading text="Carregando transação..." />;
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Editar Transação</Text>
-        <TouchableOpacity 
-          onPress={handleSave}
-          disabled={saving}
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color="#FFF" />
-          ) : (
-            <Text style={styles.saveButtonText}>Salvar</Text>
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Tipo de Transação */}
-        <Card style={styles.typeCard}>
-          <Text style={styles.sectionTitle}>Tipo</Text>
-          <View style={styles.typeSelector}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <Card style={styles.card}>
+          <Text style={styles.sectionTitle}>Tipo de Transação</Text>
+          <View style={styles.typeContainer}>
             <TouchableOpacity
               style={[
                 styles.typeButton,
-                type === 'income' && styles.incomeTypeButton,
-              ]}
-              onPress={() => {
-                setType('income');
-                setSelectedCategory(null);
-                setSelectedBudget(null);
-              }}
-            >
-              <Ionicons name="trending-up" size={20} color={type === 'income' ? '#FFF' : '#4CAF50'} />
-              <Text style={[
-                styles.typeButtonText,
-                type === 'income' && styles.selectedTypeButtonText,
-              ]}>
-                Receita
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.typeButton,
-                type === 'expense' && styles.expenseTypeButton,
+                type === 'expense' && styles.typeButtonActive,
+                { borderColor: COLORS.error }
               ]}
               onPress={() => {
                 setType('expense');
-                setSelectedCategory(null);
                 setSelectedBudget(null);
               }}
             >
-              <Ionicons name="trending-down" size={20} color={type === 'expense' ? '#FFF' : '#F44336'} />
+              <Ionicons 
+                name="arrow-down" 
+                size={20} 
+                color={type === 'expense' ? COLORS.white : COLORS.error} 
+              />
               <Text style={[
                 styles.typeButtonText,
-                type === 'expense' && styles.selectedTypeButtonText,
+                { color: type === 'expense' ? COLORS.white : COLORS.error }
               ]}>
                 Despesa
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                type === 'income' && styles.typeButtonActive,
+                { borderColor: COLORS.success }
+              ]}
+              onPress={() => {
+                setType('income');
+                setSelectedBudget(null);
+              }}
+            >
+              <Ionicons 
+                name="arrow-up" 
+                size={20} 
+                color={type === 'income' ? COLORS.white : COLORS.success} 
+              />
+              <Text style={[
+                styles.typeButtonText,
+                { color: type === 'income' ? COLORS.white : COLORS.success }
+              ]}>
+                Receita
               </Text>
             </TouchableOpacity>
           </View>
         </Card>
 
-        {/* Informações Básicas */}
-        <Card style={styles.formCard}>
+        <Card style={styles.card}>
           <Text style={styles.sectionTitle}>Informações</Text>
           
-          {/* Descrição */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Descrição</Text>
+            <Text style={styles.label}>Descrição *</Text>
             <TextInput
-              style={styles.textInput}
+              style={styles.input}
               value={description}
               onChangeText={setDescription}
-              placeholder="Ex: Almoço, Salário, etc."
-              placeholderTextColor="#999"
+              placeholder="Ex: Compra no supermercado"
             />
           </View>
 
-          {/* Valor */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Valor</Text>
+            <Text style={styles.label}>Valor *</Text>
             <TextInput
-              style={[styles.textInput, styles.amountInput]}
+              style={styles.input}
               value={amount}
               onChangeText={handleAmountChange}
               keyboardType="numeric"
               placeholder="R$ 0,00"
-              placeholderTextColor="#999"
             />
           </View>
 
-          {/* Categoria */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Categoria</Text>
+            <Text style={styles.label}>Categoria *</Text>
             <TouchableOpacity
               style={styles.selectButton}
               onPress={() => setShowCategorySelector(true)}
             >
-              <View style={styles.selectButtonContent}>
-                {selectedCategory ? (
-                  <View style={styles.selectedCategoryDisplay}>
-                    <View style={[
-                      styles.categoryIconContainer,
-                      { backgroundColor: selectedCategory.color + '20' }
-                    ]}>
-                      <Ionicons 
-                        name={selectedCategory.icon as any}
-                        size={16} 
-                        color={selectedCategory.color}
-                      />
-                    </View>
-                    <Text style={styles.selectedItemText}>{selectedCategory.name}</Text>
+              {selectedCategory ? (
+                <View style={styles.selectedItem}>
+                  <View style={[
+                    styles.categoryIcon,
+                    { backgroundColor: selectedCategory.color + '20' }
+                  ]}>
+                    <Text style={{ fontSize: 16 }}>{selectedCategory.icon}</Text>
                   </View>
-                ) : (
-                  <Text style={styles.selectButtonPlaceholder}>Selecionar categoria</Text>
-                )}
-                <Ionicons name="chevron-down" size={24} color="#666" />
-              </View>
+                  <Text style={styles.selectedText}>{selectedCategory.name}</Text>
+                </View>
+              ) : (
+                <Text style={styles.placeholder}>Selecione uma categoria</Text>
+              )}
+              <Ionicons name="chevron-down" size={20} color="#666" />
             </TouchableOpacity>
           </View>
 
-          {/* Orçamento - Só para despesas */}
           {type === 'expense' && selectedCategory && filteredBudgets.length > 0 && (
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Orçamento (Opcional)</Text>
+              <Text style={styles.label}>Orçamento (opcional)</Text>
               <TouchableOpacity
                 style={styles.selectButton}
                 onPress={() => setShowBudgetSelector(true)}
               >
-                <View style={styles.selectButtonContent}>
-                  {selectedBudget ? (
-                    <View style={styles.selectedBudgetDisplay}>
-                      <Text style={styles.selectedItemText}>{selectedBudget.name}</Text>
-                      <Text style={styles.budgetSubtext}>
-                        {formatCurrency(selectedBudget.spent || 0)} / {formatCurrency(selectedBudget.monthlyLimit)}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.selectButtonPlaceholder}>Selecionar orçamento</Text>
-                  )}
-                  <Ionicons name="chevron-down" size={24} color="#666" />
-                </View>
+                {selectedBudget ? (
+                  <View style={styles.selectedBudgetContainer}>
+                    <Text style={styles.selectedText}>{selectedBudget.name}</Text>
+                    <Text style={styles.budgetAmount}>
+                      {formatCurrency(selectedBudget.spent)} / {formatCurrency(selectedBudget.monthlyLimit)}
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={styles.placeholder}>Selecione um orçamento</Text>
+                )}
+                <Ionicons name="chevron-down" size={20} color="#666" />
               </TouchableOpacity>
             </View>
           )}
 
-          {/* Data */}
           <View style={styles.inputGroup}>
-            <CalendarDatePicker
-              label="Data"
-              value={date}
-              onDateChange={handleDateChange}
-              helperText={isRecurring ? `Será repetida todo dia ${recurringDay} do mês` : undefined}
-            />
+            <Text style={styles.label}>Data</Text>
+            <TouchableOpacity
+              style={styles.selectButton}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={styles.selectedText}>
+                {date.toLocaleDateString('pt-BR')}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color="#666" />
+            </TouchableOpacity>
           </View>
 
-          {/* Notas */}
+          {showDatePicker && (
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display="default"
+              onChange={(event, selectedDate) => {
+                setShowDatePicker(false);
+                if (selectedDate) {
+                  handleDateChange(selectedDate);
+                }
+              }}
+            />
+          )}
+
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Notas (Opcional)</Text>
+            <Text style={styles.label}>Observações</Text>
             <TextInput
-              style={[styles.textInput, styles.notesInput]}
+              style={[styles.input, styles.textArea]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Informações adicionais..."
-              placeholderTextColor="#999"
+              placeholder="Adicione observações (opcional)"
               multiline
               numberOfLines={3}
             />
           </View>
         </Card>
 
-        {/* Configurações Avançadas */}
-        <Card style={styles.formCard}>
-          <Text style={styles.sectionTitle}>Configurações</Text>
-          
-          {/* Recorrência */}
-          <TouchableOpacity
-            style={styles.switchRow}
-            onPress={() => setIsRecurring(!isRecurring)}
-          >
+        <Card style={styles.card}>
+          <View style={styles.switchContainer}>
             <View style={styles.switchInfo}>
               <Text style={styles.switchLabel}>Transação Recorrente</Text>
-              <Text style={styles.switchDescription}>
-                A transação será automaticamente criada todos os meses no dia especificado
-              </Text>
+              <Text style={styles.switchDescription}>Repetir mensalmente</Text>
             </View>
-            <View style={[
-              styles.switchButton,
-              isRecurring && styles.switchButtonActive
-            ]}>
+            <TouchableOpacity
+              style={[
+                styles.switch,
+                isRecurring && styles.switchActive
+              ]}
+              onPress={() => setIsRecurring(!isRecurring)}
+            >
               <View style={[
                 styles.switchThumb,
                 isRecurring && styles.switchThumbActive
               ]} />
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
 
           {isRecurring && (
-            <View style={styles.recurringConfig}>
-              <Text style={styles.recurringDayLabel}>Repetir todo dia</Text>
-              
-              <View style={styles.recurringDaySelector}>
-                <TouchableOpacity 
-                  style={styles.recurringControlButton}
-                  onPress={() => setRecurringDay(Math.max(1, (recurringDay || 1) - 1))}
-                >
-                  <Ionicons name="chevron-back" size={20} color="#4CAF50" />
-                </TouchableOpacity>
-                
-                <View style={styles.recurringDayCircle}>
-                  <Text style={styles.recurringDayNumber}>{recurringDay}</Text>
-                </View>
-                
-                <TouchableOpacity 
-                  style={styles.recurringControlButton}
-                  onPress={() => setRecurringDay(Math.min(28, (recurringDay || 1) + 1))}
-                >
-                  <Ionicons name="chevron-forward" size={20} color="#4CAF50" />
-                </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.recurringDayButton}
+              onPress={() => setShowRecurringSelector(true)}
+            >
+              <Text style={styles.recurringDayLabel}>Dia da recorrência</Text>
+              <View style={styles.recurringDayValue}>
+                <Text style={styles.recurringDayText}>Dia {recurringDay}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#666" />
               </View>
-              
-              <View style={styles.recurringNote}>
-                <Ionicons name="information-circle-outline" size={16} color="#666" />
-                <Text style={styles.recurringNoteText}>
-                  Será repetida automaticamente todo dia {recurringDay} do mês
-                </Text>
-              </View>
-            </View>
+            </TouchableOpacity>
           )}
         </Card>
       </ScrollView>
 
-      {/* Category Selector Modal */}
-      {showCategorySelector && <CategorySelector />}
+      <View style={styles.footer}>
+        <Button
+          title="Salvar Alterações"
+          onPress={handleSave}
+          disabled={saving}
+          loading={saving}
+        />
+      </View>
 
-      {/* Budget Selector Modal */}
-      {showBudgetSelector && <BudgetSelector />}
+      <Modal
+        visible={showCategorySelector}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCategorySelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <CategorySelector />
+        </View>
+      </Modal>
 
-      {/* Recurring Selector Modal */}
-      {showRecurringSelector && <RecurringSelector />}
+      <Modal
+        visible={showBudgetSelector}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBudgetSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BudgetSelector />
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showRecurringSelector}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRecurringSelector(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <RecurringSelector />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -725,397 +651,300 @@ export const EditTransactionScreen: React.FC<Props> = ({ navigation, route }) =>
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: COLORS.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  saveButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    opacity: 0.6,
-  },
-  saveButtonText: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  typeCard: {
-    marginBottom: 16,
-  },
-  formCard: {
-    marginBottom: 16,
+  card: {
+    margin: SPACING.md,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
   },
-  typeSelector: {
+  typeContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: SPACING.sm,
   },
   typeButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 2,
+    gap: SPACING.xs,
   },
-  incomeTypeButton: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  expenseTypeButton: {
-    backgroundColor: '#F44336',
-    borderColor: '#F44336',
+  typeButtonActive: {
+    backgroundColor: COLORS.error,
   },
   typeButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  selectedTypeButtonText: {
-    color: '#FFF',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
-  inputLabel: {
-    fontSize: 14,
+  label: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
     fontWeight: '500',
-    marginBottom: 6,
-    color: '#333',
   },
-  textInput: {
-    backgroundColor: '#FFF',
+  input: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#333',
+    borderColor: COLORS.border,
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
   },
-  amountInput: {
-    fontWeight: '600',
-    fontSize: 18,
-  },
-  notesInput: {
-    height: 80,
+  textArea: {
+    minHeight: 80,
     textAlignVertical: 'top',
   },
   selectButton: {
-    backgroundColor: '#FFF',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  selectButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  selectButtonPlaceholder: {
-    fontSize: 16,
-    color: '#999',
-  },
-  selectedCategoryDisplay: {
+  selectedItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING.sm,
   },
-  selectedBudgetDisplay: {
-    flex: 1,
-  },
-  selectedItemText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
-  },
-  budgetSubtext: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  categoryIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  categoryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  switchRow: {
+  selectedText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
+  },
+  placeholder: {
+    fontSize: FONT_SIZES.md,
+    color: '#999',
+  },
+  selectedBudgetContainer: {
+    flex: 1,
+  },
+  budgetAmount: {
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.textSecondary,
+    marginTop: 2,
+  },
+  switchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    marginBottom: SPACING.md,
   },
   switchInfo: {
     flex: 1,
   },
   switchLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontSize: FONT_SIZES.md,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    marginBottom: 4,
   },
   switchDescription: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
   },
-  switchButton: {
+  switch: {
     width: 50,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: COLORS.border,
+    padding: 2,
     justifyContent: 'center',
-    paddingHorizontal: 2,
   },
-  switchButtonActive: {
-    backgroundColor: '#4CAF50',
+  switchActive: {
+    backgroundColor: COLORS.primary,
   },
   switchThumb: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFF',
-    alignSelf: 'flex-start',
+    backgroundColor: COLORS.white,
   },
   switchThumbActive: {
-    alignSelf: 'flex-end',
+    transform: [{ translateX: 22 }],
   },
-  recurringConfig: {
-    marginTop: 16,
+  recurringDayButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.background,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
   },
   recurringDayLabel: {
-    fontSize: 14,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+  },
+  recurringDayValue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  recurringDayText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
     fontWeight: '500',
-    color: '#333',
-    marginBottom: 16,
   },
-  recurringDaySelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 16,
+  footer: {
+    padding: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
   },
-  recurringControlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#4CAF50' + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recurringDayCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#4CAF50',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recurringDayNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  recurringNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 12,
-    backgroundColor: '#F0F8FF',
-    borderRadius: 8,
-  },
-  recurringNoteText: {
-    fontSize: 12,
-    color: '#666',
+  modalOverlay: {
     flex: 1,
-  },
-  // Selector Modals
-  selectorContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+  },
+  selectorContainer: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: BORDER_RADIUS.lg,
+    borderTopRightRadius: BORDER_RADIUS.lg,
+    maxHeight: '80%',
   },
   selectorHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#FFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    padding: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   selectorTitle: {
-    fontSize: 18,
+    fontSize: FONT_SIZES.lg,
     fontWeight: '600',
-    color: '#333',
+    color: COLORS.textPrimary,
   },
   selectorList: {
-    backgroundColor: '#FFF',
-    maxHeight: '70%',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    maxHeight: 400,
   },
   categoryItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    padding: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: COLORS.border,
   },
   selectedCategoryItem: {
-    backgroundColor: '#F0F8FF',
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    backgroundColor: COLORS.primary + '10',
   },
   categoryInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SPACING.sm,
+  },
+  categoryIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   categoryName: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
   },
   budgetItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
+    padding: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: COLORS.border,
   },
   selectedBudgetItem: {
-    backgroundColor: '#F0F8FF',
-    marginHorizontal: -20,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    backgroundColor: COLORS.primary + '10',
   },
   budgetInfo: {
     flex: 1,
   },
   budgetName: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
     fontWeight: '500',
   },
   budgetDetails: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginTop: 4,
   },
-  // Recurring Selector Modal
   recurringContent: {
-    padding: 20,
+    padding: SPACING.md,
   },
   recurringDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-    lineHeight: 20,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
   },
   recurringOption: {
-    marginBottom: 24,
+    gap: SPACING.sm,
+    marginBottom: SPACING.lg,
   },
   recurringOptionButton: {
-    padding: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    marginBottom: 8,
+    backgroundColor: COLORS.primary,
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    alignItems: 'center',
   },
   recurringOptionText: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
+    fontSize: FONT_SIZES.md,
+    color: COLORS.white,
+    fontWeight: '600',
   },
   daySelector: {
-    marginTop: 16,
+    marginTop: SPACING.md,
   },
   daySelectorLabel: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
-    marginBottom: 12,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.md,
   },
   dayGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: SPACING.sm,
   },
   dayGridItem: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F8F9FA',
+    width: 45,
+    height: 45,
+    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   dayGridItemSelected: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   dayGridText: {
-    fontSize: 14,
-    color: '#333',
-    fontWeight: '500',
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textPrimary,
   },
   dayGridTextSelected: {
-    color: '#FFF',
+    color: COLORS.white,
+    fontWeight: '600',
   },
 });
-
-export default EditTransactionScreen;
