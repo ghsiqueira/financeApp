@@ -1,3 +1,4 @@
+// src/screens/transactions/CreateTransactionScreen.tsx - CÓDIGO COMPLETO COM ORÇAMENTOS
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -66,6 +67,8 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
   const [errors, setErrors] = useState<FormErrors>({});
   const [showAmountModal, setShowAmountModal] = useState(false);
   const [amountModalValue, setAmountModalValue] = useState('');
+  const [showBudgetSelector, setShowBudgetSelector] = useState(false);
+  const [showRecurringSelector, setShowRecurringSelector] = useState(false);
   const amountInputRef = useRef<TextInput>(null);
 
   // Resetar formulário quando a tela ganhar foco
@@ -111,13 +114,51 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
     try {
       const response = await CategoryService.getCategories();
       if (response.success && response.data) {
-        // Filtrar e remover duplicatas
-        const filteredCategories = response.data
-          .filter(cat => cat.type === formData.type)
-          .filter((cat, index, self) => 
-            index === self.findIndex(c => c.name === cat.name)
-          );
-        setCategories(filteredCategories);
+        // Filtrar categorias duplicadas e garantir ícones válidos
+        const uniqueCategories = response.data.filter((category, index, array) => {
+          // Remover duplicatas baseado no nome e tipo
+          const isDuplicate = array.findIndex(c => c.name === category.name && c.type === category.type) !== index;
+          return !isDuplicate;
+        }).map(category => {
+          // Mapear ícones para nomes válidos do Ionicons
+          const iconMap: { [key: string]: string } = {
+            '🏠': 'home-outline',
+            '💰': 'cash-outline', 
+            '🍽️': 'restaurant-outline',
+            '🚗': 'car-outline',
+            '🏥': 'medical-outline',
+            '📚': 'library-outline',
+            '🎬': 'film-outline',
+            '✂️': 'cut-outline',
+            '🎁': 'gift-outline',
+            '⛽': 'car-outline',
+            '🛍️': 'bag-outline',
+            '📄': 'document-text-outline',
+            '💊': 'medical-outline',
+            '😊': 'happy-outline',
+            '✈️': 'airplane-outline',
+            '📅': 'calendar-outline',
+            'dumbbell': 'barbell-outline',
+            'utensils': 'restaurant-outline', 
+            'scissors': 'cut-outline',
+            'fuel': 'car-outline',
+            'shopping-bag': 'bag-outline',
+            'file-text': 'document-text-outline',
+            'pill': 'medical-outline',
+            'smile': 'happy-outline',
+            'plane': 'airplane-outline',
+            'gift': 'gift-outline',
+            'calendar': 'calendar-outline',
+          };
+          
+          return {
+            ...category,
+            icon: iconMap[category.icon] || category.icon || (category.type === 'income' ? 'cash-outline' : 'wallet-outline'),
+            color: category.color || (category.type === 'income' ? '#4CAF50' : '#F44336')
+          };
+        });
+        
+        setCategories(uniqueCategories);
       }
     } catch (error) {
       console.error('Erro ao carregar categorias:', error);
@@ -128,7 +169,7 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
     try {
       const response = await BudgetService.getBudgets();
       if (response.success && response.data) {
-        const activeBudgets = response.data.filter(budget => true);
+        const activeBudgets = response.data.filter(budget => budget.isActive);
         setBudgets(activeBudgets);
       }
     } catch (error) {
@@ -194,31 +235,6 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
   const handleAmountModalCancel = () => {
     setShowAmountModal(false);
     setAmountModalValue('');
-  };
-
-  const getValidIconName = (iconName: string): string => {
-    const iconMap: { [key: string]: string } = {
-      'dumbbell': 'barbell-outline',
-      'utensils': 'restaurant-outline',
-      '🍽️': 'restaurant-outline',
-      'scissors': 'cut-outline',
-      'fuel': 'car-outline',
-      'shopping-bag': 'bag-outline',
-      'file-text': 'document-text-outline',
-      '📚': 'library-outline',
-      'pill': 'medical-outline',
-      '🎬': 'film-outline',
-      'smile': 'happy-outline',
-      '🏠': 'home-outline',
-      '💰': 'cash-outline',
-      '🏥': 'medical-outline',
-      '🚗': 'car-outline',
-      'plane': 'airplane-outline',
-      'gift': 'gift-outline',
-      'calendar': 'calendar-outline',
-    };
-    
-    return iconMap[iconName] || iconName;
   };
 
   const getAmountDisplay = (): string => {
@@ -327,6 +343,38 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
     }
   };
 
+  // Filtrar categorias e orçamentos por tipo
+  const filteredCategories = categories.filter(cat => cat.type === formData.type);
+  const selectedCategoryObj = categories.find(cat => cat._id === formData.category);
+  
+  const filteredBudgets = budgets.filter(budget => {
+    if (formData.type !== 'expense') return false;
+    if (!budget.category) return false;
+    
+    const categoryId = typeof budget.category === 'string' 
+      ? budget.category 
+      : budget.category._id || budget.category.id;
+    
+    // Debug: log para ver os dados
+    console.log('Verificando budget:', {
+      budgetName: budget.name,
+      budgetCategoryId: categoryId,
+      selectedCategory: formData.category,
+      match: categoryId === formData.category
+    });
+    
+    return categoryId === formData.category;
+  });
+
+  // Debug: log para verificar condições
+  console.log('Budget Selector - Condições:', {
+    type: formData.type,
+    hasCategory: !!formData.category,
+    totalBudgets: budgets.length,
+    filteredBudgets: filteredBudgets.length,
+    shouldShow: formData.type === 'expense' && !!formData.category && filteredBudgets.length > 0
+  });
+
   const renderTypeSelector = () => (
     <Card style={styles.card}>
       <Text style={styles.sectionTitle}>Tipo de Transação</Text>
@@ -430,7 +478,7 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.categoriesContainer}
         >
-          {categories.map((category) => (
+          {filteredCategories.map((category) => (
             <TouchableOpacity
               key={category._id}
               style={[
@@ -438,14 +486,20 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
                 formData.category === category._id && styles.categoryButtonActive,
                 { borderColor: formData.category === category._id ? category.color : COLORS.gray200 }
               ]}
-              onPress={() => handleInputChange('category', category._id)}
+              onPress={() => {
+                handleInputChange('category', category._id);
+                // Reset budget quando trocar categoria
+                if (formData.budgetId) {
+                  handleInputChange('budgetId', '');
+                }
+              }}
             >
               <View style={[
                 styles.categoryIconContainer,
                 { backgroundColor: formData.category === category._id ? category.color : category.color + '20' }
               ]}>
                 <Ionicons
-                  name={getValidIconName(category.icon) as any}
+                  name={category.icon as any}
                   size={24}
                   color={formData.category === category._id ? COLORS.white : category.color}
                 />
@@ -463,6 +517,42 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
       {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
     </Card>
   );
+
+  const renderBudgetSelector = () => {
+    if (formData.type !== 'expense' || !formData.category || filteredBudgets.length === 0) {
+      return null;
+    }
+
+    const selectedBudget = budgets.find(b => b._id === formData.budgetId);
+
+    return (
+      <Card style={styles.card}>
+        <Text style={styles.sectionTitle}>Orçamento (Opcional)</Text>
+        <TouchableOpacity
+          style={styles.budgetSelectorButton}
+          onPress={() => setShowBudgetSelector(true)}
+        >
+          <View style={styles.budgetSelectorContent}>
+            <Ionicons name="wallet-outline" size={20} color={COLORS.gray400} />
+            <View style={styles.budgetSelectorTextContainer}>
+              {selectedBudget ? (
+                <View style={styles.selectedBudgetDisplay}>
+                  <Text style={styles.selectedBudgetText}>{selectedBudget.name}</Text>
+                  <Text style={styles.selectedBudgetSubtext}>
+                    R$ {(selectedBudget.spent || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / 
+                    R$ {selectedBudget.monthlyLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={styles.budgetSelectorPlaceholder}>Selecionar orçamento</Text>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.gray400} />
+          </View>
+        </TouchableOpacity>
+      </Card>
+    );
+  };
 
   const renderRecurringSection = () => (
     <Card style={styles.card}>
@@ -492,12 +582,13 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
       {formData.isRecurring && (
         <View style={styles.recurringDayContainer}>
           <Text style={styles.recurringDayLabel}>Repetir todo dia</Text>
+          
           <View style={styles.recurringDaySelector}>
             <TouchableOpacity
-              style={styles.recurringDayButton}
+              style={styles.recurringControlButton}
               onPress={() => {
                 const currentDay = parseInt(formData.recurringDay);
-                const newDay = currentDay > 1 ? currentDay - 1 : 31;
+                const newDay = currentDay > 1 ? currentDay - 1 : 28;
                 handleInputChange('recurringDay', newDay.toString());
               }}
             >
@@ -509,10 +600,10 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
             </View>
             
             <TouchableOpacity
-              style={styles.recurringDayButton}
+              style={styles.recurringControlButton}
               onPress={() => {
                 const currentDay = parseInt(formData.recurringDay);
-                const newDay = currentDay < 31 ? currentDay + 1 : 1;
+                const newDay = currentDay < 28 ? currentDay + 1 : 1;
                 handleInputChange('recurringDay', newDay.toString());
               }}
             >
@@ -523,6 +614,135 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
         </View>
       )}
     </Card>
+  );
+
+  // Selector Modals
+  const BudgetSelector = () => (
+    <Modal visible={showBudgetSelector} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.selectorModal}>
+          <View style={styles.selectorHeader}>
+            <Text style={styles.selectorTitle}>Selecionar Orçamento</Text>
+            <TouchableOpacity onPress={() => setShowBudgetSelector(false)}>
+              <Ionicons name="close" size={24} color={COLORS.gray600} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.selectorList}>
+            <TouchableOpacity
+              style={[
+                styles.budgetItem,
+                !formData.budgetId && styles.selectedBudgetItem
+              ]}
+              onPress={() => {
+                handleInputChange('budgetId', '');
+                setShowBudgetSelector(false);
+              }}
+            >
+              <Text style={styles.budgetName}>Sem orçamento</Text>
+              {!formData.budgetId && (
+                <Ionicons name="checkmark" size={20} color={COLORS.success} />
+              )}
+            </TouchableOpacity>
+            
+            {filteredBudgets.map((budget) => (
+              <TouchableOpacity
+                key={budget._id}
+                style={[
+                  styles.budgetItem,
+                  formData.budgetId === budget._id && styles.selectedBudgetItem
+                ]}
+                onPress={() => {
+                  handleInputChange('budgetId', budget._id);
+                  setShowBudgetSelector(false);
+                }}
+              >
+                <View style={styles.budgetInfo}>
+                  <Text style={styles.budgetName}>{budget.name}</Text>
+                  <Text style={styles.budgetDetails}>
+                    R$ {(budget.spent || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} / 
+                    R$ {budget.monthlyLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </Text>
+                </View>
+                {formData.budgetId === budget._id && (
+                  <Ionicons name="checkmark" size={20} color={COLORS.success} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const RecurringSelector = () => (
+    <Modal visible={showRecurringSelector} transparent animationType="slide">
+      <View style={styles.modalOverlay}>
+        <View style={styles.recurringModal}>
+          <View style={styles.selectorHeader}>
+            <Text style={styles.selectorTitle}>Transação Recorrente</Text>
+            <TouchableOpacity onPress={() => setShowRecurringSelector(false)}>
+              <Ionicons name="close" size={24} color={COLORS.gray600} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.recurringModalContent}>
+            <Text style={styles.recurringModalDescription}>
+              A transação será automaticamente criada todos os meses no dia especificado
+            </Text>
+
+            <View style={styles.recurringOptions}>
+              <TouchableOpacity
+                style={styles.recurringOptionButton}
+                onPress={() => {
+                  handleInputChange('recurringDay', '1');
+                  setShowRecurringSelector(false);
+                }}
+              >
+                <Text style={styles.recurringOptionText}>Repetir todo dia 1</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.recurringOptionButton}
+                onPress={() => {
+                  const today = new Date().getDate();
+                  handleInputChange('recurringDay', today.toString());
+                  setShowRecurringSelector(false);
+                }}
+              >
+                <Text style={styles.recurringOptionText}>Repetir todo dia {new Date().getDate()}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.daySelector}>
+              <Text style={styles.daySelectorLabel}>Ou escolha um dia específico:</Text>
+              <View style={styles.dayGrid}>
+                {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                  <TouchableOpacity
+                    key={day}
+                    style={[
+                      styles.dayGridItem,
+                      parseInt(formData.recurringDay) === day && styles.dayGridItemSelected
+                    ]}
+                    onPress={() => {
+                      handleInputChange('recurringDay', day.toString());
+                      setShowRecurringSelector(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.dayGridText,
+                      parseInt(formData.recurringDay) === day && styles.dayGridTextSelected
+                    ]}>
+                      {day}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 
   const renderAmountModal = () => (
@@ -630,6 +850,7 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
         </Card>
 
         {renderCategorySelector()}
+        {renderBudgetSelector()}
         {renderRecurringSection()}
 
         <Card style={styles.card}>
@@ -656,6 +877,8 @@ export const CreateTransactionScreen: React.FC<CreateTransactionScreenProps> = (
       </ScrollView>
 
       {renderAmountModal()}
+      <BudgetSelector />
+      <RecurringSelector />
     </SafeAreaView>
   );
 };
@@ -783,6 +1006,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
+  // Budget Selector
+  budgetSelectorButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: COLORS.gray50,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+  },
+  budgetSelectorContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  budgetSelectorTextContainer: {
+    flex: 1,
+    marginLeft: SPACING.md,
+  },
+  budgetSelectorPlaceholder: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray400,
+  },
+  selectedBudgetDisplay: {
+    flex: 1,
+  },
+  selectedBudgetText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray900,
+  },
+  selectedBudgetSubtext: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.gray600,
+    marginTop: 2,
+  },
+
   recurringHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -840,14 +1101,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: SPACING.md,
   },
-  recurringDayButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary + '20',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   recurringDayDisplay: {
     width: 60,
     height: 60,
@@ -861,10 +1114,20 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.white,
   },
+  recurringControlButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 
+  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
   },
   modalBackdrop: {
     flex: 1,
@@ -952,6 +1215,126 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.bold,
     color: COLORS.white,
   },
+
+  // Selector Modal
+  selectorModal: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: BORDER_RADIUS.lg,
+    borderTopRightRadius: BORDER_RADIUS.lg,
+    maxHeight: '80%',
+  },
+  recurringModal: {
+    backgroundColor: COLORS.white,
+    borderTopLeftRadius: BORDER_RADIUS.lg,
+    borderTopRightRadius: BORDER_RADIUS.lg,
+    maxHeight: '90%',
+    paddingBottom: SPACING.lg,
+  },
+  selectorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
+  },
+  selectorTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.gray900,
+  },
+  selectorList: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.sm,
+  },
+  budgetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray100,
+  },
+  selectedBudgetItem: {
+    backgroundColor: COLORS.primary + '10',
+    marginHorizontal: -SPACING.lg,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  budgetInfo: {
+    flex: 1,
+  },
+  budgetName: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray900,
+  },
+  budgetDetails: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.gray600,
+    marginTop: 2,
+  },
+
+  // Recurring Modal
+  recurringModalContent: {
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+  },
+  recurringModalDescription: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.gray600,
+    marginBottom: SPACING.lg,
+    lineHeight: 20,
+  },
+  recurringOptions: {
+    marginBottom: SPACING.lg,
+  },
+  recurringOptionButton: {
+    padding: SPACING.md,
+    backgroundColor: COLORS.gray50,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.sm,
+  },
+  recurringOptionText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray900,
+  },
+  daySelector: {
+    marginTop: SPACING.md,
+  },
+  daySelectorLabel: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray900,
+    marginBottom: SPACING.md,
+  },
+  dayGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SPACING.sm,
+  },
+  dayGridItem: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.gray100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
+  dayGridItemSelected: {
+    backgroundColor: COLORS.primary,
+  },
+  dayGridText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray700,
+  },
+  dayGridTextSelected: {
+    color: COLORS.white,
+  },
   
   submitContainer: {
     paddingTop: SPACING.lg,
@@ -968,3 +1351,5 @@ const styles = StyleSheet.create({
     marginTop: SPACING.xs,
   },
 });
+
+export default CreateTransactionScreen;

@@ -1,79 +1,60 @@
-// src/screens/transactions/TransactionDetailScreen.tsx - VERSÃO CORRIGIDA
-import React, { useState, useEffect } from 'react';
+// src/screens/transactions/TransactionDetailScreen.tsx - CÓDIGO COMPLETO FINAL
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   Alert,
+  ScrollView,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
+import { useCallback } from 'react';
 
+import { TransactionStackParamList } from '../../navigation/TransactionNavigator';
 import { TransactionService } from '../../services/TransactionService';
 import { Transaction } from '../../types';
-import { formatCurrency, formatDate } from '../../utils';
-import { Loading, Card } from '../../components/common';
-import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { formatCurrency } from '../../utils';
+import { Card } from '../../components/common';
 
-type TransactionStackParamList = {
-  TransactionDetails: { transactionId: string };
-  EditTransaction: { transactionId: string };
-};
+type TransactionDetailNavigationProp = StackNavigationProp<TransactionStackParamList, 'TransactionDetails'>;
+type TransactionDetailRouteProp = RouteProp<TransactionStackParamList, 'TransactionDetails'>;
 
-interface TransactionDetailScreenProps {
-  navigation: NativeStackNavigationProp<TransactionStackParamList>;
-  route: RouteProp<TransactionStackParamList, 'TransactionDetails'>;
+interface Props {
+  navigation: TransactionDetailNavigationProp;
+  route: TransactionDetailRouteProp;
 }
 
-export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = ({ 
-  navigation, 
-  route 
-}) => {
+export const TransactionDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { transactionId } = route.params;
-  const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [transaction, setTransaction] = useState<Transaction | null>(null);
 
-  useEffect(() => {
-    console.log('🔍 TransactionDetailScreen - Parâmetros recebidos:', { transactionId });
-    
-    if (!transactionId || transactionId === 'undefined' || transactionId === 'null') {
-      console.error('❌ ID da transação inválido:', transactionId);
-      Alert.alert('Erro', 'ID da transação inválido', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
-      return;
-    }
-    
-    loadTransaction();
-  }, [transactionId]);
+  // Recarregar quando a tela recebe foco (ex: depois de editar)
+  useFocusEffect(
+    useCallback(() => {
+      loadTransaction();
+    }, [transactionId])
+  );
 
   const loadTransaction = async () => {
     try {
-      console.log('📡 Carregando transação com ID:', transactionId);
       setLoading(true);
-      setError(null);
-      
       const response = await TransactionService.getTransaction(transactionId);
-      console.log('📊 Resposta do getTransaction:', JSON.stringify(response, null, 2));
       
       if (response.success && response.data) {
-        console.log('✅ Transação carregada com sucesso:', response.data);
         setTransaction(response.data);
       } else {
-        console.error('❌ Erro na resposta:', response.message);
-        setError(response.message || 'Transação não encontrada');
         Alert.alert('Erro', 'Transação não encontrada', [
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       }
     } catch (error: any) {
-      console.error('❌ Erro ao carregar transação:', error);
-      setError(error.message || 'Erro ao carregar transação');
+      console.error('Erro ao carregar transação:', error);
       Alert.alert('Erro', error.message || 'Erro ao carregar transação', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
@@ -88,9 +69,6 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
       return;
     }
 
-    console.log('✏️ Editando transação:', transaction._id || transaction.id);
-    
-    // Usar _id primeiro, depois id como fallback
     const idToUse = transaction._id || transaction.id;
     
     if (!idToUse) {
@@ -118,14 +96,12 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
           onPress: async () => {
             try {
               const idToUse = transaction._id || transaction.id;
-              console.log('🗑️ Deletando transação:', idToUse);
-              
               await TransactionService.deleteTransaction(idToUse);
               Alert.alert('Sucesso', 'Transação excluída com sucesso!', [
                 { text: 'OK', onPress: () => navigation.goBack() }
               ]);
             } catch (error: any) {
-              console.error('❌ Erro ao excluir transação:', error);
+              console.error('Erro ao excluir transação:', error);
               Alert.alert('Erro', error.message || 'Erro ao excluir transação');
             }
           },
@@ -134,32 +110,71 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
     );
   };
 
-  // Função para obter nome da categoria de forma segura
-  const getCategoryName = (): string => {
-    if (!transaction?.category) return 'Sem categoria';
+  const handleShare = () => {
+    if (!transaction) return;
+
+    const shareText = `Transação: ${transaction.description}
+Valor: ${formatCurrency(transaction.amount)}
+Tipo: ${transaction.type === 'income' ? 'Receita' : 'Despesa'}
+Data: ${new Date(transaction.date).toLocaleDateString('pt-BR')}
+${transaction.notes ? `Notas: ${transaction.notes}` : ''}`;
+
+    Alert.alert('Compartilhar', shareText);
+  };
+
+  // Função para obter informações da categoria de forma segura
+  const getCategoryInfo = (): { name: string; icon: string; color: string } => {
+    if (!transaction?.category) {
+      return { name: 'Sem categoria', icon: 'wallet-outline', color: '#4CAF50' };
+    }
     
     if (typeof transaction.category === 'string') {
-      return transaction.category || 'Sem categoria';
+      return { name: transaction.category, icon: 'wallet-outline', color: '#4CAF50' };
     }
     
     if (typeof transaction.category === 'object') {
-      return transaction.category.name || 'Sem categoria';
+      // Mapear ícones para nomes válidos do Ionicons
+      const iconMap: { [key: string]: string } = {
+        '🏠': 'home-outline',
+        '💰': 'cash-outline', 
+        '🍽️': 'restaurant-outline',
+        '🚗': 'car-outline',
+        '🏥': 'medical-outline',
+        '📚': 'library-outline',
+        '🎬': 'film-outline',
+        '✂️': 'cut-outline',
+        '🎁': 'gift-outline',
+        '⛽': 'car-outline',
+        '🛍️': 'bag-outline',
+        '📄': 'document-text-outline',
+        '💊': 'medical-outline',
+        '😊': 'happy-outline',
+        '✈️': 'airplane-outline',
+        '📅': 'calendar-outline',
+        'dumbbell': 'barbell-outline',
+        'utensils': 'restaurant-outline', 
+        'scissors': 'cut-outline',
+        'fuel': 'car-outline',
+        'shopping-bag': 'bag-outline',
+        'file-text': 'document-text-outline',
+        'pill': 'medical-outline',
+        'smile': 'happy-outline',
+        'plane': 'airplane-outline',
+        'gift': 'gift-outline',
+        'calendar': 'calendar-outline',
+      };
+
+      return {
+        name: transaction.category.name || 'Sem categoria',
+        icon: iconMap[transaction.category.icon] || transaction.category.icon || 'wallet-outline',
+        color: transaction.category.color || '#4CAF50',
+      };
     }
     
-    return 'Sem categoria';
+    return { name: 'Sem categoria', icon: 'wallet-outline', color: '#4CAF50' };
   };
 
-  // Função para obter ícone da categoria de forma segura
-  const getCategoryIcon = (): string => {
-    if (!transaction?.category) return '📝';
-    
-    if (typeof transaction.category === 'object') {
-      return transaction.category.icon || '📝';
-    }
-    
-    return '📝';
-  };
-
+  // Função para obter informações do orçamento
   const getBudgetInfo = (): { hasBudget: false } | { 
     hasBudget: true; 
     budgetName: string; 
@@ -167,304 +182,317 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
     limit: number; 
     isOverBudget: boolean; 
     remaining: number; 
+    percentage: number;
   } => {
     if (!transaction) return { hasBudget: false };
     
     if (transaction.budgetId && typeof transaction.budgetId === 'object') {
       const spent = transaction.budgetId.spent || 0;
       const limit = transaction.budgetId.monthlyLimit || 0;
-      const remaining = limit - spent;
+      const remaining = Math.max(0, limit - spent);
+      const percentage = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
       
       return {
         hasBudget: true,
         budgetName: transaction.budgetId.name || 'Orçamento',
         spent,
         limit,
-        isOverBudget: transaction.budgetId.isOverBudget || false,
+        isOverBudget: transaction.budgetId.isOverBudget || spent > limit,
         remaining,
+        percentage,
       };
     }
+    
     return { hasBudget: false };
   };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Detalhes da Transação</Text>
-          <View style={styles.headerActions} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>Carregando detalhes...</Text>
         </View>
-        <Loading />
       </SafeAreaView>
     );
   }
 
-  if (error || !transaction) {
+  if (!transaction) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Detalhes da Transação</Text>
-          <View style={styles.headerActions} />
-        </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
-            {error || 'Transação não encontrada'}
-          </Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadTransaction}>
-            <Text style={styles.retryButtonText}>Tentar novamente</Text>
+          <Ionicons name="alert-circle-outline" size={48} color="#F44336" />
+          <Text style={styles.errorText}>Transação não encontrada</Text>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>Voltar</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  const categoryInfo = getCategoryInfo();
   const budgetInfo = getBudgetInfo();
-
-  // Log para debug - remover em produção
-  console.log('🎯 Dados da transação para exibição:', {
-    amount: transaction.amount,
-    description: transaction.description,
-    category: transaction.category,
-    type: transaction.type
-  });
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={styles.headerButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Detalhes da Transação</Text>
+        
+        <Text style={styles.headerTitle}>Detalhes</Text>
+        
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton} onPress={handleEdit}>
-            <Ionicons name="create-outline" size={24} color={COLORS.white} />
+          <TouchableOpacity 
+            onPress={handleShare}
+            style={styles.headerButton}
+          >
+            <Ionicons name="share-outline" size={22} color="#333" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={24} color={COLORS.white} />
+          
+          <TouchableOpacity 
+            onPress={handleEdit}
+            style={styles.headerButton}
+          >
+            <Ionicons name="pencil-outline" size={22} color="#333" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            onPress={handleDelete}
+            style={styles.headerButton}
+          >
+            <Ionicons name="trash-outline" size={22} color="#F44336" />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Card Principal - Valor e Tipo */}
+        {/* Card Principal */}
         <Card style={styles.mainCard}>
-          <View style={styles.transactionMainInfo}>
+          <View style={styles.transactionHeader}>
             <View style={[
-              styles.typeIconLarge,
-              { backgroundColor: transaction.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
+              styles.typeIndicator,
+              { backgroundColor: transaction.type === 'income' ? '#4CAF50' : '#F44336' }
             ]}>
-              <Ionicons
-                name={transaction.type === 'income' ? 'arrow-up' : 'arrow-down'}
-                size={32}
-                color={transaction.type === 'income' ? COLORS.success : COLORS.error}
+              <Ionicons 
+                name={transaction.type === 'income' ? 'trending-up' : 'trending-down'} 
+                size={24} 
+                color="#FFF" 
               />
             </View>
             
-            <Text style={styles.transactionType}>
-              {transaction.type === 'income' ? 'Receita' : 'Despesa'}
-            </Text>
-            
-            <Text style={[
-              styles.transactionAmountLarge,
-              { color: transaction.type === 'income' ? COLORS.success : COLORS.error }
-            ]}>
-              {transaction.type === 'income' ? '+' : '-'} {formatCurrency(transaction.amount || 0)}
-            </Text>
-
-            <Text style={styles.transactionDescription}>
-              {transaction.description || 'Sem descrição'}
-            </Text>
-
-            {transaction.isRecurring && (
-              <View style={styles.recurringBadgeLarge}>
-                <Ionicons name="refresh" size={16} color={COLORS.info} />
-                <Text style={styles.recurringTextLarge}>Transação Recorrente</Text>
-              </View>
-            )}
+            <View style={styles.transactionInfo}>
+              <Text style={styles.transactionDescription}>{transaction.description}</Text>
+              <Text style={[
+                styles.transactionAmount,
+                { color: transaction.type === 'income' ? '#4CAF50' : '#F44336' }
+              ]}>
+                {transaction.type === 'income' ? '+' : '-'} {formatCurrency(transaction.amount)}
+              </Text>
+            </View>
           </View>
         </Card>
 
-        {/* Card de Informações Detalhadas */}
-        <Card style={styles.detailCard}>
+        {/* Informações Detalhadas */}
+        <Card style={styles.detailsCard}>
           <Text style={styles.sectionTitle}>Informações</Text>
           
           {/* Categoria */}
           <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Text style={styles.categoryEmoji}>
-                {getCategoryIcon()}
-              </Text>
+            <View style={styles.detailLabel}>
+              <Ionicons name="pricetag-outline" size={20} color="#666" />
+              <Text style={styles.detailLabelText}>Categoria</Text>
             </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Categoria</Text>
-              <Text style={styles.detailValue}>
-                {getCategoryName()}
-              </Text>
+            <View style={styles.categoryDisplay}>
+              <View style={[
+                styles.categoryIconContainer,
+                { backgroundColor: categoryInfo.color + '20' }
+              ]}>
+                <Ionicons 
+                  name={categoryInfo.icon as any}
+                  size={14} 
+                  color={categoryInfo.color}
+                />
+              </View>
+              <Text style={styles.detailValue}>{categoryInfo.name}</Text>
             </View>
           </View>
 
           {/* Data */}
           <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+            <View style={styles.detailLabel}>
+              <Ionicons name="calendar-outline" size={20} color="#666" />
+              <Text style={styles.detailLabelText}>Data</Text>
             </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Data da transação</Text>
-              <Text style={styles.detailValue}>
-                {new Date(transaction.date).toLocaleDateString('pt-BR', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                  weekday: 'long'
-                })}
-              </Text>
+            <Text style={styles.detailValue}>
+              {new Date(transaction.date).toLocaleDateString('pt-BR', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </Text>
+          </View>
+
+          {/* Tipo */}
+          <View style={styles.detailRow}>
+            <View style={styles.detailLabel}>
+              <Ionicons name="swap-vertical-outline" size={20} color="#666" />
+              <Text style={styles.detailLabelText}>Tipo</Text>
+            </View>
+            <View style={styles.typeDisplay}>
+              <View style={[
+                styles.typeBadge,
+                { backgroundColor: transaction.type === 'income' ? '#4CAF50' : '#F44336' }
+              ]}>
+                <Text style={styles.typeBadgeText}>
+                  {transaction.type === 'income' ? 'Receita' : 'Despesa'}
+                </Text>
+              </View>
             </View>
           </View>
 
-          {/* Observações */}
+          {/* Recorrência */}
+          {transaction.isRecurring && (
+            <View style={styles.detailRow}>
+              <View style={styles.detailLabel}>
+                <Ionicons name="repeat-outline" size={20} color="#666" />
+                <Text style={styles.detailLabelText}>Recorrência</Text>
+              </View>
+              <Text style={styles.detailValue}>
+                Todo dia {transaction.recurringDay} do mês
+              </Text>
+            </View>
+          )}
+
+          {/* Notas */}
           {transaction.notes && (
             <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons name="chatbubble-outline" size={20} color={COLORS.primary} />
+              <View style={styles.detailLabel}>
+                <Ionicons name="document-text-outline" size={20} color="#666" />
+                <Text style={styles.detailLabelText}>Notas</Text>
               </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Observações</Text>
-                <Text style={styles.detailValue}>{transaction.notes}</Text>
-              </View>
+              <Text style={styles.detailValue}>{transaction.notes}</Text>
             </View>
           )}
         </Card>
 
-        {/* Card do Orçamento - se existir */}
+        {/* Orçamento - Se houver */}
         {budgetInfo.hasBudget && (
           <Card style={styles.budgetCard}>
+            <Text style={styles.sectionTitle}>Orçamento Relacionado</Text>
+            
             <View style={styles.budgetHeader}>
-              <View style={styles.budgetIconContainer}>
-                <Ionicons name="wallet" size={24} color={COLORS.primary} />
-              </View>
-              <View style={styles.budgetTitleContainer}>
-                <Text style={styles.budgetTitle}>Orçamento Associado</Text>
-                <Text style={styles.budgetName}>{budgetInfo.budgetName}</Text>
-              </View>
-              {budgetInfo.isOverBudget && (
-                <View style={styles.overBudgetBadge}>
-                  <Text style={styles.overBudgetText}>Excedido</Text>
-                </View>
-              )}
+              <Text style={styles.budgetName}>{budgetInfo.budgetName}</Text>
+              <Text style={[
+                styles.budgetStatus,
+                { color: budgetInfo.isOverBudget ? '#F44336' : '#4CAF50' }
+              ]}>
+                {budgetInfo.isOverBudget ? 'Excedido' : 'Dentro do limite'}
+              </Text>
             </View>
 
             <View style={styles.budgetProgress}>
-              <View style={styles.budgetValues}>
-                <View style={styles.budgetValueItem}>
-                  <Text style={styles.budgetValueLabel}>Gasto</Text>
-                  <Text style={[styles.budgetValueAmount, { color: COLORS.error }]}>
-                    {formatCurrency(budgetInfo.spent)}
-                  </Text>
-                </View>
-                <View style={styles.budgetValueItem}>
-                  <Text style={styles.budgetValueLabel}>Limite</Text>
-                  <Text style={styles.budgetValueAmount}>
-                    {formatCurrency(budgetInfo.limit)}
-                  </Text>
-                </View>
-                <View style={styles.budgetValueItem}>
-                  <Text style={styles.budgetValueLabel}>
-                    {budgetInfo.remaining >= 0 ? 'Restante' : 'Excesso'}
-                  </Text>
-                  <Text style={[
-                    styles.budgetValueAmount,
-                    { color: budgetInfo.remaining >= 0 ? COLORS.success : COLORS.error }
-                  ]}>
-                    {formatCurrency(Math.abs(budgetInfo.remaining))}
-                  </Text>
-                </View>
+              <View style={styles.progressBar}>
+                <View style={[
+                  styles.progressFill,
+                  { 
+                    width: `${Math.min(100, budgetInfo.percentage)}%`,
+                    backgroundColor: budgetInfo.isOverBudget ? '#F44336' : '#4CAF50'
+                  }
+                ]} />
               </View>
+              <Text style={styles.progressText}>
+                {budgetInfo.percentage.toFixed(1)}%
+              </Text>
+            </View>
 
-              <View style={styles.progressBarSection}>
-                <View style={styles.progressInfo}>
-                  <Text style={styles.progressLabel}>
-                    {((budgetInfo.spent / budgetInfo.limit) * 100).toFixed(1)}% utilizado
-                  </Text>
-                </View>
-                <View style={styles.progressBarContainer}>
-                  <View 
-                    style={[
-                      styles.progressBar,
-                      { 
-                        width: `${Math.min((budgetInfo.spent / budgetInfo.limit) * 100, 100)}%`,
-                        backgroundColor: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary
-                      }
-                    ]} 
-                  />
-                </View>
+            <View style={styles.budgetDetails}>
+              <View style={styles.budgetDetailItem}>
+                <Text style={styles.budgetDetailLabel}>Gasto</Text>
+                <Text style={styles.budgetDetailValue}>
+                  {formatCurrency(budgetInfo.spent)}
+                </Text>
+              </View>
+              
+              <View style={styles.budgetDetailItem}>
+                <Text style={styles.budgetDetailLabel}>Limite</Text>
+                <Text style={styles.budgetDetailValue}>
+                  {formatCurrency(budgetInfo.limit)}
+                </Text>
+              </View>
+              
+              <View style={styles.budgetDetailItem}>
+                <Text style={styles.budgetDetailLabel}>Restante</Text>
+                <Text style={[
+                  styles.budgetDetailValue,
+                  { color: budgetInfo.isOverBudget ? '#F44336' : '#4CAF50' }
+                ]}>
+                  {formatCurrency(budgetInfo.remaining)}
+                </Text>
               </View>
             </View>
           </Card>
         )}
 
-        {/* Card de Metadados */}
-        <Card style={styles.metaCard}>
-          <Text style={styles.sectionTitle}>Informações do Sistema</Text>
+        {/* Metadados */}
+        <Card style={styles.metadataCard}>
+          <Text style={styles.sectionTitle}>Informações Técnicas</Text>
           
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Ionicons name="time-outline" size={20} color={COLORS.gray500} />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Criado em</Text>
-              <Text style={styles.detailValue}>
-                {new Date(transaction.createdAt || transaction.date).toLocaleString('pt-BR')}
-              </Text>
-            </View>
+          <View style={styles.metadataRow}>
+            <Text style={styles.metadataLabel}>ID da Transação</Text>
+            <Text style={styles.metadataValue}>{transaction._id || transaction.id}</Text>
           </View>
-
-          {transaction.updatedAt && transaction.updatedAt !== transaction.createdAt && (
-            <View style={styles.detailRow}>
-              <View style={styles.detailIcon}>
-                <Ionicons name="pencil-outline" size={20} color={COLORS.gray500} />
-              </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Última modificação</Text>
-                <Text style={styles.detailValue}>
-                  {new Date(transaction.updatedAt).toLocaleString('pt-BR')}
-                </Text>
-              </View>
+          
+          {transaction.createdAt && (
+            <View style={styles.metadataRow}>
+              <Text style={styles.metadataLabel}>Criado em</Text>
+              <Text style={styles.metadataValue}>
+                {new Date(transaction.createdAt).toLocaleString('pt-BR')}
+              </Text>
             </View>
           )}
-
-          {/* Debug info - remover em produção */}
-          <View style={styles.detailRow}>
-            <View style={styles.detailIcon}>
-              <Ionicons name="code-outline" size={20} color={COLORS.gray500} />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>ID da Transação</Text>
-              <Text style={styles.detailValue}>
-                {transaction._id || transaction.id || 'Não encontrado'}
+          
+          {transaction.updatedAt && transaction.updatedAt !== transaction.createdAt && (
+            <View style={styles.metadataRow}>
+              <Text style={styles.metadataLabel}>Última edição</Text>
+              <Text style={styles.metadataValue}>
+                {new Date(transaction.updatedAt).toLocaleString('pt-BR')}
               </Text>
             </View>
-          </View>
+          )}
         </Card>
-      </ScrollView>
 
-      {/* Botões de Ação Fixos */}
-      <View style={styles.actionBar}>
-        <TouchableOpacity style={styles.editButton} onPress={handleEdit}>
-          <Ionicons name="create" size={20} color={COLORS.white} />
-          <Text style={styles.actionButtonText}>Editar</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-          <Ionicons name="trash" size={20} color={COLORS.white} />
-          <Text style={styles.actionButtonText}>Excluir</Text>
-        </TouchableOpacity>
-      </View>
+        {/* Actions */}
+        <View style={styles.actions}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handleEdit}
+          >
+            <Ionicons name="pencil-outline" size={20} color="#4CAF50" />
+            <Text style={styles.actionButtonText}>Editar</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.deleteAction]}
+            onPress={handleDelete}
+          >
+            <Ionicons name="trash-outline" size={20} color="#F44336" />
+            <Text style={[styles.actionButtonText, styles.deleteActionText]}>Excluir</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Espaço extra para scroll */}
+        <View style={{ height: 20 }} />
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -472,287 +500,264 @@ export const TransactionDetailScreen: React.FC<TransactionDetailScreenProps> = (
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F5F5F5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    color: '#666',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  backButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '500',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.primary,
-    ...SHADOWS.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#FFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E0E0E0',
+  },
+  headerButton: {
+    padding: 8,
   },
   headerTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    flex: 1,
-    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
   },
   headerActions: {
     flexDirection: 'row',
-  },
-  headerButton: {
-    padding: SPACING.xs,
-    marginLeft: SPACING.sm,
+    gap: 4,
   },
   content: {
     flex: 1,
-    padding: SPACING.md,
+    padding: 16,
   },
-  
-  // Card Principal
   mainCard: {
-    marginBottom: SPACING.md,
-    alignItems: 'center',
-    padding: SPACING.xl,
+    marginBottom: 16,
   },
-  transactionMainInfo: {
-    alignItems: 'center',
-  },
-  typeIconLarge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  transactionType: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray600,
-    marginBottom: SPACING.xs,
-  },
-  transactionAmountLarge: {
-    fontSize: 32,
-    fontFamily: FONTS.bold,
-    marginBottom: SPACING.md,
-  },
-  transactionDescription: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    textAlign: 'center',
-    marginBottom: SPACING.sm,
-  },
-  recurringBadgeLarge: {
+  transactionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.info + '20',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.full,
-    marginTop: SPACING.sm,
+    gap: 16,
   },
-  recurringTextLarge: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.info,
-    marginLeft: SPACING.xs,
+  typeIndicator: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-
-  // Cards de Detalhes
-  detailCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.lg,
+  transactionInfo: {
+    flex: 1,
+  },
+  transactionDescription: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  transactionAmount: {
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  detailsCard: {
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    marginBottom: SPACING.lg,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.lg,
-  },
-  detailIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: COLORS.primary + '10',
-    borderRadius: 20,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  categoryEmoji: {
-    fontSize: 20,
-  },
-  detailContent: {
-    flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   detailLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray600,
-    marginBottom: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  detailLabelText: {
+    fontSize: 14,
+    color: '#666',
   },
   detailValue: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray900,
-    lineHeight: 22,
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+    flex: 1,
+    textAlign: 'right',
   },
-
-  // Card do Orçamento
+  categoryDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  categoryIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeDisplay: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  typeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  typeBadgeText: {
+    fontSize: 12,
+    color: '#FFF',
+    fontWeight: '500',
+  },
   budgetCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.lg,
+    marginBottom: 16,
   },
   budgetHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
-  },
-  budgetIconContainer: {
-    width: 50,
-    height: 50,
-    backgroundColor: COLORS.primary + '20',
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  budgetTitleContainer: {
-    flex: 1,
-  },
-  budgetTitle: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray600,
-    marginBottom: 2,
+    marginBottom: 16,
   },
   budgetName: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#333',
   },
-  overBudgetBadge: {
-    backgroundColor: COLORS.error + '20',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  overBudgetText: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.bold,
-    color: COLORS.error,
+  budgetStatus: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   budgetProgress: {
-    marginTop: SPACING.md,
-  },
-  budgetValues: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
-  },
-  budgetValueItem: {
     alignItems: 'center',
-    flex: 1,
-  },
-  budgetValueLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray600,
-    marginBottom: 4,
-  },
-  budgetValueAmount: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-  },
-  progressBarSection: {
-    marginTop: SPACING.sm,
-  },
-  progressInfo: {
-    alignItems: 'center',
-    marginBottom: SPACING.sm,
-  },
-  progressLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray700,
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.sm,
-    overflow: 'hidden',
+    gap: 12,
+    marginBottom: 16,
   },
   progressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
     height: '100%',
-    borderRadius: BORDER_RADIUS.sm,
+    borderRadius: 4,
   },
-
-  // Card de Metadados
-  metaCard: {
-    marginBottom: SPACING.xl,
-    padding: SPACING.lg,
+  progressText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    minWidth: 40,
+    textAlign: 'right',
   },
-
-  // Botões de Ação
-  actionBar: {
+  budgetDetails: {
     flexDirection: 'row',
-    padding: SPACING.md,
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.gray200,
-    ...SHADOWS.sm,
+    justifyContent: 'space-between',
   },
-  editButton: {
+  budgetDetailItem: {
+    alignItems: 'center',
+  },
+  budgetDetailLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+  },
+  budgetDetailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  metadataCard: {
+    marginBottom: 16,
+  },
+  metadataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  metadataLabel: {
+    fontSize: 12,
+    color: '#666',
+  },
+  metadataValue: {
+    fontSize: 12,
+    color: '#333',
+    fontFamily: 'monospace',
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  actionButton: {
     flex: 1,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginRight: SPACING.sm,
-  },
-  deleteButton: {
-    flex: 1,
-    flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.error,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    marginLeft: SPACING.sm,
+    paddingVertical: 16,
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    gap: 8,
   },
   actionButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-    marginLeft: SPACING.xs,
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#4CAF50',
   },
-  
-  // Estados de erro
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.xl,
+  deleteAction: {
+    borderColor: '#F44336',
   },
-  errorText: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray600,
-    textAlign: 'center',
-    marginBottom: SPACING.lg,
-  },
-  retryButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-  },
-  retryButtonText: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
+  deleteActionText: {
+    color: '#F44336',
   },
 });
+
+export default TransactionDetailScreen;
