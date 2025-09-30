@@ -1,4 +1,4 @@
-// src/screens/goals/GoalDetailScreen.tsx - COMPLETO COM COMPARTILHAMENTO
+// src/screens/goals/GoalDetailScreen.tsx - COMPLETO COM PERMISSÕES
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Card, Button, Loading } from '../../components/common';
 import { GoalService } from '../../services/GoalService';
+import { GoalShareService } from '../../services/GoalShareService';
 import { Goal } from '../../types';
 import { formatCurrency, formatDate } from '../../utils';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
@@ -34,8 +35,20 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [amountToAdd, setAmountToAdd] = useState('');
 
+  // Estado para permissões
+  const [permissions, setPermissions] = useState({
+    isOwner: false,
+    canEdit: false,
+    canDelete: false,
+    canAddAmount: false,
+    canInviteOthers: false,
+  });
+
+  const goalShareService = new GoalShareService();
+
   useEffect(() => {
     loadGoal();
+    loadPermissions();
   }, [goalId]);
 
   const loadGoal = async () => {
@@ -53,6 +66,23 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
       navigation.goBack();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPermissions = async () => {
+    try {
+      const response = await goalShareService.getUserPermissions(goalId);
+      if (response.success && response.data) {
+        setPermissions({
+          isOwner: response.data.isOwner,
+          canEdit: response.data.permissions?.canEdit || false,
+          canDelete: response.data.permissions?.canDelete || false,
+          canAddAmount: response.data.permissions?.canAddAmount || false,
+          canInviteOthers: response.data.permissions?.canInviteOthers || false,
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar permissões:', error);
     }
   };
 
@@ -147,7 +177,6 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
     );
   };
 
-  // NOVA FUNÇÃO: Navegar para compartilhar meta
   const handleShareGoal = () => {
     if (!goal) return;
     navigation.navigate('ShareGoal', {
@@ -215,21 +244,29 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
         </TouchableOpacity>
 
         <View style={styles.headerActions}>
-          {/* BOTÃO DE COMPARTILHAR */}
-          <TouchableOpacity onPress={handleShareGoal} style={styles.headerButton}>
-            <Ionicons name="share-social-outline" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
+          {/* BOTÃO DE COMPARTILHAR - só para dono e co-owner */}
+          {(permissions.isOwner || permissions.canInviteOthers) && (
+            <TouchableOpacity onPress={handleShareGoal} style={styles.headerButton}>
+              <Ionicons name="share-social-outline" size={24} color={COLORS.primary} />
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity
-            onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })}
-            style={styles.headerButton}
-          >
-            <Ionicons name="create-outline" size={24} color={COLORS.textPrimary} />
-          </TouchableOpacity>
+          {/* BOTÃO DE EDITAR - só se tiver permissão */}
+          {permissions.canEdit && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })}
+              style={styles.headerButton}
+            >
+              <Ionicons name="create-outline" size={24} color={COLORS.textPrimary} />
+            </TouchableOpacity>
+          )}
 
-          <TouchableOpacity onPress={handleDeleteGoal} style={styles.headerButton}>
-            <Ionicons name="trash-outline" size={24} color={COLORS.error} />
-          </TouchableOpacity>
+          {/* BOTÃO DE DELETAR - só para o dono */}
+          {permissions.isOwner && (
+            <TouchableOpacity onPress={handleDeleteGoal} style={styles.headerButton}>
+              <Ionicons name="trash-outline" size={24} color={COLORS.error} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -247,6 +284,17 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
 
           {goal.description && (
             <Text style={styles.description}>{goal.description}</Text>
+          )}
+
+          {/* Badge de permissão - mostra o nível de acesso se não for dono */}
+          {!permissions.isOwner && (
+            <View style={styles.permissionBadge}>
+              <Ionicons name="people-outline" size={16} color={COLORS.primary} />
+              <Text style={styles.permissionText}>
+                {permissions.canEdit ? 'Co-proprietário' : 
+                 permissions.canAddAmount ? 'Contribuidor' : 'Visualizador'}
+              </Text>
+            </View>
           )}
 
           {/* Progresso */}
@@ -336,8 +384,8 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
           )}
         </Card>
 
-        {/* Ações */}
-        {!isCompleted && (
+        {/* Ações - verificando permissões */}
+        {!isCompleted && permissions.canAddAmount && (
           <Card style={styles.actionsCard}>
             <Button
               title="Adicionar Valor"
@@ -345,18 +393,22 @@ export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, 
               variant="primary"
             />
 
-            {isPaused ? (
-              <Button
-                title="Reativar Meta"
-                onPress={handleResumeGoal}
-                variant="secondary"
-              />
-            ) : (
-              <Button
-                title="Pausar Meta"
-                onPress={handlePauseGoal}
-                variant="outline"
-              />
+            {permissions.isOwner && (
+              <>
+                {isPaused ? (
+                  <Button
+                    title="Reativar Meta"
+                    onPress={handleResumeGoal}
+                    variant="secondary"
+                  />
+                ) : (
+                  <Button
+                    title="Pausar Meta"
+                    onPress={handlePauseGoal}
+                    variant="outline"
+                  />
+                )}
+              </>
             )}
           </Card>
         )}
@@ -451,7 +503,23 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     lineHeight: 22,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
+  },
+  permissionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.primary + '10',
+    borderRadius: BORDER_RADIUS.full,
+    gap: SPACING.xs,
+    marginBottom: SPACING.md,
+  },
+  permissionText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
   },
   progressSection: {
     marginTop: SPACING.md,

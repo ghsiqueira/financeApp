@@ -293,6 +293,55 @@ class ApiService {
     );
   }
 
+  // GOAL SHARING ENDPOINTS
+  async getPendingShares(): Promise<ApiResponse<any[]>> {
+    return this.handleRequest(() =>
+      this.api.get('/goal-shares/pending')  // ✅ Já tem /api no baseURL
+    );
+  }
+
+  async getAcceptedShares(): Promise<ApiResponse<any[]>> {
+    return this.handleRequest(() =>
+      this.api.get('/goal-shares/accepted')  // ✅ Já tem /api no baseURL
+    );
+  }
+
+  async acceptShare(shareId: string): Promise<ApiResponse<any>> {
+    return this.handleRequest(() =>
+      this.api.post(`/goal-shares/${shareId}/accept`)
+    );
+  }
+
+  async rejectShare(shareId: string): Promise<ApiResponse<any>> {
+    return this.handleRequest(() =>
+      this.api.post(`/goal-shares/${shareId}/reject`)
+    );
+  }
+
+  async deleteShare(shareId: string): Promise<ApiResponse<void>> {
+    return this.handleRequest(() =>
+      this.api.delete(`/goal-shares/${shareId}`)
+    );
+  }
+
+  async updateShareRole(shareId: string, role: string): Promise<ApiResponse<any>> {
+    return this.handleRequest(() =>
+      this.api.patch(`/goal-shares/${shareId}/role`, { role })
+    );
+  }
+
+  async shareGoal(goalId: string, data: { email: string; role: string }): Promise<ApiResponse<any>> {
+    return this.handleRequest(() =>
+      this.api.post(`/goals/${goalId}/share`, data)
+    );
+  }
+
+  async getGoalShares(goalId: string): Promise<ApiResponse<any[]>> {
+    return this.handleRequest(() =>
+      this.api.get(`/goals/${goalId}/shares`)
+    );
+  }
+
   // BUDGET ENDPOINTS
   async getBudgets(page: number = 1, limit: number = 20, filters?: any): Promise<ApiResponse<{ data: Budget[]; pagination: any }>> {
     const params = new URLSearchParams();

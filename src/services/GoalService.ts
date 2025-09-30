@@ -84,7 +84,7 @@ export class GoalService {
   }
 
   /**
-   * Buscar todas as metas do usuário - CORRIGIDO PARA USAR APISERVICE CORRETO
+   * Buscar todas as metas do usuário
    */
   static async getGoals(
     page: number = 1,
@@ -95,14 +95,11 @@ export class GoalService {
       console.log('🔍 GoalService.getGoals: Iniciando busca...');
       console.log('🔍 Parâmetros:', { page, limit, filters });
 
-      // Usar o método específico do apiService
       const response = await apiService.getGoals(page, limit, filters);
       
       console.log('📥 Resposta do backend:', response);
 
       if (response.success && response.data) {
-        // O response.data pode ter diferentes estruturas dependendo da API
-        // Vamos acessar de forma segura usando notação de colchetes
         const responseData = response.data as any;
         const goalsData = responseData.goals || responseData.data || responseData;
         const paginationData = responseData.pagination || { current: 1, pages: 1, total: 0 };
@@ -112,7 +109,6 @@ export class GoalService {
         console.log('  - goalsData.length:', goalsData?.length);
         console.log('  - paginationData:', paginationData);
 
-        // Mapear cada meta para o formato esperado
         const mappedGoals = Array.isArray(goalsData) ? 
           goalsData.map((g: any) => this.mapGoal(g)) : [];
 
@@ -148,7 +144,7 @@ export class GoalService {
   }
 
   /**
-   * Buscar meta por ID - CORRIGIDO para tratar resposta da API corretamente
+   * Buscar meta por ID
    */
   static async getGoal(id: string): Promise<GoalResponse> {
     try {
@@ -159,11 +155,8 @@ export class GoalService {
       console.log('📥 Resposta getGoal completa:', JSON.stringify(response, null, 2));
 
       if (response.success && response.data) {
-        // Baseado no log: {"data": {"goal": {...}, "success": true}, "message": "Sucesso", "success": true}
-        // Precisamos extrair o goal da estrutura aninhada
-        let goalData = response.data;
+        let goalData: any = response.data;
         
-        // Se a resposta tem a estrutura { data: { goal: {...} } }
         if (goalData && goalData.goal) {
           goalData = goalData.goal;
         }
@@ -207,8 +200,7 @@ export class GoalService {
       console.log('📥 Resposta createGoal:', response);
 
       if (response.success && response.data) {
-        // Extrair goal se estiver aninhado
-        let goalData = response.data;
+        let goalData: any = response.data;
         if (goalData && goalData.goal) {
           goalData = goalData.goal;
         }
@@ -244,8 +236,7 @@ export class GoalService {
       console.log('📥 Resposta updateGoal:', response);
 
       if (response.success && response.data) {
-        // Extrair goal se estiver aninhado
-        let goalData = response.data;
+        let goalData: any = response.data;
         if (goalData && goalData.goal) {
           goalData = goalData.goal;
         }
@@ -294,7 +285,7 @@ export class GoalService {
   }
 
   /**
-   * Buscar metas ativas (método para HomeScreen)
+   * Buscar metas ativas
    */
   static async getActiveGoals(limit: number = 5): Promise<Goal[]> {
     try {
@@ -317,90 +308,38 @@ export class GoalService {
   }
 
   /**
-   * Adicionar valor à meta - CORRIGIDO
+   * Adicionar valor à meta
    */
   static async addToGoal(id: string, amount: number): Promise<GoalResponse> {
     try {
       console.log('💰 GoalService.addToGoal:', { id, amount });
       
-      // VALIDAÇÃO CRÍTICA: Verificar se ID não é undefined
-      if (!id || id === 'undefined' || id === 'null') {
-        console.error('❌ ID da meta é inválido:', id);
-        return {
-          success: false,
-          message: 'ID da meta é obrigatório e deve ser válido'
-        };
-      }
-
-      if (!amount || amount <= 0) {
-        return {
-          success: false,
-          message: 'Valor deve ser maior que zero'
-        };
-      }
-
-      // PRIMEIRO: Buscar a meta atual para obter currentAmount
-      console.log('🔍 Buscando meta atual para somar valor...');
-      const currentGoalResponse = await this.getGoal(id);
+      const response = await apiService.addToGoal(id, amount);
       
-      if (!currentGoalResponse.success || !currentGoalResponse.data) {
-        return {
-          success: false,
-          message: 'Erro ao buscar meta atual'
-        };
-      }
-
-      const currentGoal = currentGoalResponse.data;
-      const newCurrentAmount = currentGoal.currentAmount + amount;
-      
-      console.log('💰 Valores:', {
-        currentAmount: currentGoal.currentAmount,
-        addingAmount: amount,
-        newCurrentAmount: newCurrentAmount,
-        targetAmount: currentGoal.targetAmount
-      });
-
-      // SEGUNDO: Atualizar a meta com o novo valor
-      const updateData: UpdateGoalData = {
-        currentAmount: newCurrentAmount
-      };
-
-      // Se atingir 100% da meta, marcar como completed
-      if (newCurrentAmount >= currentGoal.targetAmount) {
-        updateData.status = 'completed';
-        console.log('🎉 Meta atingiu 100%! Marcando como completed');
-      }
-      
-      console.log('📤 Atualizando meta com:', updateData);
-      const response = await this.updateGoal(id, updateData);
-      
-      console.log('📥 Resposta addToGoal (via update):', response);
+      console.log('📥 Resposta addToGoal:', response);
 
       if (response.success && response.data) {
+        let goalData: any = response.data;
+        if (goalData && goalData.goal) {
+          goalData = goalData.goal;
+        }
+        
         return {
           success: true,
-          data: response.data,
-          message: newCurrentAmount >= currentGoal.targetAmount ? 
-            'Parabéns! Meta concluída!' : 
-            'Valor adicionado com sucesso!'
+          data: this.mapGoal(goalData),
+          message: response.message || 'Valor adicionado com sucesso'
         };
       }
       
       return {
         success: false,
-        message: response.message || 'Erro ao adicionar valor à meta'
+        message: response.message || 'Erro ao adicionar valor'
       };
     } catch (error: any) {
-      console.error('❌ Erro ao adicionar valor à meta:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
+      console.error('❌ Erro ao adicionar valor:', error);
       return {
         success: false,
-        message: error.response?.data?.message || error.message || 'Erro ao adicionar valor à meta'
+        message: error.message || 'Erro ao adicionar valor'
       };
     }
   }

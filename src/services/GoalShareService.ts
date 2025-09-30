@@ -88,7 +88,7 @@ export class GoalShareService {
    */
   async getPendingInvites(): Promise<ServiceResponse<GoalShare[]>> {
     try {
-      const response = await apiService.getApiInstance().get('/api/goal-shares/pending');
+      const response = await apiService.getApiInstance().get('/goal-shares/pending');
 
       return {
         success: true,
@@ -108,7 +108,7 @@ export class GoalShareService {
    */
   async getSharedGoals(): Promise<ServiceResponse<GoalShare[]>> {
     try {
-      const response = await apiService.getApiInstance().get('/api/goal-shares/accepted');
+      const response = await apiService.getApiInstance().get('/goal-shares/accepted');
 
       return {
         success: true,
@@ -202,6 +202,34 @@ export class GoalShareService {
       return {
         success: false,
         message: error.response?.data?.message || error.message || 'Erro ao atualizar permissão',
+      };
+    }
+  }
+
+  /**
+   * Verificar permissões do usuário em uma meta
+   */
+  async getUserPermissions(goalId: string): Promise<ServiceResponse<{
+    isOwner: boolean;
+    role?: 'viewer' | 'contributor' | 'co-owner' | 'owner';
+    permissions?: {
+      canAddAmount: boolean;
+      canEdit: boolean;
+      canDelete: boolean;
+      canInviteOthers: boolean;
+    };
+  }>> {
+    try {
+      const response = await apiService.getApiInstance().get(`/goals/${goalId}/permissions`);
+
+      return {
+        success: true,
+        data: response.data.data || response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.response?.data?.message || error.message || 'Erro ao verificar permissões',
       };
     }
   }
