@@ -1,3 +1,4 @@
+// src/screens/goals/GoalDetailScreen.tsx - COMPLETO COM COMPARTILHAMENTO
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -6,247 +7,189 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Share,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
-
-import {
-  ProgressBar,
-  CurrencyInput,
-  CustomAlert,
-  Card,
-  Loading,
-  Button,
-} from '../../components/common';
+import { Card, Button, Loading } from '../../components/common';
 import { GoalService } from '../../services/GoalService';
-import { Goal, GoalStackParamList } from '../../types';
-import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { Goal } from '../../types';
 import { formatCurrency, formatDate } from '../../utils';
+import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-type GoalDetailScreenNavigationProp = NativeStackNavigationProp<GoalStackParamList, 'GoalDetail'>;
-type GoalDetailScreenRouteProp = RouteProp<GoalStackParamList, 'GoalDetail'>;
-
-interface Props {
-  navigation: GoalDetailScreenNavigationProp;
-  route: GoalDetailScreenRouteProp;
+interface GoalDetailScreenProps {
+  navigation: any;
+  route: {
+    params: {
+      goalId: string;
+    };
+  };
 }
 
-export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+export const GoalDetailScreen: React.FC<GoalDetailScreenProps> = ({ navigation, route }) => {
   const { goalId } = route.params;
-  
   const [goal, setGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAddValueModal, setShowAddValueModal] = useState(false);
-  const [addValue, setAddValue] = useState('');
-  const [addingValue, setAddingValue] = useState(false);
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [amountToAdd, setAmountToAdd] = useState('');
 
   useEffect(() => {
-    console.log('🔍 GoalDetailScreen: goalId recebido:', goalId);
-    if (goalId && goalId !== 'undefined') {
-      loadGoal();
-    } else {
-      console.error('❌ GoalDetailScreen: goalId inválido');
-      Alert.alert('Erro', 'ID da meta inválido');
-      navigation.goBack();
-    }
+    loadGoal();
   }, [goalId]);
 
-  // Recarregar quando voltar da tela de edição
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      if (goal && goalId && goalId !== 'undefined') {
-        loadGoal();
-      }
-    });
-    return unsubscribe;
-  }, [navigation, goal, goalId]);
-
-  // Carregar detalhes da meta
   const loadGoal = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Carregando meta com ID:', goalId);
-      
       const response = await GoalService.getGoal(goalId);
-      console.log('📥 Resposta getGoal:', response);
-      
       if (response.success && response.data) {
-        console.log('🎯 Goal carregado:', response.data);
         setGoal(response.data);
       } else {
-        console.log('❌ Meta não encontrada na resposta');
-        Alert.alert('Erro', response.message || 'Meta não encontrada');
+        Alert.alert('Erro', 'Meta não encontrada');
         navigation.goBack();
       }
-    } catch (error: any) {
-      console.log('❌ Erro ao carregar meta:', error);
-      Alert.alert('Erro', error.message || 'Erro ao carregar meta');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível carregar a meta');
       navigation.goBack();
     } finally {
       setLoading(false);
     }
   };
 
-  // Adicionar valor à meta - CRÍTICO: CORRIGIDO
-  const handleAddValue = async () => {
-    if (!goal || !addValue) return;
-
-    try {
-      setAddingValue(true);
-      
-      const valueToAdd = parseFloat(addValue.replace(/[^\d,]/g, '').replace(',', '.'));
-      if (isNaN(valueToAdd) || valueToAdd <= 0) {
-        Alert.alert('Erro', 'Digite um valor válido');
-        return;
-      }
-
-      // ✅ CRÍTICO: Usar goal._id ao invés de goal.id
-      console.log('💰 Adicionando valor:', valueToAdd, 'para goal._id:', goal._id);
-      const response = await GoalService.addToGoal(goal._id, valueToAdd);
-      
-      if (response.success && response.data) {
-        console.log('✅ Valor adicionado com sucesso:', response.data);
-        setGoal(response.data);
-        setAddValue('');
-        setShowAddValueModal(false);
-        Alert.alert('Sucesso', 'Valor adicionado com sucesso!');
-      } else {
-        console.log('❌ Erro na resposta:', response.message);
-        Alert.alert('Erro', response.message || 'Erro ao adicionar valor');
-      }
-    } catch (error: any) {
-      console.log('❌ Erro ao adicionar valor:', error);
-      Alert.alert('Erro', error.message || 'Erro ao adicionar valor');
-    } finally {
-      setAddingValue(false);
-    }
-  };
-
-  // Pausar/Reativar meta - CORRIGIDO
-  const handleTogglePause = async () => {
+  const handleAddAmount = async () => {
     if (!goal) return;
 
+    const amount = parseFloat(amountToAdd.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Atenção', 'Digite um valor válido');
+      return;
+    }
+
     try {
-      const response = goal.status === 'paused' 
-        ? await GoalService.resumeGoal(goal._id) // ✅ Usar goal._id
-        : await GoalService.pauseGoal(goal._id);  // ✅ Usar goal._id
-      
-      if (response.success && response.data) {
-        setGoal(response.data);
-        Alert.alert('Sucesso', goal.status === 'paused' ? 'Meta reativada!' : 'Meta pausada!');
+      const response = await GoalService.addToGoal(goal._id, amount);
+      if (response.success) {
+        Alert.alert('Sucesso', response.message || 'Valor adicionado com sucesso!');
+        setAddModalVisible(false);
+        setAmountToAdd('');
+        loadGoal();
+      } else {
+        Alert.alert('Erro', response.message || 'Não foi possível adicionar o valor');
       }
     } catch (error: any) {
-      Alert.alert('Erro', error.message || 'Erro ao alterar status da meta');
+      Alert.alert('Erro', error.message || 'Erro ao adicionar valor');
     }
   };
 
-  // Completar meta manualmente - CORRIGIDO
-  const handleCompleteGoal = async () => {
+  const handlePauseGoal = async () => {
     if (!goal) return;
 
     Alert.alert(
-      'Completar Meta',
-      'Tem certeza que deseja marcar esta meta como concluída?',
+      'Pausar Meta',
+      'Deseja pausar esta meta?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Completar',
+          text: 'Pausar',
           onPress: async () => {
             try {
-              const response = await GoalService.completeGoal(goal._id); // ✅ Usar goal._id
-              if (response.success && response.data) {
-                setGoal(response.data);
-                Alert.alert('Parabéns!', 'Meta concluída com sucesso! 🎉');
-              }
-            } catch (error: any) {
-              Alert.alert('Erro', error.message || 'Erro ao completar meta');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Compartilhar meta
-  const handleShare = async () => {
-    if (!goal) return;
-
-    const progress = calculateProgress();
-    const shareText = `🎯 Meta: ${goal.title}\n💰 ${formatCurrency(goal.currentAmount)} de ${formatCurrency(goal.targetAmount)}\n📊 ${progress.toFixed(1)}% concluído\n📅 Prazo: ${formatDate(new Date(goal.endDate))}`;
-
-    try {
-      await Share.share({
-        message: shareText,
-        title: 'Minha Meta Financeira',
-      });
-    } catch (error) {
-      console.log('Erro ao compartilhar:', error);
-    }
-  };
-
-  // Excluir meta - CORRIGIDO
-  const handleDelete = () => {
-    if (!goal) return;
-
-    Alert.alert(
-      'Excluir Meta',
-      `Tem certeza que deseja excluir a meta "${goal.title}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Excluir', 
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await GoalService.deleteGoal(goal._id); // ✅ Usar goal._id
+              const response = await GoalService.pauseGoal(goal._id);
               if (response.success) {
-                Alert.alert('Sucesso', 'Meta excluída com sucesso!');
-                navigation.goBack();
-              } else {
-                Alert.alert('Erro', response.message || 'Erro ao excluir meta');
+                Alert.alert('Sucesso', 'Meta pausada');
+                loadGoal();
               }
-            } catch (error: any) {
-              Alert.alert('Erro', error.message || 'Erro ao excluir meta');
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível pausar a meta');
             }
-          }
+          },
         },
       ]
     );
   };
 
-  // Calcular progresso
-  const calculateProgress = (): number => {
-    if (!goal || goal.targetAmount <= 0) return 0;
-    return Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
-  };
+  const handleResumeGoal = async () => {
+    if (!goal) return;
 
-  // Obter cor do status
-  const getStatusColor = () => {
-    if (!goal) return COLORS.gray400;
-    switch (goal.status) {
-      case 'completed': return COLORS.success;
-      case 'paused': return COLORS.warning;
-      case 'active': return COLORS.primary;
-      default: return COLORS.gray400;
+    try {
+      const response = await GoalService.resumeGoal(goal._id);
+      if (response.success) {
+        Alert.alert('Sucesso', 'Meta reativada');
+        loadGoal();
+      }
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível reativar a meta');
     }
   };
 
-  // Obter texto do status
-  const getStatusText = () => {
-    if (!goal) return 'Indefinido';
+  const handleDeleteGoal = async () => {
+    if (!goal) return;
+
+    Alert.alert(
+      'Excluir Meta',
+      'Tem certeza que deseja excluir esta meta? Esta ação não pode ser desfeita.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await GoalService.deleteGoal(goal._id);
+              if (response.success) {
+                Alert.alert('Sucesso', 'Meta excluída');
+                navigation.goBack();
+              }
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível excluir a meta');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // NOVA FUNÇÃO: Navegar para compartilhar meta
+  const handleShareGoal = () => {
+    if (!goal) return;
+    navigation.navigate('ShareGoal', {
+      goalId: goal._id,
+      goalTitle: goal.title,
+    });
+  };
+
+  const getStatusColor = () => {
+    if (!goal) return COLORS.gray400;
     switch (goal.status) {
-      case 'completed': return 'Concluída';
-      case 'paused': return 'Pausada';
-      case 'active': return 'Ativa';
-      default: return 'Indefinido';
+      case 'completed':
+        return COLORS.success;
+      case 'paused':
+        return COLORS.warning;
+      case 'active':
+        return COLORS.primary;
+      default:
+        return COLORS.gray400;
+    }
+  };
+
+  const getStatusText = () => {
+    if (!goal) return '';
+    switch (goal.status) {
+      case 'completed':
+        return 'Concluída';
+      case 'paused':
+        return 'Pausada';
+      case 'active':
+        return 'Ativa';
+      default:
+        return 'Indefinido';
     }
   };
 
   if (loading) {
-    return <Loading text="Carregando meta..." />;
+    return (
+      <SafeAreaView style={styles.container}>
+        <Loading />
+      </SafeAreaView>
+    );
   }
 
   if (!goal) {
@@ -259,7 +202,7 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     );
   }
 
-  const progress = calculateProgress();
+  const progress = (goal.currentAmount / goal.targetAmount) * 100;
   const isCompleted = goal.status === 'completed';
   const isPaused = goal.status === 'paused';
 
@@ -270,27 +213,28 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerActions}>
-          <TouchableOpacity onPress={handleShare} style={styles.headerButton}>
-            <Ionicons name="share-outline" size={24} color={COLORS.textPrimary} />
+          {/* BOTÃO DE COMPARTILHAR */}
+          <TouchableOpacity onPress={handleShareGoal} style={styles.headerButton}>
+            <Ionicons name="share-social-outline" size={24} color={COLORS.primary} />
           </TouchableOpacity>
-          
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })} // ✅ Usar goal._id
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('EditGoal', { goalId: goal._id })}
             style={styles.headerButton}
           >
             <Ionicons name="create-outline" size={24} color={COLORS.textPrimary} />
           </TouchableOpacity>
-          
-          <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
+
+          <TouchableOpacity onPress={handleDeleteGoal} style={styles.headerButton}>
             <Ionicons name="trash-outline" size={24} color={COLORS.error} />
           </TouchableOpacity>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Informações principais */}
+        {/* Card Principal */}
         <Card style={styles.mainCard}>
           <View style={styles.titleContainer}>
             <Text style={styles.goalTitle}>{goal.title}</Text>
@@ -305,142 +249,152 @@ export const GoalDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.description}>{goal.description}</Text>
           )}
 
-          {goal.category && (
-            <View style={styles.categoryContainer}>
-              <Ionicons name="pricetag" size={16} color={COLORS.primary} />
-              <Text style={styles.categoryText}>{goal.category}</Text>
+          {/* Progresso */}
+          <View style={styles.progressSection}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressLabel}>Progresso</Text>
+              <Text style={styles.progressPercentage}>{progress.toFixed(1)}%</Text>
             </View>
-          )}
-        </Card>
 
-        {/* Progresso */}
-        <Card style={styles.progressCard}>
-          <Text style={styles.sectionTitle}>Progresso</Text>
-          
-          <View style={styles.progressInfo}>
-            <Text style={styles.currentAmount}>{formatCurrency(goal.currentAmount)}</Text>
-            <Text style={styles.targetAmount}>de {formatCurrency(goal.targetAmount)}</Text>
-          </View>
-
-          <ProgressBar 
-            progress={progress} 
-            color={getStatusColor()} 
-            height={12}
-            showText={false}
-            style={styles.progressBar}
-          />
-          
-          <Text style={styles.progressPercentage}>{progress.toFixed(1)}% concluído</Text>
-        </Card>
-
-        {/* Valor mensal necessário */}
-        {!isCompleted && goal.monthlyTargetRemaining > 0 && (
-          <Card style={styles.monthlyCard}>
-            <View style={styles.monthlyHeader}>
-              <Ionicons name="calendar" size={20} color={COLORS.primary} />
-              <Text style={styles.sectionTitle}>Valor Mensal</Text>
+            <View style={styles.progressBarContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  {
+                    width: `${Math.min(progress, 100)}%`,
+                    backgroundColor: isCompleted ? COLORS.success : getStatusColor(),
+                  },
+                ]}
+              />
             </View>
-            <Text style={styles.monthlyAmount}>
-              {formatCurrency(goal.monthlyTargetRemaining)}
-            </Text>
-            <Text style={styles.monthlyDescription}>
-              Economize por mês para atingir sua meta no prazo
-            </Text>
-          </Card>
-        )}
 
-        {/* Informações de prazo */}
-        <Card style={styles.dateCard}>
-          <Text style={styles.sectionTitle}>Prazo</Text>
-          
-          <View style={styles.dateInfo}>
-            <View style={styles.dateItem}>
-              <Text style={styles.dateLabel}>Data final</Text>
-              <Text style={styles.dateValue}>
-                {formatDate(new Date(goal.endDate))}
+            <View style={styles.amountRow}>
+              <Text style={styles.currentAmount}>
+                {formatCurrency(goal.currentAmount)}
+              </Text>
+              <Text style={styles.targetAmount}>
+                de {formatCurrency(goal.targetAmount)}
               </Text>
             </View>
-            
-            {goal.daysRemaining > 0 && !isCompleted && (
-              <View style={styles.dateItem}>
-                <Text style={styles.dateLabel}>Dias restantes</Text>
-                <Text style={[styles.dateValue, { color: COLORS.primary }]}>
-                  {goal.daysRemaining} dias
-                </Text>
-              </View>
-            )}
           </View>
+        </Card>
+
+        {/* Informações */}
+        <Card style={styles.infoCard}>
+          <Text style={styles.cardTitle}>Informações</Text>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.infoLabel}>Data Início</Text>
+            </View>
+            <Text style={styles.infoValue}>
+              {formatDate(new Date(goal.startDate))}
+            </Text>
+          </View>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoItem}>
+              <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.infoLabel}>Data Fim</Text>
+            </View>
+            <Text style={styles.infoValue}>
+              {formatDate(new Date(goal.endDate))}
+            </Text>
+          </View>
+
+          {!isCompleted && (
+            <View style={styles.infoRow}>
+              <View style={styles.infoItem}>
+                <Ionicons name="time-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.infoLabel}>Dias Restantes</Text>
+              </View>
+              <Text style={styles.infoValue}>{goal.daysRemaining || 0} dias</Text>
+            </View>
+          )}
+
+          {!isCompleted && (
+            <View style={styles.infoRow}>
+              <View style={styles.infoItem}>
+                <Ionicons name="cash-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.infoLabel}>Meta Mensal</Text>
+              </View>
+              <Text style={styles.infoValue}>
+                {formatCurrency(goal.monthlyTargetRemaining || 0)}
+              </Text>
+            </View>
+          )}
+
+          {goal.category && (
+            <View style={styles.infoRow}>
+              <View style={styles.infoItem}>
+                <Ionicons name="pricetag-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.infoLabel}>Categoria</Text>
+              </View>
+              <Text style={styles.infoValue}>{goal.category}</Text>
+            </View>
+          )}
         </Card>
 
         {/* Ações */}
         {!isCompleted && (
           <Card style={styles.actionsCard}>
-            <Text style={styles.sectionTitle}>Ações</Text>
-            
-            <View style={styles.actionsContainer}>
-              <Button
-                title="Adicionar Valor"
-                onPress={() => setShowAddValueModal(true)}
-                style={styles.actionButton}
-                variant="primary"
-              />
-              
-              <Button
-                title={isPaused ? 'Reativar' : 'Pausar'}
-                onPress={handleTogglePause}
-                style={styles.actionButton}
-                variant={isPaused ? 'primary' : 'outline'}
-              />
-            </View>
+            <Button
+              title="Adicionar Valor"
+              onPress={() => setAddModalVisible(true)}
+              variant="primary"
+            />
 
-            {/* Botão de completar meta se estiver próximo */}
-            {progress >= 95 && (
-              <TouchableOpacity
-                style={[styles.completeButton, { marginTop: SPACING.sm }]}
-                onPress={handleCompleteGoal}
-              >
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.white} />
-                <Text style={styles.completeButtonText}>Marcar como Concluída</Text>
-              </TouchableOpacity>
+            {isPaused ? (
+              <Button
+                title="Reativar Meta"
+                onPress={handleResumeGoal}
+                variant="secondary"
+              />
+            ) : (
+              <Button
+                title="Pausar Meta"
+                onPress={handlePauseGoal}
+                variant="outline"
+              />
             )}
-          </Card>
-        )}
-
-        {/* Card de celebração se completada */}
-        {isCompleted && (
-          <Card style={styles.celebrationCard}>
-            <View style={styles.celebrationContent}>
-              <Ionicons name="checkmark-circle" size={48} color={COLORS.success} />
-              <Text style={styles.celebrationTitle}>Meta Concluída!</Text>
-              <Text style={styles.celebrationText}>
-                Parabéns por alcançar sua meta de {formatCurrency(goal.targetAmount)}!
-              </Text>
-            </View>
           </Card>
         )}
       </ScrollView>
 
-      {/* Modal para adicionar valor */}
-      <CustomAlert
-        visible={showAddValueModal}
-        title="Adicionar Valor"
-        onConfirm={handleAddValue}
-        onCancel={() => {
-          setShowAddValueModal(false);
-          setAddValue('');
-        }}
-        confirmText="Adicionar"
-        cancelText="Cancelar"
-        loading={addingValue}
+      {/* Modal Adicionar Valor */}
+      <Modal
+        visible={addModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddModalVisible(false)}
       >
-        <CurrencyInput
-          label="Valor a adicionar"
-          placeholder="R$ 0,00"
-          value={addValue}
-          onChangeText={setAddValue}
-          autoFocus
-        />
-      </CustomAlert>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Adicionar Valor</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="0,00"
+              keyboardType="decimal-pad"
+              value={amountToAdd}
+              onChangeText={setAmountToAdd}
+            />
+
+            <View style={styles.modalButtons}>
+              <Button
+                title="Cancelar"
+                onPress={() => {
+                  setAddModalVisible(false);
+                  setAmountToAdd('');
+                }}
+                variant="outline"
+              />
+              <Button title="Adicionar" onPress={handleAddAmount} />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -454,58 +408,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.md,
     paddingVertical: SPACING.md,
     backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    ...SHADOWS.sm,
   },
   headerActions: {
     flexDirection: 'row',
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
   headerButton: {
     padding: SPACING.xs,
   },
   content: {
     flex: 1,
-    padding: SPACING.lg,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.lg,
-  },
-  errorText: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.regular,
-    color: COLORS.error,
-    textAlign: 'center',
+    padding: SPACING.md,
   },
   mainCard: {
     marginBottom: SPACING.md,
   },
   titleContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   goalTitle: {
-    flex: 1,
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES['2xl'],
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
-    marginRight: SPACING.sm,
+    marginBottom: SPACING.sm,
   },
   statusBadge: {
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
+    alignSelf: 'flex-start',
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
     borderRadius: BORDER_RADIUS.full,
   },
   statusText: {
-    fontSize: FONT_SIZES.xs,
+    fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
   },
   description: {
@@ -513,142 +451,131 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     lineHeight: 22,
+    marginBottom: SPACING.lg,
+  },
+  progressSection: {
+    marginTop: SPACING.md,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: SPACING.sm,
   },
-  categoryContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  categoryText: {
-    fontSize: FONT_SIZES.sm,
+  progressLabel: {
+    fontSize: FONT_SIZES.md,
     fontFamily: FONTS.medium,
-    color: COLORS.primary,
-  },
-  progressCard: {
-    marginBottom: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-  },
-  progressInfo: {
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  currentAmount: {
-    fontSize: FONT_SIZES.xxl,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
-  targetAmount: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-  },
-  progressBar: {
-    marginVertical: SPACING.md,
   },
   progressPercentage: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    textAlign: 'center',
-  },
-  monthlyCard: {
-    marginBottom: SPACING.md,
-    backgroundColor: COLORS.primary + '08',
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.primary,
-  },
-  monthlyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  monthlyAmount: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.primary,
-    textAlign: 'center',
-    marginBottom: SPACING.xs,
   },
-  monthlyDescription: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
+  progressBarContainer: {
+    height: 12,
+    backgroundColor: COLORS.gray200,
+    borderRadius: BORDER_RADIUS.full,
+    overflow: 'hidden',
+    marginBottom: SPACING.sm,
   },
-  dateCard: {
-    marginBottom: SPACING.md,
+  progressBar: {
+    height: '100%',
+    borderRadius: BORDER_RADIUS.full,
   },
-  dateInfo: {
-    gap: SPACING.md,
-  },
-  dateItem: {
+  amountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  dateLabel: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
-  dateValue: {
-    fontSize: FONT_SIZES.md,
+  currentAmount: {
+    fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
   },
-  actionsCard: {
-    marginBottom: SPACING.md,
-  },
-  actionsContainer: {
-    gap: SPACING.sm,
-  },
-  actionButton: {
-    flex: 1,
-  },
-  completeButton: {
-    backgroundColor: COLORS.success,
-    borderRadius: BORDER_RADIUS.md,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.xs,
-  },
-  completeButtonText: {
-    fontSize: FONT_SIZES.base,
-    fontFamily: FONTS.medium,
-    color: COLORS.white,
-  },
-  celebrationCard: {
-    backgroundColor: COLORS.success + '10',
-    borderColor: COLORS.success + '30',
-    borderWidth: 1,
-    marginBottom: SPACING.xl,
-  },
-  celebrationContent: {
-    alignItems: 'center',
-    paddingVertical: SPACING.lg,
-  },
-  celebrationTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.bold,
-    color: COLORS.success,
-    marginTop: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  celebrationText: {
+  targetAmount: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
+  },
+  infoCard: {
+    marginBottom: SPACING.md,
+  },
+  cardTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.md,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
+  },
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  infoLabel: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+  },
+  infoValue: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.medium,
+    color: COLORS.textPrimary,
+  },
+  actionsCard: {
+    gap: SPACING.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.md,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.xl,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.lg,
     textAlign: 'center',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.gray200,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.medium,
+    color: COLORS.error,
   },
 });

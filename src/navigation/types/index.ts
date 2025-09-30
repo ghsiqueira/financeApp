@@ -38,6 +38,8 @@ export type GoalStackParamList = {
   CreateGoal: undefined;
   EditGoal: { goalId: string };
   GoalDetail: { goalId: string };
+  ShareGoal: { goalId: string; goalTitle: string }; 
+  SharedGoals: undefined; 
 };
 
 // Budget Stack Navigator

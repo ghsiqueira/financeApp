@@ -110,6 +110,7 @@ export const FONTS = {
   bold: 'System',
   light: 'System',
   thin: 'System',
+  semibold: 'System-Semibold'
 };
 
 // Bordas

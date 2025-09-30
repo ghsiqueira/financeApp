@@ -1,4 +1,4 @@
-// src/screens/goals/GoalListScreen.tsx - VERSÃO COMPLETA COM NAVEGAÇÃO CORRIGIDA
+// src/screens/goals/GoalListScreen.tsx - COMPLETO COM COMPARTILHAMENTO
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -20,12 +20,13 @@ import { formatCurrency, formatDate } from '../../utils';
 import { EmptyState, Loading } from '../../components/common';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
-// Types de navegação corrigidos
+// Types de navegação
 type GoalStackParamList = {
   GoalList: undefined;
   CreateGoal: undefined;
   EditGoal: { goalId: string };
-  GoalDetail: { goalId: string }; // Corrigido: usando GoalDetail
+  GoalDetail: { goalId: string };
+  SharedGoals: undefined; // ✅ NOVO
 };
 
 interface GoalListScreenProps {
@@ -103,14 +104,19 @@ export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) =>
     );
   };
 
-  // Navegação para criar nova meta - CORRIGIDO
+  // Navegação para criar nova meta
   const handleCreateGoal = () => {
     navigation.navigate('CreateGoal');
   };
 
-  // Navegação para detalhes da meta - CORRIGIDO
+  // Navegação para detalhes da meta
   const handleGoalPress = (goal: Goal) => {
-    navigation.navigate('GoalDetail', { goalId: goal._id }); // ✅ Corrigido para GoalDetail
+    navigation.navigate('GoalDetail', { goalId: goal._id });
+  };
+
+  // NOVA FUNÇÃO: Navegar para metas compartilhadas
+  const handleSharedGoals = () => {
+    navigation.navigate('SharedGoals');
   };
 
   // Renderizar filtros
@@ -168,24 +174,11 @@ export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) =>
     const statusColor = getStatusColor(goal.status);
     const isCompleted = goal.status === 'completed';
     const daysRemaining = goal.daysRemaining || 0;
-    
-    // Calcular valor mensal necessário
-    const calculateMonthlyTarget = (goal: Goal): number => {
-      const remainingAmount = Math.max(0, goal.targetAmount - goal.currentAmount);
-      const remainingDays = daysRemaining;
-      
-      if (remainingDays <= 0 || isCompleted) return 0;
-      
-      const remainingMonths = Math.max(1, Math.ceil(remainingDays / 30));
-      return remainingAmount / remainingMonths;
-    };
-    
-    const monthlyTarget = calculateMonthlyTarget(goal);
 
     return (
       <TouchableOpacity
         style={styles.goalCard}
-        onPress={() => handleGoalPress(goal)} // ✅ Função corrigida
+        onPress={() => handleGoalPress(goal)}
         activeOpacity={0.7}
       >
         {/* Header do card */}
@@ -213,18 +206,6 @@ export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) =>
           <Text style={styles.goalDescription} numberOfLines={2}>
             {goal.description}
           </Text>
-        )}
-
-        {/* Valor mensal necessário */}
-        {!isCompleted && monthlyTarget > 0 && (
-          <View style={styles.monthlyTargetContainer}>
-            <View style={styles.monthlyTargetInfo}>
-              <Ionicons name="calendar" size={16} color={COLORS.primary} />
-              <Text style={styles.monthlyTargetText}>
-                Economizar por mês: {formatCurrency(monthlyTarget)}
-              </Text>
-            </View>
-          </View>
         )}
 
         {/* Progresso */}
@@ -266,14 +247,6 @@ export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) =>
               </Text>
             </View>
           )}
-          {goal.category && (
-            <View style={styles.goalInfo}>
-              <Ionicons name="pricetag-outline" size={16} color={COLORS.gray600} />
-              <Text style={styles.goalInfoText}>
-                {goal.category}
-              </Text>
-            </View>
-          )}
         </View>
       </TouchableOpacity>
     );
@@ -302,9 +275,15 @@ export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) =>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Minhas Metas</Text>
-        <TouchableOpacity style={styles.addButton} onPress={handleCreateGoal}>
-          <Ionicons name="add" size={24} color={COLORS.white} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          {/* NOVO BOTÃO: Metas Compartilhadas */}
+          <TouchableOpacity style={styles.sharedButton} onPress={handleSharedGoals}>
+            <Ionicons name="people-outline" size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.addButton} onPress={handleCreateGoal}>
+            <Ionicons name="add" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filtros */}
@@ -360,6 +339,14 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  sharedButton: {
+    padding: SPACING.xs,
   },
   addButton: {
     backgroundColor: COLORS.primary,
@@ -468,25 +455,6 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary,
     marginBottom: SPACING.md,
     lineHeight: 20,
-  },
-  monthlyTargetContainer: {
-    marginBottom: SPACING.sm,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.primary + '08',
-    borderRadius: BORDER_RADIUS.sm,
-    borderLeftWidth: 3,
-    borderLeftColor: COLORS.primary,
-  },
-  monthlyTargetInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  monthlyTargetText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-    flex: 1,
   },
   progressContainer: {
     marginBottom: SPACING.md,
