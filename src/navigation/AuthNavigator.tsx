@@ -2,7 +2,9 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
-import { ForgotPasswordScreen } from '../screens/auth/ForgotPasswordScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
+import NewPasswordScreen from '../screens/auth/NewPasswordScreen';
 import { AuthStackParamList } from './types';
 import { COLORS } from '../constants';
 
@@ -35,6 +37,16 @@ export const AuthNavigator: React.FC = () => {
         name="ForgotPassword" 
         component={ForgotPasswordScreen}
         options={{ title: 'Recuperar Senha' }}
+      />
+      <Stack.Screen 
+        name="ResetPassword" 
+        component={ResetPasswordScreen}
+        options={{ title: 'Verificar Código' }}
+      />
+      <Stack.Screen 
+        name="NewPassword" 
+        component={NewPasswordScreen}
+        options={{ title: 'Nova Senha' }}
       />
     </Stack.Navigator>
   );

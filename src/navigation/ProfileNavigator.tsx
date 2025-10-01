@@ -1,96 +1,39 @@
 // src/navigation/ProfileNavigator.tsx
 import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { 
-  ProfileScreen,
-  SettingsScreen,
-  EditProfileScreen,
-} from '../screens/PlaceholderScreens';
-import { CategoryNavigator } from './CategoryNavigator';
-import { COLORS, FONTS } from '../constants';
+import { createStackNavigator } from '@react-navigation/stack';
+import ProfileScreen from '../screens/profile/ProfileScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import ChangePasswordScreen from '../screens/auth/ChangePasswordScreen';
 
-export type ProfileStackParamList = {
-  Profile: undefined;
-  Settings: undefined;
-  EditProfile: undefined;
-  Categories: undefined;
-};
-
-const Stack = createNativeStackNavigator<ProfileStackParamList>();
+const Stack = createStackNavigator();
 
 export const ProfileNavigator: React.FC = () => {
   return (
-    <Stack.Navigator
-      initialRouteName="Profile"
-      screenOptions={{
-        headerStyle: {
-          backgroundColor: COLORS.primary,
-        },
-        headerTintColor: COLORS.white,
-        headerTitleStyle: {
-          fontFamily: FONTS.bold,
-          fontSize: 18,
-        },
-        headerBackTitle: '',
-        headerShadowVisible: true,
-        contentStyle: {
-          backgroundColor: COLORS.background,
-        },
+    <Stack.Navigator 
+      screenOptions={{ 
+        headerShown: false,
+        cardStyle: { backgroundColor: '#F5F5F5' }
       }}
     >
       <Stack.Screen 
-        name="Profile" 
+        name="ProfileMain" 
         component={ProfileScreen}
-        options={{ 
-          title: 'Perfil',
-          headerShown: false,
-          contentStyle: {
-            backgroundColor: COLORS.background,
-          },
-        }}
-      />
-      <Stack.Screen 
-        name="Settings" 
-        component={SettingsScreen}
-        options={{ 
-          title: 'Configurações',
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: COLORS.primary,
-          },
-          headerTintColor: COLORS.white,
-          headerTitleStyle: {
-            fontFamily: FONTS.bold,
-            fontSize: 18,
-          },
-        }}
+        options={{ title: 'Perfil' }}
       />
       <Stack.Screen 
         name="EditProfile" 
         component={EditProfileScreen}
         options={{ 
           title: 'Editar Perfil',
-          headerShown: true,
-          headerStyle: {
-            backgroundColor: COLORS.primary,
-          },
-          headerTintColor: COLORS.white,
-          headerTitleStyle: {
-            fontFamily: FONTS.bold,
-            fontSize: 18,
-          },
+          presentation: 'modal'
         }}
       />
       <Stack.Screen 
-        name="Categories" 
-        component={CategoryNavigator}
+        name="ChangePassword" 
+        component={ChangePasswordScreen}
         options={{ 
-          title: 'Categorias',
-          headerShown: false,
-          presentation: 'card',
-          contentStyle: {
-            backgroundColor: COLORS.background,
-          },
+          title: 'Alterar Senha',
+          presentation: 'modal'
         }}
       />
     </Stack.Navigator>

@@ -1,97 +1,80 @@
 // src/screens/profile/ProfileScreen.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
+  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Alert,
   Switch,
-  StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-
-// Importações do projeto
-import { useAuth } from '../../contexts/AuthContext';
 import { Card, Loading } from '../../components/common';
-import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { useAuth } from '../../contexts/AuthContext';
+import { COLORS, FONTS } from '../../constants';
 
-interface MenuOption {
-  title: string;
-  icon: string;
-  onPress: () => void;
-  showArrow?: boolean;
-  rightComponent?: React.ReactNode;
-  color?: string;
-}
-
-interface UserStats {
-  totalTransactions: number;
-  totalGoals: number;
-  totalBudgets: number;
-  memberSince: string;
-}
-
-export const ProfileScreen: React.FC = () => {
+const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
-
-  // Estatísticas do usuário (simuladas)
-  const [userStats, setUserStats] = useState<UserStats>({
-    totalTransactions: 0,
-    totalGoals: 0,
-    totalBudgets: 0,
-    memberSince: new Date().toLocaleDateString('pt-BR'),
-  });
-
-  useEffect(() => {
-    loadUserStats();
-  }, []);
-
-  const loadUserStats = async () => {
-    // Simular carregamento de estatísticas
-    // Em um app real, isso viria de uma API
-    setUserStats({
-      totalTransactions: 142,
-      totalGoals: 5,
-      totalBudgets: 8,
-      memberSince: '01/01/2024',
-    });
-  };
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
-      'Sair da Conta',
-      'Tem certeza que deseja sair?',
+      'Sair',
+      'Tem certeza que deseja sair da sua conta?',
       [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
+        { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Sair',
           style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await logout();
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível fazer logout');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      'Excluir Conta',
+      'Esta ação não pode ser desfeita. Todos os seus dados serão permanentemente removidos.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Excluir',
+          style: 'destructive',
           onPress: () => {
-            Alert.alert(
-              'Confirmação Final',
-              'Digite "EXCLUIR" para confirmar a exclusão da conta:',
+            Alert.prompt(
+              'Confirmar Exclusão',
+              'Digite sua senha para confirmar:',
               [
                 { text: 'Cancelar', style: 'cancel' },
                 {
                   text: 'Confirmar',
                   style: 'destructive',
-                  onPress: () => {
-                    // Aqui seria implementada a exclusão da conta
-                    Alert.alert('Conta excluída', 'Sua conta foi excluída com sucesso.');
+                  onPress: (password?: string) => {
+                    if (password) {
+                      Alert.alert('Sucesso', 'Conta excluída com sucesso');
+                      logout();
+                    }
                   },
                 },
-              ]
+              ],
+              'secure-text'
             );
           },
         },
@@ -99,293 +82,281 @@ export const ProfileScreen: React.FC = () => {
     );
   };
 
-  const handleNotificationToggle = (value: boolean) => {
-    setNotificationsEnabled(value);
-    // Aqui seria implementada a lógica para ativar/desativar notificações
-  };
-
-  const handleBiometricToggle = (value: boolean) => {
-    setBiometricEnabled(value);
-    // Aqui seria implementada a lógica para ativar/desativar biometria
-  };
-
-  const handleDarkModeToggle = (value: boolean) => {
-    setDarkModeEnabled(value);
-    // Aqui seria implementada a lógica para tema escuro
-  };
-
-  const handleEditProfile = () => {
-    navigation.navigate('EditProfile' as never);
-  };
-
-  const handleChangePassword = () => {
-    Alert.alert('Alterar Senha', 'Funcionalidade em desenvolvimento');
-  };
-
-  const handleExportData = () => {
-    Alert.alert(
-      'Exportar Dados',
-      'Escolha o formato para exportar seus dados:',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'PDF', onPress: () => Alert.alert('Exportando...', 'Exportação em PDF iniciada') },
-        { text: 'CSV', onPress: () => Alert.alert('Exportando...', 'Exportação em CSV iniciada') },
-      ]
-    );
-  };
-
-  const handleBackupData = () => {
-    Alert.alert('Backup', 'Backup dos dados realizado com sucesso!');
-  };
-
-  const handleSupport = () => {
-    Alert.alert('Suporte', 'Entre em contato: suporte@financeapp.com');
-  };
-
-  const handleAbout = () => {
-    Alert.alert(
-      'Sobre o App',
-      'Finance App v1.0.0\n\nAplicativo para controle financeiro pessoal.\n\n© 2024 Finance App'
-    );
-  };
-
-  const handlePrivacyPolicy = () => {
-    Alert.alert('Política de Privacidade', 'Funcionalidade em desenvolvimento');
-  };
-
-  const handleTermsOfService = () => {
-    Alert.alert('Termos de Uso', 'Funcionalidade em desenvolvimento');
-  };
-
-  // Renderizar informações do usuário
-  const renderUserInfo = () => (
-    <Card style={styles.userCard}>
-      <View style={styles.userHeader}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={40} color={COLORS.white} />
-          </View>
-          <TouchableOpacity style={styles.editAvatarButton}>
-            <Ionicons name="camera" size={16} color={COLORS.white} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.userDetails}>
-          <Text style={styles.userName}>{user?.name || 'Usuário'}</Text>
-          <Text style={styles.userEmail}>{user?.email || 'usuario@email.com'}</Text>
-          <Text style={styles.memberSince}>Membro desde {userStats.memberSince}</Text>
-        </View>
-        <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-          <Ionicons name="pencil" size={20} color={COLORS.primary} />
-        </TouchableOpacity>
-      </View>
-    </Card>
-  );
-
-  // Renderizar estatísticas do usuário
-  const renderUserStats = () => (
-    <Card style={styles.statsCard}>
-      <Text style={styles.statsTitle}>Suas Estatísticas</Text>
-      <View style={styles.statsGrid}>
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.primary + '20' }]}>
-            <Ionicons name="receipt" size={24} color={COLORS.primary} />
-          </View>
-          <Text style={styles.statNumber}>{userStats.totalTransactions}</Text>
-          <Text style={styles.statLabel}>Transações</Text>
-        </View>
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.success + '20' }]}>
-            <Ionicons name="flag" size={24} color={COLORS.success} />
-          </View>
-          <Text style={styles.statNumber}>{userStats.totalGoals}</Text>
-          <Text style={styles.statLabel}>Metas</Text>
-        </View>
-        <View style={styles.statItem}>
-          <View style={[styles.statIcon, { backgroundColor: COLORS.warning + '20' }]}>
-            <Ionicons name="wallet" size={24} color={COLORS.warning} />
-          </View>
-          <Text style={styles.statNumber}>{userStats.totalBudgets}</Text>
-          <Text style={styles.statLabel}>Orçamentos</Text>
-        </View>
-      </View>
-    </Card>
-  );
-
-  // Renderizar seção de menu
-  const renderMenuSection = (title: string, options: MenuOption[]) => (
-    <View style={styles.menuSection}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <Card style={styles.menuCard}>
-        {options.map((option, index) => (
-          <TouchableOpacity
-            key={option.title}
-            style={[
-              styles.menuItem,
-              index < options.length - 1 && styles.menuItemBorder,
-            ]}
-            onPress={option.onPress}
-          >
-            <View style={styles.menuItemLeft}>
-              <Ionicons
-                name={option.icon as any}
-                size={24}
-                color={option.color || COLORS.textPrimary}
-              />
-              <Text
-                style={[
-                  styles.menuItemText,
-                  option.color && { color: option.color },
-                ]}
-              >
-                {option.title}
-              </Text>
-            </View>
-            <View style={styles.menuItemRight}>
-              {option.rightComponent}
-              {option.showArrow !== false && (
-                <Ionicons name="chevron-forward" size={20} color={COLORS.gray400} />
-              )}
-            </View>
-          </TouchableOpacity>
-        ))}
-      </Card>
-    </View>
-  );
-
-  const accountOptions: MenuOption[] = [
+  const menuSections = [
     {
-      title: 'Editar Perfil',
-      icon: 'person-outline',
-      onPress: handleEditProfile,
-    },
-    {
-      title: 'Alterar Senha',
-      icon: 'lock-closed-outline',
-      onPress: handleChangePassword,
-    },
-    {
-      title: 'Notificações',
-      icon: 'notifications-outline',
-      onPress: () => {},
-      showArrow: false,
-      rightComponent: (
-        <Switch
-          value={notificationsEnabled}
-          onValueChange={handleNotificationToggle}
-          trackColor={{ false: COLORS.gray300, true: COLORS.primary + '40' }}
-          thumbColor={notificationsEnabled ? COLORS.primary : COLORS.gray400}
-        />
-      ),
-    },
-    {
-      title: 'Autenticação Biométrica',
-      icon: 'finger-print-outline',
-      onPress: () => {},
-      showArrow: false,
-      rightComponent: (
-        <Switch
-          value={biometricEnabled}
-          onValueChange={handleBiometricToggle}
-          trackColor={{ false: COLORS.gray300, true: COLORS.primary + '40' }}
-          thumbColor={biometricEnabled ? COLORS.primary : COLORS.gray400}
-        />
-      ),
-    },
-  ];
-
-  const dataOptions: MenuOption[] = [
-    {
-      title: 'Exportar Dados',
-      icon: 'download-outline',
-      onPress: handleExportData,
-    },
-    {
-      title: 'Backup de Dados',
-      icon: 'cloud-upload-outline',
-      onPress: handleBackupData,
-    },
-  ];
-
-  const supportOptions: MenuOption[] = [
-    {
-      title: 'Central de Ajuda',
-      icon: 'help-circle-outline',
-      onPress: handleSupport,
-    },
-    {
-      title: 'Sobre o App',
-      icon: 'information-circle-outline',
-      onPress: handleAbout,
-    },
-    {
-      title: 'Política de Privacidade',
-      icon: 'shield-checkmark-outline',
-      onPress: handlePrivacyPolicy,
-    },
-    {
-      title: 'Termos de Uso',
-      icon: 'document-text-outline',
-      onPress: handleTermsOfService,
-    },
-  ];
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Excluir Conta',
-      'Esta ação é irreversível. Todos os seus dados serão perdidos permanentemente.',
-      [
+      title: 'Conta',
+      items: [
         {
-          text: 'Cancelar',
-          style: 'cancel',
+          id: 'edit-profile',
+          title: 'Editar Perfil',
+          icon: 'person-outline',
+          onPress: () => navigation.navigate('EditProfile' as never),
         },
         {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => {
-            // Aqui seria implementada a exclusão da conta
-            Alert.alert('Conta excluída', 'Sua conta foi excluída com sucesso.');
-          },
+          id: 'change-password',
+          title: 'Alterar Senha',
+          icon: 'lock-closed-outline',
+          onPress: () => navigation.navigate('ChangePassword' as never),
         },
-      ]
-    );
-  }
-
-
-  const dangerOptions: MenuOption[] = [
-    {
-      title: 'Sair da Conta',
-      icon: 'log-out-outline',
-      onPress: handleLogout,
-      color: COLORS.error,
+        {
+          id: 'categories',
+          title: 'Minhas Categorias',
+          icon: 'pricetags-outline',
+          onPress: () => navigation.navigate('Categories' as never),
+        },
+      ],
     },
     {
-      title: 'Excluir Conta',
-      icon: 'trash-outline',
-      onPress: handleDeleteAccount,
-      color: COLORS.error,
+      title: 'Dados',
+      items: [
+        {
+          id: 'export',
+          title: 'Exportar Dados',
+          icon: 'download-outline',
+          onPress: () => Alert.alert('Exportar', 'Seus dados serão enviados por email'),
+        },
+        {
+          id: 'backup',
+          title: 'Backup e Restauração',
+          icon: 'cloud-upload-outline',
+          onPress: () => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento'),
+        },
+      ],
+    },
+    {
+      title: 'Suporte',
+      items: [
+        {
+          id: 'help',
+          title: 'Central de Ajuda',
+          icon: 'help-circle-outline',
+          onPress: () => Alert.alert('Ajuda', 'Acesse: https://help.financeapp.com'),
+        },
+        {
+          id: 'contact',
+          title: 'Falar com Suporte',
+          icon: 'chatbox-outline',
+          onPress: () => Alert.alert('Suporte', 'Email: suporte@financeapp.com\nWhatsApp: (11) 9999-9999'),
+        },
+        {
+          id: 'feedback',
+          title: 'Enviar Feedback',
+          icon: 'mail-outline',
+          onPress: () => Alert.alert('Feedback', 'Obrigado! Seu feedback é importante para nós.'),
+        },
+      ],
+    },
+    {
+      title: 'Sobre',
+      items: [
+        {
+          id: 'terms',
+          title: 'Termos de Uso',
+          icon: 'document-text-outline',
+          onPress: () => Alert.alert('Termos', 'Termos de Uso do Finance App'),
+        },
+        {
+          id: 'privacy',
+          title: 'Política de Privacidade',
+          icon: 'shield-checkmark-outline',
+          onPress: () => Alert.alert('Privacidade', 'Política de Privacidade do Finance App'),
+        },
+        {
+          id: 'about',
+          title: 'Sobre o App',
+          icon: 'information-circle-outline',
+          onPress: () => Alert.alert('Finance App', 'Versão 1.0.0\n\nDesenvolvido com ❤️\n\n© 2025 Finance App'),
+        },
+      ],
     },
   ];
 
   if (loading) {
-    return <Loading text="Carregando perfil..." />;
+    return <Loading text="Carregando..." />;
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Perfil</Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {renderUserInfo()}
-        {renderUserStats()}
-        {renderMenuSection('Conta', accountOptions)}
-        {renderMenuSection('Dados', dataOptions)}
-        {renderMenuSection('Suporte', supportOptions)}
-        {renderMenuSection('Zona de Perigo', dangerOptions)}
-        
-        <View style={styles.bottomSpacing} />
+        {/* Card do Usuário */}
+        <Card style={styles.userCard}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.avatarEditButton}>
+              <Ionicons name="camera" size={16} color={COLORS.white} />
+            </TouchableOpacity>
+          </View>
+          
+          <Text style={styles.userName}>{user?.name || 'Usuário'}</Text>
+          <Text style={styles.userEmail}>{user?.email || 'email@exemplo.com'}</Text>
+
+          <View style={styles.memberSince}>
+            <Ionicons name="calendar-outline" size={14} color={COLORS.gray500} />
+            <Text style={styles.memberSinceText}>
+              Membro desde {new Date(user?.createdAt || Date.now()).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => navigation.navigate('EditProfile' as never)}
+          >
+            <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.editButtonText}>Editar Perfil</Text>
+          </TouchableOpacity>
+        </Card>
+
+        {/* Estatísticas rápidas */}
+        <View style={styles.statsContainer}>
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: COLORS.success + '20' }]}>
+              <Ionicons name="wallet-outline" size={24} color={COLORS.success} />
+            </View>
+            <Text style={styles.statValue}>R$ 0,00</Text>
+            <Text style={styles.statLabel}>Saldo Total</Text>
+          </Card>
+          
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: COLORS.primary + '20' }]}>
+              <Ionicons name="swap-horizontal-outline" size={24} color={COLORS.primary} />
+            </View>
+            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statLabel}>Transações</Text>
+          </Card>
+          
+          <Card style={styles.statCard}>
+            <View style={[styles.statIconContainer, { backgroundColor: COLORS.warning + '20' }]}>
+              <Ionicons name="flag-outline" size={24} color={COLORS.warning} />
+            </View>
+            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statLabel}>Metas</Text>
+          </Card>
+        </View>
+
+        {/* Configurações Rápidas */}
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Preferências</Text>
+          
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: COLORS.info + '20' }]}>
+                <Ionicons name="notifications-outline" size={20} color={COLORS.info} />
+              </View>
+              <View>
+                <Text style={styles.settingText}>Notificações</Text>
+                <Text style={styles.settingSubtext}>Receber alertas e lembretes</Text>
+              </View>
+            </View>
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={setNotificationsEnabled}
+              trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+              thumbColor={COLORS.white}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: COLORS.primary + '20' }]}>
+                <Ionicons name="moon-outline" size={20} color={COLORS.primary} />
+              </View>
+              <View>
+                <Text style={styles.settingText}>Modo Escuro</Text>
+                <Text style={styles.settingSubtext}>Tema escuro para o app</Text>
+              </View>
+            </View>
+            <Switch
+              value={darkModeEnabled}
+              onValueChange={setDarkModeEnabled}
+              trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+              thumbColor={COLORS.white}
+            />
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.settingItem}>
+            <View style={styles.settingLeft}>
+              <View style={[styles.settingIcon, { backgroundColor: COLORS.success + '20' }]}>
+                <Ionicons name="finger-print-outline" size={20} color={COLORS.success} />
+              </View>
+              <View>
+                <Text style={styles.settingText}>Biometria</Text>
+                <Text style={styles.settingSubtext}>Login com digital/face</Text>
+              </View>
+            </View>
+            <Switch
+              value={biometricEnabled}
+              onValueChange={setBiometricEnabled}
+              trackColor={{ false: COLORS.gray300, true: COLORS.primary }}
+              thumbColor={COLORS.white}
+            />
+          </View>
+        </Card>
+
+        {/* Menu Sections */}
+        {menuSections.map((section, sectionIndex) => (
+          <Card key={section.title} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            
+            {section.items.map((item, itemIndex) => (
+              <React.Fragment key={item.id}>
+                {itemIndex > 0 && <View style={styles.divider} />}
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={item.onPress}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.menuLeft}>
+                    <View style={styles.menuIconContainer}>
+                      <Ionicons name={item.icon as any} size={20} color={COLORS.primary} />
+                    </View>
+                    <Text style={styles.menuText}>{item.title}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={COLORS.gray400} />
+                </TouchableOpacity>
+              </React.Fragment>
+            ))}
+          </Card>
+        ))}
+
+        {/* Ações de Conta */}
+        <Card style={styles.section}>
+          <TouchableOpacity
+            style={styles.dangerButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={20} color={COLORS.error} />
+            <Text style={styles.dangerButtonText}>Sair da Conta</Text>
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
+          <TouchableOpacity
+            style={styles.dangerButton}
+            onPress={handleDeleteAccount}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+            <Text style={styles.dangerButtonText}>Excluir Conta</Text>
+          </TouchableOpacity>
+        </Card>
+
+        {/* Versão */}
+        <Text style={styles.versionText}>Versão 1.0.0</Text>
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -397,154 +368,210 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    backgroundColor: COLORS.white,
-    ...SHADOWS.sm,
+    backgroundColor: COLORS.primary,
+    padding: 20,
+    paddingTop: 10,
   },
   headerTitle: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: 24,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.white,
   },
   content: {
     flex: 1,
-    padding: SPACING.md,
+    padding: 16,
   },
   userCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-  },
-  userHeader: {
-    flexDirection: 'row',
+    padding: 24,
     alignItems: 'center',
+    marginBottom: 16,
   },
   avatarContainer: {
     position: 'relative',
-    marginRight: SPACING.md,
+    marginBottom: 16,
   },
   avatar: {
-    width: 70,
-    height: 70,
-    borderRadius: BORDER_RADIUS.full,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: COLORS.primary,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  editAvatarButton: {
+  avatarText: {
+    fontSize: 40,
+    fontFamily: FONTS.bold,
+    color: COLORS.white,
+  },
+  avatarEditButton: {
     position: 'absolute',
-    bottom: 0,
     right: 0,
-    width: 24,
-    height: 24,
-    borderRadius: BORDER_RADIUS.full,
-    backgroundColor: COLORS.secondary,
-    justifyContent: 'center',
+    bottom: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
-    borderWidth: 2,
+    justifyContent: 'center',
+    borderWidth: 3,
     borderColor: COLORS.white,
   },
-  userDetails: {
-    flex: 1,
-  },
   userName: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: 24,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
+    color: COLORS.gray900,
+    marginBottom: 4,
   },
   userEmail: {
-    fontSize: FONT_SIZES.md,
+    fontSize: 14,
     fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
+    color: COLORS.gray600,
+    marginBottom: 8,
   },
   memberSince: {
-    fontSize: FONT_SIZES.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 16,
+  },
+  memberSinceText: {
+    fontSize: 12,
     fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
+    color: COLORS.gray500,
   },
   editButton: {
-    padding: SPACING.sm,
-  },
-  statsCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-  },
-  statsTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.md,
-  },
-  statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  statItem: {
     alignItems: 'center',
-    flex: 1,
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
   },
-  statIcon: {
+  editButtonText: {
+    fontSize: 14,
+    fontFamily: FONTS.medium,
+    color: COLORS.primary,
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  statCard: {
+    flex: 1,
+    padding: 16,
+    alignItems: 'center',
+  },
+  statIconContainer: {
     width: 48,
     height: 48,
-    borderRadius: BORDER_RADIUS.full,
-    justifyContent: 'center',
+    borderRadius: 24,
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    justifyContent: 'center',
+    marginBottom: 8,
   },
-  statNumber: {
-    fontSize: FONT_SIZES.xl,
+  statValue: {
+    fontSize: 18,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
+    color: COLORS.gray900,
+    marginBottom: 4,
   },
   statLabel: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: 12,
     fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
+    color: COLORS.gray600,
     textAlign: 'center',
   },
-  menuSection: {
-    marginBottom: SPACING.lg,
+  section: {
+    padding: 16,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: 16,
     fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.sm,
+    color: COLORS.gray900,
+    marginBottom: 16,
   },
-  menuCard: {
-    padding: 0,
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  settingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingText: {
+    fontSize: 15,
+    fontFamily: FONTS.medium,
+    color: COLORS.gray900,
+  },
+  settingSubtext: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray500,
+    marginTop: 2,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.gray200,
+    marginVertical: 12,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.md,
+    paddingVertical: 12,
   },
-  menuItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.gray200,
-  },
-  menuItemLeft: {
+  menuLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: 12,
   },
-  menuItemText: {
-    fontSize: FONT_SIZES.md,
+  menuIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary + '10',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuText: {
+    fontSize: 15,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray900,
+  },
+  dangerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+  },
+  dangerButtonText: {
+    fontSize: 15,
     fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-    marginLeft: SPACING.md,
+    color: COLORS.error,
   },
-  menuItemRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-  },
-  bottomSpacing: {
-    height: SPACING.xl,
+  versionText: {
+    fontSize: 12,
+    fontFamily: FONTS.regular,
+    color: COLORS.gray400,
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
+
+export default ProfileScreen;

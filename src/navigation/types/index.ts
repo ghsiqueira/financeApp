@@ -12,6 +12,8 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  ResetPassword: { email: string };
+  NewPassword: { email: string; code: string };
 };
 
 // Main Tab Navigator
@@ -55,6 +57,7 @@ export type ProfileStackParamList = {
   Profile: undefined;
   Settings: undefined;
   EditProfile: undefined;
+  ChangePassword: undefined;  // ← Adicione esta linha
   Categories: NavigatorScreenParams<CategoryStackParamList>;
 };
 
