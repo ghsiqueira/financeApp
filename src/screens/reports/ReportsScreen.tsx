@@ -1,5 +1,5 @@
-// src/screens/reports/ReportsScreen.tsx
-import React, { useState, useEffect } from 'react';
+// src/screens/reports/ReportsScreen.tsx - VERSÃO CORRIGIDA (SEM LOOP)
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,11 +12,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-// Importações do projeto
 import { useTransactions, useBudgets, useGoals } from '../../hooks';
 import { Transaction, Budget, Goal } from '../../types';
-import { formatCurrency, formatDate, getStartOfMonth, getEndOfMonth } from '../../utils';
-import { Card, Loading, EmptyState } from '../../components/common';
+import { formatCurrency, getStartOfMonth, getEndOfMonth } from '../../utils';
+import { Card, Loading } from '../../components/common';
+import { PieChart, LineChart, BarChart } from '../../components/charts';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
 const { width } = Dimensions.get('window');
@@ -29,18 +29,31 @@ interface PeriodFilter {
 }
 
 interface CategoryData {
-  category: string;
-  amount: number;
-  percentage: number;
+  label: string;
+  value: number;
   color: string;
+  percentage: number;
+  count: number;
 }
 
 interface MonthlyData {
-  month: string;
-  income: number;
-  expenses: number;
-  balance: number;
+  label: string;
+  value: number;
+  secondValue: number;
 }
+
+const CATEGORY_COLORS = [
+  COLORS.primary,
+  COLORS.secondary,
+  COLORS.success,
+  COLORS.warning,
+  COLORS.error,
+  COLORS.info,
+  '#9333EA', // purple
+  '#EC4899', // pink
+  '#F59E0B', // amber
+  '#14B8A6', // teal
+];
 
 export const ReportsScreen: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
@@ -53,7 +66,7 @@ export const ReportsScreen: React.FC = () => {
   const loading = transactionsLoading || budgetsLoading || goalsLoading;
 
   // Períodos disponíveis
-  const periods: PeriodFilter[] = [
+  const periods: PeriodFilter[] = useMemo(() => [
     {
       key: 'thisMonth',
       label: 'Este Mês',
@@ -73,376 +86,396 @@ export const ReportsScreen: React.FC = () => {
       endDate: new Date(),
     },
     {
+      key: 'last6Months',
+      label: 'Últimos 6 Meses',
+      startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)),
+      endDate: new Date(),
+    },
+    {
       key: 'thisYear',
       label: 'Este Ano',
       startDate: new Date(new Date().getFullYear(), 0, 1),
       endDate: new Date(),
     },
-  ];
+  ], []);
 
   const currentPeriod = periods.find(p => p.key === selectedPeriod) || periods[0];
 
+  // ✅ FIX: Usar useMemo ao invés de useCallback para evitar loop
   // Filtrar transações por período
-  const filteredTransactions = transactions.filter(transaction => {
-    const transactionDate = new Date(transaction.date);
-    return transactionDate >= currentPeriod.startDate && transactionDate <= currentPeriod.endDate;
-  });
-
-  // Calcular estatísticas gerais
-  const calculateGeneralStats = () => {
-    const income = filteredTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const expenses = filteredTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const balance = income - expenses;
-
-    const transactionCount = filteredTransactions.length;
-    const avgTransaction = transactionCount > 0 ? (income + expenses) / transactionCount : 0;
-
-    return {
-      income,
-      expenses,
-      balance,
-      transactionCount,
-      avgTransaction,
-    };
-  };
-
-  // Calcular dados por categoria
-  const calculateCategoryData = (): CategoryData[] => {
-    const categoryTotals: { [key: string]: number } = {};
-    const expenseTransactions = filteredTransactions.filter(t => t.type === 'expense');
-
-    expenseTransactions.forEach(transaction => {
-      const categoryKey = typeof transaction.category === 'string' ? transaction.category : String(transaction.category);
-      categoryTotals[categoryKey] = (categoryTotals[categoryKey] || 0) + transaction.amount;
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.date);
+      return transactionDate >= currentPeriod.startDate && transactionDate <= currentPeriod.endDate;
     });
+  }, [transactions, currentPeriod.startDate, currentPeriod.endDate]);
 
-    const totalExpenses = Object.values(categoryTotals).reduce((sum, amount) => sum + amount, 0);
+  // ✅ FIX: Calcular dados por categoria usando useMemo
+  const categoryData = useMemo((): CategoryData[] => {
+    const filtered = filteredTransactions.filter(t => t.type === 'expense');
+    
+    if (filtered.length === 0) {
+      return [];
+    }
 
-    const colors = [
-      COLORS.primary,
-      COLORS.secondary,
-      COLORS.success,
-      COLORS.warning,
-      COLORS.error,
-      COLORS.info,
-      '#8B5CF6',
-      '#F59E0B',
-      '#10B981',
-      '#EF4444',
-    ];
-
-    return Object.entries(categoryTotals)
-      .map(([category, amount], index) => ({
-        category,
-        amount,
-        percentage: totalExpenses > 0 ? (amount / totalExpenses) * 100 : 0,
-        color: colors[index % colors.length],
-      }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 6); // Top 6 categorias
-  };
-
-  // Calcular dados mensais (para gráfico de tendência)
-  const calculateMonthlyData = (): MonthlyData[] => {
-    const monthlyData: { [key: string]: { income: number; expenses: number } } = {};
-
-    filteredTransactions.forEach(transaction => {
-      const monthKey = new Date(transaction.date).toLocaleDateString('pt-BR', { 
-        year: 'numeric', 
-        month: '2-digit' 
-      });
-
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { income: 0, expenses: 0 };
-      }
-
-      if (transaction.type === 'income') {
-        monthlyData[monthKey].income += transaction.amount;
-      } else if (transaction.type === 'expense') {
-        monthlyData[monthKey].expenses += transaction.amount;
+    // Agrupar por categoria
+    const categoryMap = new Map<string, { amount: number; count: number }>();
+    
+    filtered.forEach(t => {
+      const categoryName = typeof t.category === 'string' 
+        ? t.category 
+        : (t.category?.name || 'Sem categoria');
+      
+      const existing = categoryMap.get(categoryName);
+      
+      if (existing) {
+        existing.amount += t.amount;
+        existing.count += 1;
+      } else {
+        categoryMap.set(categoryName, {
+          amount: t.amount,
+          count: 1,
+        });
       }
     });
 
-    return Object.entries(monthlyData)
-      .map(([month, data]) => ({
-        month,
-        income: data.income,
-        expenses: data.expenses,
-        balance: data.income - data.expenses,
+    // Calcular total e percentuais
+    const total = Array.from(categoryMap.values()).reduce((sum, cat) => sum + cat.amount, 0);
+    
+    return Array.from(categoryMap.entries())
+      .map(([label, data], index) => ({
+        label,
+        value: data.amount,
+        count: data.count,
+        percentage: (data.amount / total) * 100,
+        color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
       }))
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .slice(-6); // Últimos 6 meses
-  };
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8); // Top 8 categorias
+  }, [filteredTransactions]);
 
-  // Calcular progresso das metas
-  const calculateGoalsProgress = () => {
-    const activeGoals = goals.filter(goal => goal.status === 'active');
-    const completedGoals = goals.filter(goal => goal.status === 'completed');
+  // ✅ FIX: Calcular evolução mensal usando useMemo
+  const monthlyData = useMemo((): MonthlyData[] => {
+    if (filteredTransactions.length === 0) {
+      return [];
+    }
+
+    // Agrupar por mês
+    const monthlyMap = new Map<string, { income: number; expense: number }>();
     
-    const totalGoalsValue = activeGoals.reduce((sum, goal) => sum + goal.targetAmount, 0);
-    const totalSaved = activeGoals.reduce((sum, goal) => sum + goal.currentAmount, 0);
+    filteredTransactions.forEach(t => {
+      const date = new Date(t.date);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      
+      const existing = monthlyMap.get(monthKey);
+      
+      if (existing) {
+        if (t.type === 'income') {
+          existing.income += t.amount;
+        } else {
+          existing.expense += t.amount;
+        }
+      } else {
+        monthlyMap.set(monthKey, {
+          income: t.type === 'income' ? t.amount : 0,
+          expense: t.type === 'expense' ? t.amount : 0,
+        });
+      }
+    });
+
+    // Converter para array e ordenar
+    const sortedEntries = Array.from(monthlyMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     
-    const avgProgress = activeGoals.length > 0 
-      ? activeGoals.reduce((sum, goal) => sum + ((goal.currentAmount / goal.targetAmount) * 100), 0) / activeGoals.length
-      : 0;
+    return sortedEntries.map(([key, values]) => {
+      const [year, month] = key.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      const label = date.toLocaleDateString('pt-BR', { month: 'short' });
+      
+      return {
+        label: label.charAt(0).toUpperCase() + label.slice(1, 3),
+        value: values.income,
+        secondValue: values.expense,
+      };
+    }).slice(-6); // Últimos 6 meses
+  }, [filteredTransactions]);
 
-    return {
-      activeGoalsCount: activeGoals.length,
-      completedGoalsCount: completedGoals.length,
-      totalGoalsValue,
-      totalSaved,
-      avgProgress,
-    };
-  };
-
-  // Calcular status dos orçamentos
-  const calculateBudgetStatus = () => {
-    const activeBudgets = budgets.filter(budget => budget.isActive);
-    const overBudgetCount = activeBudgets.filter(budget => budget.isOverBudget).length;
-    
-    const totalBudgetLimit = activeBudgets.reduce((sum, budget) => sum + budget.monthlyLimit, 0);
-    const totalSpent = activeBudgets.reduce((sum, budget) => sum + budget.spent, 0);
-    
-    const avgUtilization = totalBudgetLimit > 0 ? (totalSpent / totalBudgetLimit) * 100 : 0;
-
-    return {
-      activeBudgetsCount: activeBudgets.length,
-      overBudgetCount,
-      totalBudgetLimit,
-      totalSpent,
-      avgUtilization,
-    };
-  };
-
-  const generalStats = calculateGeneralStats();
-  const categoryData = calculateCategoryData();
-  const monthlyData = calculateMonthlyData();
-  const goalsProgress = calculateGoalsProgress();
-  const budgetStatus = calculateBudgetStatus();
-
-  // Refresh dos dados
+  // Refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     await refreshTransactions();
     setRefreshing(false);
   };
 
+  // ✅ FIX: Calcular resumo financeiro usando useMemo
+  const summary = useMemo(() => {
+    const income = filteredTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    const expense = filteredTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0);
+    
+    return {
+      income,
+      expense,
+      balance: income - expense,
+      incomeCount: filteredTransactions.filter(t => t.type === 'income').length,
+      expenseCount: filteredTransactions.filter(t => t.type === 'expense').length,
+    };
+  }, [filteredTransactions]);
+
+  // ✅ FIX: Calcular estatísticas de metas usando useMemo
+  const goalStats = useMemo(() => {
+    const activeGoals = goals.filter(g => g.status === 'active');
+    const completedGoals = goals.filter(g => g.status === 'completed');
+    
+    const totalSaved = goals.reduce((sum, g) => sum + g.currentAmount, 0);
+    const totalTarget = goals.reduce((sum, g) => sum + g.targetAmount, 0);
+    const avgProgress = goals.length > 0
+      ? goals.reduce((sum, g) => sum + (g.progress || 0), 0) / goals.length
+      : 0;
+
+    return {
+      activeCount: activeGoals.length,
+      completedCount: completedGoals.length,
+      totalSaved,
+      totalTarget,
+      avgProgress,
+    };
+  }, [goals]);
+
+  // ✅ FIX: Calcular estatísticas de orçamentos usando useMemo
+  const budgetStats = useMemo(() => {
+    const activeBudgets = budgets.filter(b => b.isActive);
+    const overBudget = activeBudgets.filter(b => b.spent > b.monthlyLimit);
+    
+    const totalBudget = activeBudgets.reduce((sum, b) => sum + b.monthlyLimit, 0);
+    const totalSpent = activeBudgets.reduce((sum, b) => sum + b.spent, 0);
+    const avgUtilization = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+
+    return {
+      activeCount: activeBudgets.length,
+      overBudgetCount: overBudget.length,
+      totalBudget,
+      totalSpent,
+      avgUtilization,
+    };
+  }, [budgets]);
+
   // Renderizar seletor de período
   const renderPeriodSelector = () => (
-    <View style={styles.periodSelector}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {periods.map((period) => (
-          <TouchableOpacity
-            key={period.key}
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={styles.periodSelector}
+      contentContainerStyle={styles.periodSelectorContent}
+    >
+      {periods.map(period => (
+        <TouchableOpacity
+          key={period.key}
+          style={[
+            styles.periodButton,
+            selectedPeriod === period.key && styles.periodButtonActive,
+          ]}
+          onPress={() => setSelectedPeriod(period.key)}
+        >
+          <Text
             style={[
-              styles.periodButton,
-              selectedPeriod === period.key && styles.periodButtonActive,
+              styles.periodButtonText,
+              selectedPeriod === period.key && styles.periodButtonTextActive,
             ]}
-            onPress={() => setSelectedPeriod(period.key)}
           >
-            <Text
-              style={[
-                styles.periodButtonText,
-                selectedPeriod === period.key && styles.periodButtonTextActive,
-              ]}
-            >
-              {period.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
+            {period.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
   );
 
   // Renderizar resumo financeiro
   const renderFinancialSummary = () => (
     <Card style={styles.summaryCard}>
-      <Text style={styles.cardTitle}>Resumo Financeiro</Text>
+      <Text style={styles.cardTitle}>Resumo do Período</Text>
+      
       <View style={styles.summaryGrid}>
-        <View style={styles.summaryItem}>
+        <View style={[styles.summaryItem, { marginRight: SPACING.sm }]}>
           <View style={[styles.summaryIcon, { backgroundColor: COLORS.success + '20' }]}>
-            <Ionicons name="trending-up" size={24} color={COLORS.success} />
+            <Ionicons name="arrow-down" size={20} color={COLORS.success} />
           </View>
-          <Text style={styles.summaryLabel}>Receitas</Text>
-          <Text style={[styles.summaryValue, { color: COLORS.success }]}>
-            {formatCurrency(generalStats.income)}
-          </Text>
+          <View style={styles.summaryContent}>
+            <Text style={styles.summaryLabel}>Receitas</Text>
+            <Text style={[styles.summaryValue, { color: COLORS.success }]}>
+              {formatCurrency(summary.income)}
+            </Text>
+            <Text style={styles.summaryCount}>{summary.incomeCount} transações</Text>
+          </View>
         </View>
 
         <View style={styles.summaryItem}>
           <View style={[styles.summaryIcon, { backgroundColor: COLORS.error + '20' }]}>
-            <Ionicons name="trending-down" size={24} color={COLORS.error} />
+            <Ionicons name="arrow-up" size={20} color={COLORS.error} />
           </View>
-          <Text style={styles.summaryLabel}>Despesas</Text>
-          <Text style={[styles.summaryValue, { color: COLORS.error }]}>
-            {formatCurrency(generalStats.expenses)}
-          </Text>
+          <View style={styles.summaryContent}>
+            <Text style={styles.summaryLabel}>Despesas</Text>
+            <Text style={[styles.summaryValue, { color: COLORS.error }]}>
+              {formatCurrency(summary.expense)}
+            </Text>
+            <Text style={styles.summaryCount}>{summary.expenseCount} transações</Text>
+          </View>
         </View>
+      </View>
 
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIcon, { 
-            backgroundColor: generalStats.balance >= 0 ? COLORS.primary + '20' : COLORS.warning + '20' 
-          }]}>
-            <Ionicons 
-              name={generalStats.balance >= 0 ? "wallet" : "warning"} 
-              size={24} 
-              color={generalStats.balance >= 0 ? COLORS.primary : COLORS.warning} 
-            />
-          </View>
-          <Text style={styles.summaryLabel}>Saldo</Text>
-          <Text style={[
-            styles.summaryValue, 
-            { color: generalStats.balance >= 0 ? COLORS.primary : COLORS.warning }
-          ]}>
-            {formatCurrency(generalStats.balance)}
-          </Text>
-        </View>
-
-        <View style={styles.summaryItem}>
-          <View style={[styles.summaryIcon, { backgroundColor: COLORS.info + '20' }]}>
-            <Ionicons name="stats-chart" size={24} color={COLORS.info} />
-          </View>
-          <Text style={styles.summaryLabel}>Transações</Text>
-          <Text style={[styles.summaryValue, { color: COLORS.info }]}>
-            {generalStats.transactionCount}
-          </Text>
-        </View>
+      <View style={styles.balanceContainer}>
+        <Text style={styles.balanceLabel}>Saldo do Período</Text>
+        <Text style={[
+          styles.balanceValue,
+          { color: summary.balance >= 0 ? COLORS.success : COLORS.error }
+        ]}>
+          {formatCurrency(summary.balance)}
+        </Text>
       </View>
     </Card>
   );
 
-  // Renderizar gastos por categoria
-  const renderCategoryExpenses = () => (
-    <Card style={styles.categoryCard}>
-      <Text style={styles.cardTitle}>Gastos por Categoria</Text>
+  // Renderizar gráfico de despesas por categoria
+  const renderCategoryChart = () => (
+    <Card style={styles.chartCard}>
+      <Text style={styles.cardTitle}>Despesas por Categoria</Text>
       {categoryData.length > 0 ? (
-        <View style={styles.categoryList}>
-          {categoryData.map((item, index) => (
-            <View key={item.category} style={styles.categoryItem}>
-              <View style={styles.categoryInfo}>
-                <View style={[styles.categoryColor, { backgroundColor: item.color }]} />
-                <Text style={styles.categoryName}>{item.category}</Text>
+        <>
+          <PieChart
+            data={categoryData}
+            showLabels={true}
+            showLegend={true}
+          />
+          <View style={styles.categoryDetails}>
+            <Text style={styles.categoryDetailsTitle}>Top 3 Categorias</Text>
+            {categoryData.slice(0, 3).map((cat, index) => (
+              <View key={index} style={styles.categoryDetailItem}>
+                <View style={styles.categoryDetailLeft}>
+                  <View style={[styles.categoryDot, { backgroundColor: cat.color }]} />
+                  <Text style={styles.categoryDetailLabel}>{cat.label}</Text>
+                </View>
+                <View style={styles.categoryDetailRight}>
+                  <Text style={styles.categoryDetailValue}>
+                    {formatCurrency(cat.value)}
+                  </Text>
+                  <Text style={styles.categoryDetailCount}>
+                    {cat.count} {cat.count === 1 ? 'transação' : 'transações'}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.categoryValues}>
-                <Text style={styles.categoryAmount}>{formatCurrency(item.amount)}</Text>
-                <Text style={styles.categoryPercentage}>{item.percentage.toFixed(1)}%</Text>
-              </View>
-              <View style={styles.categoryProgressBar}>
-                <View
-                  style={[
-                    styles.categoryProgress,
-                    {
-                      width: `${item.percentage}%`,
-                      backgroundColor: item.color,
-                    },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        </>
       ) : (
         <View style={styles.noDataContainer}>
           <Ionicons name="pie-chart-outline" size={48} color={COLORS.gray400} />
-          <Text style={styles.noDataText}>Nenhum gasto registrado no período</Text>
+          <Text style={styles.noDataText}>Sem despesas no período</Text>
         </View>
       )}
     </Card>
   );
 
-  // Renderizar tendência mensal
+  // Renderizar evolução mensal
   const renderMonthlyTrend = () => (
-    <Card style={styles.trendCard}>
-      <Text style={styles.cardTitle}>Tendência Mensal</Text>
+    <Card style={styles.chartCard}>
+      <Text style={styles.cardTitle}>Evolução Mensal</Text>
       {monthlyData.length > 0 ? (
         <>
-          <View style={styles.trendChart}>
-            {monthlyData.map((item, index) => {
-              const maxValue = Math.max(
-                ...monthlyData.map(d => Math.max(d.income, d.expenses))
-              );
-              const incomeHeight = maxValue > 0 ? (item.income / maxValue) * 100 : 0;
-              const expenseHeight = maxValue > 0 ? (item.expenses / maxValue) * 100 : 0;
-
-              return (
-                <View key={item.month} style={styles.trendItem}>
-                  <View style={styles.trendBars}>
-                    <View
-                      style={[
-                        styles.trendBar,
-                        styles.incomeBar,
-                        { height: `${incomeHeight}%` },
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.trendBar,
-                        styles.expenseBar,
-                        { height: `${expenseHeight}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.trendMonth}>{item.month}</Text>
-                </View>
-              );
-            })}
-          </View>
-          
-          <View style={styles.trendLegend}>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: COLORS.success }]} />
-              <Text style={styles.legendText}>Receitas</Text>
-            </View>
-            <View style={styles.legendItem}>
-              <View style={[styles.legendColor, { backgroundColor: COLORS.error }]} />
-              <Text style={styles.legendText}>Despesas</Text>
+          <LineChart
+            data={monthlyData}
+            color={COLORS.success}
+            secondColor={COLORS.error}
+            showDots={true}
+            showGradient={true}
+            formatValue={(v) => formatCurrency(v)}
+          />
+          <View style={styles.trendInsights}>
+            <View style={styles.trendInsight}>
+              <Ionicons 
+                name={monthlyData[monthlyData.length - 1].value > monthlyData[0].value ? "trending-up" : "trending-down"} 
+                size={20} 
+                color={monthlyData[monthlyData.length - 1].value > monthlyData[0].value ? COLORS.success : COLORS.error}
+              />
+              <Text style={styles.trendInsightText}>
+                Receitas {monthlyData[monthlyData.length - 1].value > monthlyData[0].value ? 'aumentaram' : 'diminuíram'} no período
+              </Text>
             </View>
           </View>
         </>
       ) : (
         <View style={styles.noDataContainer}>
-          <Ionicons name="trending-up-outline" size={48} color={COLORS.gray400} />
-          <Text style={styles.noDataText}>Dados insuficientes para tendência</Text>
+          <Ionicons name="analytics-outline" size={48} color={COLORS.gray400} />
+          <Text style={styles.noDataText}>Sem dados suficientes</Text>
         </View>
       )}
     </Card>
   );
 
+  // Renderizar comparativo de gastos (BarChart)
+  const renderSpendingComparison = () => {
+    // Preparar dados das top categorias
+    const topCategories = categoryData.slice(0, 5);
+    
+    if (topCategories.length === 0) return null;
+
+    return (
+      <Card style={styles.chartCard}>
+        <Text style={styles.cardTitle}>Comparativo de Gastos</Text>
+        <BarChart
+          data={topCategories.map(cat => ({
+            label: cat.label.length > 10 ? cat.label.substring(0, 10) : cat.label,
+            value: cat.value,
+            color: cat.color,
+          }))}
+          showValues={true}
+          showGradient={true}
+          formatValue={(v) => `R$ ${(v / 1000).toFixed(1)}k`}
+        />
+      </Card>
+    );
+  };
+
   // Renderizar progresso das metas
-  const renderGoalsProgress = () => (
-    <Card style={styles.goalsCard}>
-      <Text style={styles.cardTitle}>Progresso das Metas</Text>
-      <View style={styles.goalsStats}>
-        <View style={styles.goalsStat}>
-          <Text style={styles.goalsStatNumber}>{goalsProgress.activeGoalsCount}</Text>
-          <Text style={styles.goalsStatLabel}>Metas Ativas</Text>
+  const renderGoalProgress = () => (
+    <Card style={styles.statsCard}>
+      <View style={styles.statsHeader}>
+        <Ionicons name="flag" size={24} color={COLORS.primary} style={{ marginRight: SPACING.sm }} />
+        <Text style={styles.cardTitle}>Metas Financeiras</Text>
+      </View>
+      
+      <View style={styles.statsGrid}>
+        <View style={[styles.statItem, { marginRight: SPACING.sm }]}>
+          <Text style={styles.statValue}>{goalStats.activeCount}</Text>
+          <Text style={styles.statLabel}>Ativas</Text>
         </View>
-        <View style={styles.goalsStat}>
-          <Text style={styles.goalsStatNumber}>{goalsProgress.completedGoalsCount}</Text>
-          <Text style={styles.goalsStatLabel}>Concluídas</Text>
+        <View style={[styles.statItem, { marginRight: SPACING.sm }]}>
+          <Text style={[styles.statValue, { color: COLORS.success }]}>
+            {goalStats.completedCount}
+          </Text>
+          <Text style={styles.statLabel}>Concluídas</Text>
         </View>
-        <View style={styles.goalsStat}>
-          <Text style={styles.goalsStatNumber}>{goalsProgress.avgProgress.toFixed(1)}%</Text>
-          <Text style={styles.goalsStatLabel}>Progresso Médio</Text>
+        <View style={styles.statItem}>
+          <Text style={[styles.statValue, { color: COLORS.primary }]}>
+            {goalStats.avgProgress.toFixed(0)}%
+          </Text>
+          <Text style={styles.statLabel}>Progresso Médio</Text>
         </View>
       </View>
-      <View style={styles.goalsValues}>
-        <View style={styles.goalsValueItem}>
-          <Text style={styles.goalsValueLabel}>Total Economizado</Text>
-          <Text style={[styles.goalsValueAmount, { color: COLORS.success }]}>
-            {formatCurrency(goalsProgress.totalSaved)}
+
+      <View style={styles.statsDetails}>
+        <View style={styles.statsDetailRow}>
+          <Text style={styles.statsDetailLabel}>Total Economizado</Text>
+          <Text style={[styles.statsDetailValue, { color: COLORS.success }]}>
+            {formatCurrency(goalStats.totalSaved)}
           </Text>
         </View>
-        <View style={styles.goalsValueItem}>
-          <Text style={styles.goalsValueLabel}>Meta Total</Text>
-          <Text style={styles.goalsValueAmount}>
-            {formatCurrency(goalsProgress.totalGoalsValue)}
+        <View style={styles.statsDetailRow}>
+          <Text style={styles.statsDetailLabel}>Meta Total</Text>
+          <Text style={styles.statsDetailValue}>
+            {formatCurrency(goalStats.totalTarget)}
           </Text>
         </View>
       </View>
@@ -451,68 +484,69 @@ export const ReportsScreen: React.FC = () => {
 
   // Renderizar status dos orçamentos
   const renderBudgetStatus = () => (
-    <Card style={styles.budgetCard}>
-      <Text style={styles.cardTitle}>Status dos Orçamentos</Text>
-      <View style={styles.budgetStats}>
-        <View style={styles.budgetStat}>
-          <Text style={styles.budgetStatNumber}>{budgetStatus.activeBudgetsCount}</Text>
-          <Text style={styles.budgetStatLabel}>Orçamentos Ativos</Text>
+    <Card style={styles.statsCard}>
+      <View style={styles.statsHeader}>
+        <Ionicons name="wallet" size={24} color={COLORS.secondary} style={{ marginRight: SPACING.sm }} />
+        <Text style={styles.cardTitle}>Orçamentos</Text>
+      </View>
+      
+      <View style={styles.statsGrid}>
+        <View style={[styles.statItem, { marginRight: SPACING.sm }]}>
+          <Text style={styles.statValue}>{budgetStats.activeCount}</Text>
+          <Text style={styles.statLabel}>Ativos</Text>
         </View>
-        <View style={styles.budgetStat}>
-          <Text style={[styles.budgetStatNumber, { color: COLORS.error }]}>
-            {budgetStatus.overBudgetCount}
+        <View style={[styles.statItem, { marginRight: SPACING.sm }]}>
+          <Text style={[styles.statValue, { color: COLORS.error }]}>
+            {budgetStats.overBudgetCount}
           </Text>
-          <Text style={styles.budgetStatLabel}>Excedidos</Text>
+          <Text style={styles.statLabel}>Excedidos</Text>
         </View>
-        <View style={styles.budgetStat}>
+        <View style={styles.statItem}>
           <Text style={[
-            styles.budgetStatNumber,
-            { color: budgetStatus.avgUtilization > 90 ? COLORS.error : 
-                     budgetStatus.avgUtilization > 70 ? COLORS.warning : COLORS.success }
+            styles.statValue,
+            { color: budgetStats.avgUtilization > 90 ? COLORS.error : 
+                     budgetStats.avgUtilization > 70 ? COLORS.warning : COLORS.success }
           ]}>
-            {budgetStatus.avgUtilization.toFixed(1)}%
+            {budgetStats.avgUtilization.toFixed(0)}%
           </Text>
-          <Text style={styles.budgetStatLabel}>Utilização Média</Text>
+          <Text style={styles.statLabel}>Utilização Média</Text>
         </View>
       </View>
-      <View style={styles.budgetValues}>
-        <View style={styles.budgetValueItem}>
-          <Text style={styles.budgetValueLabel}>Total Gasto</Text>
-          <Text style={[styles.budgetValueAmount, { color: COLORS.error }]}>
-            {formatCurrency(budgetStatus.totalSpent)}
+
+      <View style={styles.statsDetails}>
+        <View style={styles.statsDetailRow}>
+          <Text style={styles.statsDetailLabel}>Total Orçado</Text>
+          <Text style={styles.statsDetailValue}>
+            {formatCurrency(budgetStats.totalBudget)}
           </Text>
         </View>
-        <View style={styles.budgetValueItem}>
-          <Text style={styles.budgetValueLabel}>Limite Total</Text>
-          <Text style={styles.budgetValueAmount}>
-            {formatCurrency(budgetStatus.totalBudgetLimit)}
+        <View style={styles.statsDetailRow}>
+          <Text style={styles.statsDetailLabel}>Total Gasto</Text>
+          <Text style={[
+            styles.statsDetailValue,
+            { color: budgetStats.totalSpent > budgetStats.totalBudget ? COLORS.error : COLORS.textPrimary }
+          ]}>
+            {formatCurrency(budgetStats.totalSpent)}
           </Text>
         </View>
       </View>
     </Card>
   );
 
+  // Loading state
   if (loading && transactions.length === 0) {
-    return <Loading text="Carregando relatórios..." />;
-  }
-
-  if (transactions.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Relatórios</Text>
         </View>
-        <EmptyState
-          icon="analytics-outline"
-          title="Nenhum dado disponível"
-          description="Comece adicionando transações para ver seus relatórios financeiros aqui!"
-        />
+        <Loading text="Carregando relatórios..." />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Relatórios</Text>
@@ -538,9 +572,10 @@ export const ReportsScreen: React.FC = () => {
         }
       >
         {renderFinancialSummary()}
-        {renderCategoryExpenses()}
+        {renderCategoryChart()}
         {renderMonthlyTrend()}
-        {renderGoalsProgress()}
+        {renderSpendingComparison()}
+        {renderGoalProgress()}
         {renderBudgetStatus()}
         
         <View style={styles.bottomSpacing} />
@@ -573,31 +608,40 @@ const styles = StyleSheet.create({
   },
   periodSelector: {
     backgroundColor: COLORS.white,
-    paddingVertical: SPACING.sm,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.gray200,
+    paddingVertical: SPACING.sm,
+    paddingBottom: SPACING.md,
+  },
+  periodSelectorContent: {
+    paddingHorizontal: SPACING.md,
   },
   periodButton: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    marginHorizontal: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.md,
     backgroundColor: COLORS.gray100,
+    marginRight: SPACING.xs,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   periodButtonActive: {
     backgroundColor: COLORS.primary,
   },
   periodButtonText: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.medium,
-    color: COLORS.gray600,
+    color: COLORS.textSecondary,
   },
   periodButtonTextActive: {
     color: COLORS.white,
   },
   content: {
     flex: 1,
-    padding: SPACING.md,
+  },
+  summaryCard: {
+    margin: SPACING.md,
   },
   cardTitle: {
     fontSize: FONT_SIZES.lg,
@@ -605,254 +649,188 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     marginBottom: SPACING.md,
   },
-  summaryCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-  },
   summaryGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
   },
   summaryItem: {
-    width: '48%',
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.md,
   },
   summaryIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: BORDER_RADIUS.full,
+    width: 40,
+    height: 40,
+    borderRadius: BORDER_RADIUS.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.xs,
-  },
-  summaryLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  summaryValue: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-  },
-  categoryCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-  },
-  categoryList: {
-    gap: SPACING.md,
-  },
-  categoryItem: {
-    gap: SPACING.xs,
-  },
-  categoryInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  categoryColor: {
-    width: 12,
-    height: 12,
-    borderRadius: BORDER_RADIUS.full,
     marginRight: SPACING.sm,
   },
-  categoryName: {
+  summaryContent: {
     flex: 1,
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
   },
-  categoryValues: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  categoryAmount: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
-  categoryPercentage: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
-  categoryProgressBar: {
-    height: 4,
-    backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.full,
-    overflow: 'hidden',
-  },
-  categoryProgress: {
-    height: '100%',
-    borderRadius: BORDER_RADIUS.full,
-  },
-  trendCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-  },
-  trendChart: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 120,
-    marginBottom: SPACING.md,
-  },
-  trendItem: {
-    flex: 1,
-    alignItems: 'center',
-    marginHorizontal: 2,
-  },
-  trendBars: {
-    flex: 1,
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  trendBar: {
-    width: 8,
-    borderRadius: 2,
-    minHeight: 4,
-  },
-  incomeBar: {
-    backgroundColor: COLORS.success,
-  },
-  expenseBar: {
-    backgroundColor: COLORS.error,
-  },
-  trendMonth: {
+  summaryLabel: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
-    marginTop: SPACING.xs,
-    textAlign: 'center',
+    marginBottom: 2,
   },
-  trendLegend: {
+  summaryValue: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.bold,
+    marginBottom: 2,
+  },
+  summaryCount: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.regular,
+    color: COLORS.textTertiary,
+  },
+  balanceContainer: {
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray200,
+    alignItems: 'center',
+  },
+  balanceLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.xs,
+  },
+  balanceValue: {
+    fontSize: FONT_SIZES.xxl,
+    fontFamily: FONTS.bold,
+  },
+  chartCard: {
+    margin: SPACING.md,
+    marginTop: 0,
+  },
+  categoryDetails: {
+    marginTop: SPACING.lg,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray200,
+  },
+  categoryDetailsTitle: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.semibold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.sm,
+  },
+  categoryDetailItem: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SPACING.lg,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
   },
-  legendItem: {
+  categoryDetailLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.xs,
+    flex: 1,
   },
-  legendColor: {
+  categoryDot: {
     width: 12,
     height: 12,
-    borderRadius: BORDER_RADIUS.full,
+    borderRadius: 6,
+    marginRight: SPACING.sm,
   },
-  legendText: {
+  categoryDetailLabel: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
-  goalsCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
-  },
-  goalsStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
-  },
-  goalsStat: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  goalsStatNumber: {
-    fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
-  goalsStatLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  goalsValues: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.gray200,
-  },
-  goalsValueItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  goalsValueLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  goalsValueAmount: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
   },
-  budgetCard: {
-    marginBottom: SPACING.md,
-    padding: SPACING.md,
+  categoryDetailRight: {
+    alignItems: 'flex-end',
   },
-  budgetStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
+  categoryDetailValue: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.semibold,
+    color: COLORS.textPrimary,
   },
-  budgetStat: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  budgetStatNumber: {
-    fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
-  budgetStatLabel: {
+  categoryDetailCount: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
-  budgetValues: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingTop: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.gray200,
-  },
-  budgetValueItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  budgetValueLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
-  },
-  budgetValueAmount: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
+    color: COLORS.textTertiary,
   },
   noDataContainer: {
-    alignItems: 'center',
     paddingVertical: SPACING.xl,
-    gap: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   noDataText: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.regular,
+    color: COLORS.textTertiary,
+    marginTop: SPACING.sm,
+  },
+  trendInsights: {
+    marginTop: SPACING.md,
+    paddingTop: SPACING.md,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray200,
+  },
+  trendInsight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: SPACING.xs,
+  },
+  trendInsightText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
+    marginLeft: SPACING.sm,
+  },
+  statsCard: {
+    margin: SPACING.md,
+    marginTop: 0,
+  },
+  statsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+    padding: SPACING.sm,
+    backgroundColor: COLORS.gray50,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  statValue: {
+    fontSize: FONT_SIZES.xl,
+    fontFamily: FONTS.bold,
+    color: COLORS.textPrimary,
+    marginBottom: SPACING.xs,
+  },
+  statLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
     textAlign: 'center',
+  },
+  statsDetails: {
+    marginTop: SPACING.sm,
+  },
+  statsDetailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: SPACING.xs,
+    marginBottom: SPACING.xs,
+  },
+  statsDetailLabel: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+  },
+  statsDetailValue: {
+    fontSize: FONT_SIZES.md,
+    fontFamily: FONTS.semibold,
+    color: COLORS.textPrimary,
   },
   bottomSpacing: {
     height: SPACING.xl,
