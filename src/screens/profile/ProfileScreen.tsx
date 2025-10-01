@@ -11,18 +11,89 @@ import {
   Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Card, Loading } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
 import { COLORS, FONTS } from '../../constants';
+import { TransactionService } from '../../services/TransactionService';
+import { GoalService } from '../../services/GoalService';
 
 const ProfileScreen: React.FC = () => {
   const navigation = useNavigation();
   const { user, logout } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
+  
+  // Estados para as estatísticas
+  const [balance, setBalance] = useState(0);
+  const [transactionCount, setTransactionCount] = useState(0);
+  const [goalCount, setGoalCount] = useState(0);
+
+  const loadProfileStats = async () => {
+    try {
+      setLoading(true);
+      console.log('📊 Carregando estatísticas do perfil...');
+
+      // Buscar resumo financeiro (saldo)
+      const summary = await TransactionService.getFinancialSummary();
+      console.log('💰 Saldo recebido:', summary.balance);
+      setBalance(summary.balance || 0);
+
+      // Buscar total de transações usando paginação
+      let totalTransactions = 0;
+      let currentPage = 1;
+      let hasMorePages = true;
+      
+      while (hasMorePages) {
+        const transactionsResponse = await TransactionService.getTransactions({ 
+          limit: 100, // Limite máximo permitido pelo backend
+          page: currentPage 
+        });
+        
+        if (transactionsResponse.success && transactionsResponse.data) {
+          totalTransactions += transactionsResponse.data.length;
+          
+          // Verificar se há mais páginas
+          if (transactionsResponse.pagination) {
+            hasMorePages = currentPage < transactionsResponse.pagination.pages;
+            currentPage++;
+          } else {
+            hasMorePages = false;
+          }
+        } else {
+          hasMorePages = false;
+        }
+      }
+      
+      console.log('📝 Total de transações:', totalTransactions);
+      setTransactionCount(totalTransactions);
+
+      // Buscar total de metas
+      const goalsResponse = await GoalService.getActiveGoals(100);
+      console.log('🎯 Resposta das metas:', goalsResponse);
+      
+      // O getActiveGoals retorna um array diretamente
+      const totalGoals = Array.isArray(goalsResponse) ? goalsResponse.length : 0;
+      console.log('🎯 Total de metas:', totalGoals);
+      setGoalCount(totalGoals);
+
+      console.log('✅ Estatísticas carregadas com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao carregar estatísticas:', error);
+      Alert.alert('Erro', 'Não foi possível carregar as estatísticas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Carregar dados quando a tela ganhar foco
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfileStats();
+    }, [])
+  );
 
   const handleLogout = () => {
     Alert.alert(
@@ -80,6 +151,13 @@ const ProfileScreen: React.FC = () => {
         },
       ]
     );
+  };
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(value);
   };
 
   const menuSections = [
@@ -220,7 +298,7 @@ const ProfileScreen: React.FC = () => {
             <View style={[styles.statIconContainer, { backgroundColor: COLORS.success + '20' }]}>
               <Ionicons name="wallet-outline" size={24} color={COLORS.success} />
             </View>
-            <Text style={styles.statValue}>R$ 0,00</Text>
+            <Text style={styles.statValue}>{formatCurrency(balance)}</Text>
             <Text style={styles.statLabel}>Saldo Total</Text>
           </Card>
           
@@ -228,7 +306,7 @@ const ProfileScreen: React.FC = () => {
             <View style={[styles.statIconContainer, { backgroundColor: COLORS.primary + '20' }]}>
               <Ionicons name="swap-horizontal-outline" size={24} color={COLORS.primary} />
             </View>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{transactionCount}</Text>
             <Text style={styles.statLabel}>Transações</Text>
           </Card>
           
@@ -236,7 +314,7 @@ const ProfileScreen: React.FC = () => {
             <View style={[styles.statIconContainer, { backgroundColor: COLORS.warning + '20' }]}>
               <Ionicons name="flag-outline" size={24} color={COLORS.warning} />
             </View>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{goalCount}</Text>
             <Text style={styles.statLabel}>Metas</Text>
           </Card>
         </View>
@@ -305,7 +383,7 @@ const ProfileScreen: React.FC = () => {
         </Card>
 
         {/* Menu Sections */}
-        {menuSections.map((section, sectionIndex) => (
+        {menuSections.map((section) => (
           <Card key={section.title} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
             

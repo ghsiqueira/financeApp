@@ -293,13 +293,30 @@ export class GoalService {
       
       const response = await apiService.getActiveGoals(limit);
       
-      console.log('📥 Resposta getActiveGoals:', response);
+      console.log('📥 Resposta getActiveGoals:', JSON.stringify(response, null, 2));
 
       if (response.success && response.data) {
-        return Array.isArray(response.data) ? 
-          response.data.map((g: any) => this.mapGoal(g)) : [];
+        // A estrutura pode ser response.data.data (aninhada)
+        let goalsData = response.data as any;
+        
+        // Se tiver response.data.data, usar esse nível
+        if (goalsData.data && Array.isArray(goalsData.data)) {
+          console.log('✅ Encontrado array aninhado em response.data.data');
+          goalsData = goalsData.data;
+        }
+        
+        console.log('📊 Goals data extraído:', goalsData);
+        console.log('📊 É array?', Array.isArray(goalsData));
+        console.log('📊 Length:', goalsData?.length);
+        
+        if (Array.isArray(goalsData)) {
+          const mappedGoals = goalsData.map((g: any) => this.mapGoal(g));
+          console.log('✅ Metas ativas mapeadas:', mappedGoals.length);
+          return mappedGoals;
+        }
       }
       
+      console.log('⚠️ Nenhuma meta ativa encontrada');
       return [];
     } catch (error: any) {
       console.error('❌ Erro ao buscar metas ativas:', error);
