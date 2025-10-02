@@ -581,3 +581,115 @@ export const useForm = <T extends Record<string, any>>(
     isValid: Object.keys(errors).length === 0,
   };
 };
+
+// Hook useToast
+export const useToast = () => {
+  const [toast, setToast] = useState<{
+    visible: boolean;
+    message: string;
+    type: 'success' | 'error' | 'warning' | 'info';
+    action?: { label: string; onPress: () => void };
+  }>({
+    visible: false,
+    message: '',
+    type: 'info',
+  });
+
+  const showToast = useCallback((
+    message: string,
+    type: 'success' | 'error' | 'warning' | 'info' = 'info',
+    action?: { label: string; onPress: () => void }
+  ) => {
+    setToast({ visible: true, message, type, action });
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToast(prev => ({ ...prev, visible: false }));
+  }, []);
+
+  const success = useCallback((message: string, action?: { label: string; onPress: () => void }) => {
+    showToast(message, 'success', action);
+  }, [showToast]);
+
+  const error = useCallback((message: string, action?: { label: string; onPress: () => void }) => {
+    showToast(message, 'error', action);
+  }, [showToast]);
+
+  const warning = useCallback((message: string, action?: { label: string; onPress: () => void }) => {
+    showToast(message, 'warning', action);
+  }, [showToast]);
+
+  const info = useCallback((message: string, action?: { label: string; onPress: () => void }) => {
+    showToast(message, 'info', action);
+  }, [showToast]);
+
+  return { toast, showToast, hideToast, success, error, warning, info };
+};
+
+// Hook useConfirm
+export const useConfirm = () => {
+  const [confirm, setConfirm] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+    onCancel: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'danger',
+    onConfirm: () => {},
+    onCancel: () => {},
+  });
+
+  const showConfirm = useCallback((options: {
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    type?: 'danger' | 'warning' | 'info';
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }) => {
+    setConfirm({
+      visible: true,
+      title: options.title,
+      message: options.message,
+      confirmText: options.confirmText,
+      cancelText: options.cancelText,
+      type: options.type || 'danger',
+      onConfirm: () => {
+        options.onConfirm();
+        hideConfirm();
+      },
+      onCancel: () => {
+        options.onCancel?.();
+        hideConfirm();
+      },
+    });
+  }, []);
+
+  const hideConfirm = useCallback(() => {
+    setConfirm(prev => ({ ...prev, visible: false }));
+  }, []);
+
+  const confirmDelete = useCallback((
+    itemName: string,
+    onConfirm: () => void
+  ) => {
+    showConfirm({
+      title: 'Excluir item',
+      message: `Tem certeza que deseja excluir "${itemName}"? Esta ação não pode ser desfeita.`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      onConfirm,
+    });
+  }, [showConfirm]);
+
+  return { confirm, showConfirm, hideConfirm, confirmDelete };
+};

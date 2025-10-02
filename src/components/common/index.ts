@@ -1,4 +1,3 @@
-// src/components/common/index.ts
 export { Card, Loading, Button, EmptyState, Input } from './BasicComponents';
 
 export { 
@@ -11,7 +10,11 @@ export {
 
 // Calendário
 export { CalendarDatePicker } from './Calendar'; 
-
-// Outros componentes
 export { CustomAlert } from './CustomAlert';
 export { Badge } from './Badge';
+
+// Toast e ConfirmDialog
+export { Toast } from './Toast';
+export type { ToastProps, ToastType } from './Toast';
+export { ConfirmDialog } from './ConfirmDialog';
+export type { ConfirmDialogProps } from './ConfirmDialog';

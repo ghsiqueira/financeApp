@@ -1,4 +1,4 @@
-// src/services/CategoryService.ts - CÓDIGO COMPLETO
+// src/services/CategoryService.ts - CÓDIGO CORRIGIDO
 import { API_CONFIG } from '../constants';
 import { 
   Category, 
@@ -19,19 +19,20 @@ class CategoryServiceClass {
     this.baseURL = API_CONFIG.BASE_URL;
   }
 
-  // Função auxiliar para fazer requisições
+  // Função auxiliar para fazer requisições - CORRIGIDA
   private async request<T = any>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     
+    // CORREÇÃO: Garantir que Content-Type seja sempre application/json
     const config: RequestInit = {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...options.headers,
       },
-      ...options,
     };
 
     const controller = new AbortController();
@@ -39,9 +40,17 @@ class CategoryServiceClass {
     config.signal = controller.signal;
 
     try {
+      console.log('🌐 Fetch URL:', url);
+      console.log('🌐 Fetch config:', JSON.stringify(config, null, 2));
+      
       const response = await fetch(url, config);
       clearTimeout(timeoutId);
+      
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
+      
       const data = await response.json();
+      console.log('📡 Response data:', JSON.stringify(data, null, 2));
 
       if (!response.ok) {
         throw new Error(data.message || `HTTP ${response.status}`);
@@ -121,10 +130,14 @@ class CategoryServiceClass {
   // Criar categoria
   async createCategory(categoryData: CreateCategoryData): Promise<Category> {
     try {
+      const token = await this.getAuthToken();
+      console.log('🔐 Token sendo usado:', token?.substring(0, 20) + '...');
+      console.log('📦 Dados sendo enviados:', JSON.stringify(categoryData, null, 2));
+      
       const response = await this.request<{ success: boolean; category: Category }>('/api/categories', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${await this.getAuthToken()}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(categoryData),
       });
@@ -135,6 +148,7 @@ class CategoryServiceClass {
 
       return response.category;
     } catch (error: any) {
+      console.error('❌ Erro no createCategory:', error);
       throw new Error(error.message || 'Erro ao criar categoria');
     }
   }
@@ -272,7 +286,6 @@ class CategoryServiceClass {
 
       return response.icons;
     } catch (error: any) {
-      // Fallback com ícones padrão
       console.error('Erro ao buscar ícones disponíveis:', error);
       return {
         all: ['🍔', '🚗', '🏠', '💰', '📚', '🎮', '🛍️', '🏥', '✈️', '💡'],

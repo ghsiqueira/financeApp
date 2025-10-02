@@ -1,8 +1,10 @@
-// src/navigation/MainTabNavigator.tsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { TransactionNavigator } from './TransactionNavigator';
@@ -69,7 +71,7 @@ export const MainTabNavigator: React.FC = () => {
         headerTitleStyle: {
           fontFamily: FONTS.bold,
         },
-        tabBarHideOnKeyboard: true, // Esconde tab bar quando teclado abrir
+        tabBarHideOnKeyboard: true,
       })}
     >
       <Tab.Screen 
@@ -78,7 +80,7 @@ export const MainTabNavigator: React.FC = () => {
         options={{ 
           title: 'Início',
           tabBarLabel: 'Início',
-          headerShown: false, // HomeScreen tem header customizado
+          headerShown: false,
         }}
       />
       <Tab.Screen 
@@ -87,8 +89,19 @@ export const MainTabNavigator: React.FC = () => {
         options={{ 
           title: 'Transações',
           tabBarLabel: 'Transações',
-          headerShown: false, // TransactionNavigator gerencia seus próprios headers
+          headerShown: false,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            // Previne o comportamento padrão
+            e.preventDefault();
+            
+            // Reseta o stack para a tela inicial (TransactionList)
+            navigation.navigate('Transactions', {
+              screen: 'TransactionList',
+            });
+          },
+        })}
       />
       <Tab.Screen 
         name="Goals" 
@@ -96,8 +109,16 @@ export const MainTabNavigator: React.FC = () => {
         options={{ 
           title: 'Metas',
           tabBarLabel: 'Metas',
-          headerShown: false, // GoalNavigator gerencia seus próprios headers
+          headerShown: false,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Goals', {
+              screen: 'GoalList',
+            });
+          },
+        })}
       />
       <Tab.Screen 
         name="Budgets" 
@@ -105,8 +126,16 @@ export const MainTabNavigator: React.FC = () => {
         options={{ 
           title: 'Orçamentos',
           tabBarLabel: 'Orçamentos',
-          headerShown: false, // BudgetNavigator gerencia seus próprios headers
+          headerShown: false,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Budgets', {
+              screen: 'BudgetList',
+            });
+          },
+        })}
       />
       <Tab.Screen 
         name="Reports" 
@@ -114,7 +143,7 @@ export const MainTabNavigator: React.FC = () => {
         options={{ 
           title: 'Relatórios',
           tabBarLabel: 'Relatórios',
-          headerShown: false, // ReportsScreen tem header customizado
+          headerShown: false,
         }}
       />
       <Tab.Screen 
@@ -123,8 +152,16 @@ export const MainTabNavigator: React.FC = () => {
         options={{ 
           title: 'Perfil',
           tabBarLabel: 'Perfil',
-          headerShown: false, // ProfileNavigator gerencia seus próprios headers
+          headerShown: false,
         }}
+        listeners={({ navigation }) => ({
+          tabPress: (e) => {
+            e.preventDefault();
+            navigation.navigate('Profile', {
+              screen: 'Profile',
+            });
+          },
+        })}
       />
     </Tab.Navigator>
   );

@@ -152,6 +152,7 @@ export interface CreateCategoryData {
   icon: string;
   color: string;
   type: 'income' | 'expense';
+  description?: string;
 }
 
 // API Response types - CORRIGIDOS

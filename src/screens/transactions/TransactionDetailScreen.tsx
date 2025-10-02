@@ -1,4 +1,4 @@
-// src/screens/transactions/TransactionDetailScreen.tsx - CÓDIGO COMPLETO FINAL
+// src/screens/transactions/TransactionDetailScreen.tsx - CÓDIGO COMPLETO COM EMOJI AJUSTADO
 import React, { useState } from 'react';
 import {
   View,
@@ -34,7 +34,6 @@ export const TransactionDetailScreen: React.FC<Props> = ({ navigation, route }) 
   const [loading, setLoading] = useState(true);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
 
-  // Recarregar quando a tela recebe foco (ex: depois de editar)
   useFocusEffect(
     useCallback(() => {
       loadTransaction();
@@ -122,59 +121,30 @@ ${transaction.notes ? `Notas: ${transaction.notes}` : ''}`;
     Alert.alert('Compartilhar', shareText);
   };
 
-  // Função para obter informações da categoria de forma segura
-  const getCategoryInfo = (): { name: string; icon: string; color: string } => {
+  const getCategoryInfo = (): { name: string; icon: string; color: string; isEmoji: boolean } => {
     if (!transaction?.category) {
-      return { name: 'Sem categoria', icon: 'wallet-outline', color: '#4CAF50' };
+      return { name: 'Sem categoria', icon: '💰', color: '#4CAF50', isEmoji: true };
     }
     
     if (typeof transaction.category === 'string') {
-      return { name: transaction.category, icon: 'wallet-outline', color: '#4CAF50' };
+      return { name: transaction.category, icon: '💰', color: '#4CAF50', isEmoji: true };
     }
     
     if (typeof transaction.category === 'object') {
-      // Mapear ícones para nomes válidos do Ionicons
-      const iconMap: { [key: string]: string } = {
-        '🏠': 'home-outline',
-        '💰': 'cash-outline', 
-        '🍽️': 'restaurant-outline',
-        '🚗': 'car-outline',
-        '🏥': 'medical-outline',
-        '📚': 'library-outline',
-        '🎬': 'film-outline',
-        '✂️': 'cut-outline',
-        '🎁': 'gift-outline',
-        '⛽': 'car-outline',
-        '🛍️': 'bag-outline',
-        '📄': 'document-text-outline',
-        '💊': 'medical-outline',
-        '😊': 'happy-outline',
-        '✈️': 'airplane-outline',
-        '📅': 'calendar-outline',
-        'dumbbell': 'barbell-outline',
-        'utensils': 'restaurant-outline', 
-        'scissors': 'cut-outline',
-        'fuel': 'car-outline',
-        'shopping-bag': 'bag-outline',
-        'file-text': 'document-text-outline',
-        'pill': 'medical-outline',
-        'smile': 'happy-outline',
-        'plane': 'airplane-outline',
-        'gift': 'gift-outline',
-        'calendar': 'calendar-outline',
-      };
-
+      const icon = transaction.category.icon || '💰';
+      const isEmoji = !icon.includes('-') && !icon.includes('outline');
+      
       return {
         name: transaction.category.name || 'Sem categoria',
-        icon: iconMap[transaction.category.icon] || transaction.category.icon || 'wallet-outline',
+        icon: icon,
         color: transaction.category.color || '#4CAF50',
+        isEmoji: isEmoji,
       };
     }
     
-    return { name: 'Sem categoria', icon: 'wallet-outline', color: '#4CAF50' };
+    return { name: 'Sem categoria', icon: '💰', color: '#4CAF50', isEmoji: true };
   };
 
-  // Função para obter informações do orçamento
   const getBudgetInfo = (): { hasBudget: false } | { 
     hasBudget: true; 
     budgetName: string; 
@@ -316,11 +286,15 @@ ${transaction.notes ? `Notas: ${transaction.notes}` : ''}`;
                 styles.categoryIconContainer,
                 { backgroundColor: categoryInfo.color + '20' }
               ]}>
-                <Ionicons 
-                  name={categoryInfo.icon as any}
-                  size={14} 
-                  color={categoryInfo.color}
-                />
+                {categoryInfo.isEmoji ? (
+                  <Text style={styles.categoryEmoji}>{categoryInfo.icon}</Text>
+                ) : (
+                  <Ionicons 
+                    name={categoryInfo.icon as any}
+                    size={14} 
+                    color={categoryInfo.color}
+                  />
+                )}
               </View>
               <Text style={styles.detailValue}>{categoryInfo.name}</Text>
             </View>
@@ -385,7 +359,7 @@ ${transaction.notes ? `Notas: ${transaction.notes}` : ''}`;
           )}
         </Card>
 
-        {/* Orçamento - Se houver */}
+        {/* Orçamento */}
         {budgetInfo.hasBudget && (
           <Card style={styles.budgetCard}>
             <Text style={styles.sectionTitle}>Orçamento Relacionado</Text>
@@ -490,7 +464,6 @@ ${transaction.notes ? `Notas: ${transaction.notes}` : ''}`;
           </TouchableOpacity>
         </View>
 
-        {/* Espaço extra para scroll */}
         <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
@@ -620,13 +593,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     fontWeight: '500',
-    flex: 1,
-    textAlign: 'right',
   },
   categoryDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     flex: 1,
     justifyContent: 'flex-end',
   },
@@ -636,6 +607,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  categoryEmoji: {
+    fontSize: 14,
   },
   typeDisplay: {
     flex: 1,

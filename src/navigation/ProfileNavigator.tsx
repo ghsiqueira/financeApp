@@ -1,11 +1,12 @@
-// src/navigation/ProfileNavigator.tsx
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import ChangePasswordScreen from '../screens/auth/ChangePasswordScreen';
+import { CategoryNavigator } from './CategoryNavigator';
+import { ProfileStackParamList } from './types';
 
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<ProfileStackParamList>();
 
 export const ProfileNavigator: React.FC = () => {
   return (
@@ -16,7 +17,7 @@ export const ProfileNavigator: React.FC = () => {
       }}
     >
       <Stack.Screen 
-        name="ProfileMain" 
+        name="Profile" 
         component={ProfileScreen}
         options={{ title: 'Perfil' }}
       />
@@ -34,6 +35,13 @@ export const ProfileNavigator: React.FC = () => {
         options={{ 
           title: 'Alterar Senha',
           presentation: 'modal'
+        }}
+      />
+      <Stack.Screen 
+        name="Categories" 
+        component={CategoryNavigator}
+        options={{ 
+          headerShown: false
         }}
       />
     </Stack.Navigator>

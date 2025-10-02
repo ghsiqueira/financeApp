@@ -12,14 +12,18 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Card, Loading } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
 import { COLORS, FONTS } from '../../constants';
 import { TransactionService } from '../../services/TransactionService';
 import { GoalService } from '../../services/GoalService';
+import { ProfileStackParamList } from '../../navigation/types';
+
+type ProfileScreenNavigationProp = NativeStackNavigationProp<ProfileStackParamList>;
 
 const ProfileScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -48,14 +52,13 @@ const ProfileScreen: React.FC = () => {
       
       while (hasMorePages) {
         const transactionsResponse = await TransactionService.getTransactions({ 
-          limit: 100, // Limite máximo permitido pelo backend
+          limit: 100,
           page: currentPage 
         });
         
         if (transactionsResponse.success && transactionsResponse.data) {
           totalTransactions += transactionsResponse.data.length;
           
-          // Verificar se há mais páginas
           if (transactionsResponse.pagination) {
             hasMorePages = currentPage < transactionsResponse.pagination.pages;
             currentPage++;
@@ -74,7 +77,6 @@ const ProfileScreen: React.FC = () => {
       const goalsResponse = await GoalService.getActiveGoals(100);
       console.log('🎯 Resposta das metas:', goalsResponse);
       
-      // O getActiveGoals retorna um array diretamente
       const totalGoals = Array.isArray(goalsResponse) ? goalsResponse.length : 0;
       console.log('🎯 Total de metas:', totalGoals);
       setGoalCount(totalGoals);
@@ -88,7 +90,6 @@ const ProfileScreen: React.FC = () => {
     }
   };
 
-  // Carregar dados quando a tela ganhar foco
   useFocusEffect(
     React.useCallback(() => {
       loadProfileStats();
@@ -168,19 +169,19 @@ const ProfileScreen: React.FC = () => {
           id: 'edit-profile',
           title: 'Editar Perfil',
           icon: 'person-outline',
-          onPress: () => navigation.navigate('EditProfile' as never),
+          onPress: () => navigation.navigate('EditProfile'),
         },
         {
           id: 'change-password',
           title: 'Alterar Senha',
           icon: 'lock-closed-outline',
-          onPress: () => navigation.navigate('ChangePassword' as never),
+          onPress: () => navigation.navigate('ChangePassword'),
         },
         {
           id: 'categories',
           title: 'Minhas Categorias',
           icon: 'pricetags-outline',
-          onPress: () => navigation.navigate('Categories' as never),
+          onPress: () => navigation.navigate('Categories', { screen: 'CategoryList' }),
         },
       ],
     },
@@ -285,7 +286,7 @@ const ProfileScreen: React.FC = () => {
 
           <TouchableOpacity
             style={styles.editButton}
-            onPress={() => navigation.navigate('EditProfile' as never)}
+            onPress={() => navigation.navigate('EditProfile')}
           >
             <Ionicons name="create-outline" size={16} color={COLORS.primary} />
             <Text style={styles.editButtonText}>Editar Perfil</Text>

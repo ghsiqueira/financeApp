@@ -1,5 +1,5 @@
-// src/screens/transactions/TransactionListScreen.tsx - VERSÃO COMPLETA ATUALIZADA
-import React, { useEffect, useState, useCallback } from 'react';
+// src/screens/transactions/TransactionListScreen.tsx - COM TOAST E CONFIRM
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,161 +7,86 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { useTransactions } from '../../hooks/useTransactions';
-import { TransactionService } from '../../services/TransactionService';
-import apiService from '../../services/api';
-import { Loading, Card } from '../../components/common';
-import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { useTransactions, useToast, useConfirm } from '../../hooks';
 import { Transaction } from '../../types';
+import { formatCurrency, formatDate } from '../../utils';
+import { Card, Loading, Toast, ConfirmDialog } from '../../components/common';
+import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { TransactionStackParamList } from '../../navigation/TransactionNavigator';
 
-// Types para navegação
-type TransactionStackParamList = {
-  TransactionList: undefined;
-  CreateTransaction: undefined;
-  EditTransaction: { transactionId: string };
-  TransactionDetails: { transactionId: string };
-};
+type NavigationProp = NativeStackNavigationProp<TransactionStackParamList, 'TransactionList'>;
 
-interface TransactionListScreenProps {
-  navigation: NativeStackNavigationProp<TransactionStackParamList>;
+interface Props {
+  navigation: NavigationProp;
 }
 
-// Função para formatar currency
-const formatCurrency = (value: number): string => {
-  if (isNaN(value) || value === null || value === undefined) {
-    return 'R$ 0,00';
-  }
-  
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-};
-
-// Função para formatar data
-const formatDate = (dateString: string): string => {
-  try {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  } catch {
-    return 'Data inválida';
-  }
-};
-
-export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ navigation }) => {
-  const {
-    transactions,
-    loading,
-    error,
-    fetchTransactions,
-    deleteTransaction,
-    refresh,
-    loadMore,
-    hasMore,
-    isEmpty,
-    pagination,
-  } = useTransactions();
-
-  // State local para controlar o refresh
+export const TransactionListScreen: React.FC<Props> = ({ navigation }) => {
+  const { transactions, loading, error, refresh, deleteTransaction } = useTransactions();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Carregar transações quando a tela recebe foco
-  useFocusEffect(
-    useCallback(() => {
-      console.log('🔄 TransactionListScreen ganhou foco, carregando transações...');
-      fetchTransactions();
-    }, [fetchTransactions])
-  );
+  // Hooks de feedback
+  const { toast, success, error: showError, hideToast } = useToast();
+  const { confirm, confirmDelete } = useConfirm();
+
+  const isEmpty = !loading && transactions.length === 0;
 
   // Função para refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      console.log('🔃 Fazendo refresh das transações...');
       await refresh();
     } finally {
       setRefreshing(false);
     }
   };
 
-  // Função para deletar transação
+  // Função para deletar transação COM FEEDBACK
   const handleDeleteTransaction = (transaction: Transaction) => {
-    Alert.alert(
-      'Confirmar Exclusão',
-      `Deseja realmente excluir a transação "${transaction.description}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteTransaction(transaction._id); // ✅ CORRIGIDO - usar _id
-              Alert.alert('Sucesso', 'Transação excluída com sucesso!');
-            } catch (error: any) {
-              Alert.alert('Erro', error.message);
-            }
+    confirmDelete(transaction.description, async () => {
+      try {
+        await deleteTransaction(transaction._id);
+        success('Transação excluída com sucesso!', {
+          label: 'Desfazer',
+          onPress: () => {
+            // Aqui você poderia implementar lógica de desfazer
+            showError('Função desfazer em desenvolvimento');
           },
-        },
-      ]
-    );
-  };
-
-  // Função para navegar para detalhes
-  const handleViewTransaction = (transaction: Transaction) => {
-    navigation.navigate('TransactionDetails', { transactionId: transaction._id });
-  };
-
-  // Função para navegar para edição
-  const handleEditTransaction = (transaction: Transaction) => {
-    navigation.navigate('EditTransaction', { transactionId: transaction._id });
-  };
-
-  // Renderizar item da lista - VERSÃO MELHORADA COM BUDGET
-  const renderTransactionItem = ({ item }: { item: Transaction }) => {
-    const getBudgetInfo = () => {
-      // Se a transação tem budget associado
-      if (item.budgetId && typeof item.budgetId === 'object') {
-        return {
-          hasBudget: true,
-          budgetName: item.budgetId.name || 'Orçamento',
-          categoryName: item.budgetId.category?.name || item.category?.name || 'Sem categoria',
-          isOverBudget: item.budgetId.isOverBudget || false,
-          spent: item.budgetId.spent || 0,
-          limit: item.budgetId.monthlyLimit || 0,
-        };
+        });
+      } catch (err: any) {
+        showError(err.message || 'Erro ao excluir transação');
       }
-      return {
-        hasBudget: false,
-        categoryName: item.category?.name || 'Sem categoria',
-      };
-    };
+    });
+  };
 
-    const budgetInfo = getBudgetInfo();
+  // Renderizar item da lista
+  const renderTransactionItem = ({ item }: { item: Transaction }) => {
+    const categoryName = typeof item.category === 'string' 
+      ? item.category 
+      : (item.category?.name || 'Sem categoria');
+
+    // Extrair informações do orçamento se houver
+    const budgetInfo = item.budgetId && typeof item.budgetId === 'object' ? {
+      name: item.budgetId.name || 'Orçamento',
+      spent: item.budgetId.spent || 0,
+      limit: item.budgetId.monthlyLimit || 0,
+      isOverBudget: (item.budgetId.spent || 0) > (item.budgetId.monthlyLimit || 0),
+    } : null;
 
     return (
       <TouchableOpacity
         style={styles.transactionItem}
-        onPress={() => handleViewTransaction(item)}
+        onPress={() => navigation.navigate('TransactionDetails', { transactionId: item._id })}
         activeOpacity={0.7}
       >
         <Card style={styles.transactionCard}>
           <View style={styles.transactionHeader}>
             <View style={styles.transactionInfo}>
-              {/* Ícone da categoria/tipo */}
               <View style={[
                 styles.categoryIcon,
                 { backgroundColor: item.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
@@ -174,90 +99,85 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
               </View>
               
               <View style={styles.transactionDetails}>
-                <Text style={styles.transactionDescription} numberOfLines={1}>
-                  {item.description}
-                </Text>
-                
-                {/* Categoria */}
-                <Text style={styles.transactionCategory} numberOfLines={1}>
-                  {budgetInfo.categoryName}
-                </Text>
-                
-                {/* NOVA SEÇÃO: Informação do orçamento se existir */}
-                {budgetInfo.hasBudget && (
-                  <View style={styles.budgetInfo}>
-                    <Ionicons 
-                      name="wallet-outline" 
-                      size={12} 
-                      color={budgetInfo.isOverBudget ? COLORS.error : COLORS.primary} 
-                    />
-                    <Text style={[
-                      styles.budgetText,
-                      { color: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary }
-                    ]} numberOfLines={1}>
-                      {budgetInfo.budgetName}
+                {/* Linha 1: Nome da transação - Valor */}
+                <View style={styles.transactionRow}>
+                  <Text style={styles.transactionDescription} numberOfLines={1}>
+                    {item.description}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.amountText,
+                      { color: item.type === 'income' ? COLORS.success : COLORS.error }
+                    ]}
+                  >
+                    {item.type === 'income' ? '+' : '-'} {formatCurrency(item.amount)}
+                  </Text>
+                </View>
+
+                {/* Linha 2: Categoria - Nome do orçamento */}
+                <View style={styles.transactionRow}>
+                  <Text style={styles.transactionCategory} numberOfLines={1}>
+                    {categoryName}
+                  </Text>
+                  {budgetInfo && item.type === 'expense' && (
+                    <View style={styles.budgetInfo}>
+                      <Ionicons 
+                        name="wallet-outline" 
+                        size={12} 
+                        color={budgetInfo.isOverBudget ? COLORS.error : COLORS.primary} 
+                      />
+                      <Text style={[
+                        styles.budgetText,
+                        { color: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary }
+                      ]} numberOfLines={1}>
+                        {budgetInfo.name}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Linha 3: Data - Quanto do orçamento */}
+                <View style={styles.transactionRow}>
+                  <View style={styles.dateContainer}>
+                    <Text style={styles.transactionDate}>
+                      {formatDate(item.date)}
                     </Text>
-                    {budgetInfo.isOverBudget && (
-                      <View style={styles.overBudgetBadge}>
-                        <Text style={styles.overBudgetText}>Excedido</Text>
+                    {item.isRecurring && (
+                      <View style={styles.recurringBadge}>
+                        <Ionicons name="refresh" size={10} color={COLORS.info} />
                       </View>
                     )}
                   </View>
-                )}
-                
-                <Text style={styles.transactionDate}>
-                  {formatDate(item.date)}
-                </Text>
-              </View>
-            </View>
-            
-            <View style={styles.transactionAmount}>
-              <Text
-                style={[
-                  styles.amountText,
-                  { color: item.type === 'income' ? COLORS.success : COLORS.error }
-                ]}
-              >
-                {item.type === 'income' ? '+' : '-'} {formatCurrency(item.amount)}
-              </Text>
-              
-              {/* NOVA SEÇÃO: Badges e progresso do orçamento */}
-              <View style={styles.badges}>
-                {item.isRecurring && (
-                  <View style={styles.recurringBadge}>
-                    <Ionicons name="refresh" size={12} color={COLORS.info} />
-                    <Text style={styles.recurringText}>Recorrente</Text>
+                  <View style={styles.budgetProgressContainer}>
+                    {budgetInfo && item.type === 'expense' && (
+                      <>
+                        <Text style={styles.budgetProgressText}>
+                          {formatCurrency(budgetInfo.spent)} / {formatCurrency(budgetInfo.limit)}
+                        </Text>
+                        {/* Barra de progresso do orçamento */}
+                        <View style={styles.budgetProgressBar}>
+                          <View 
+                            style={[
+                              styles.budgetProgressBar,
+                              { 
+                                width: `${Math.min((budgetInfo.spent / budgetInfo.limit) * 100, 100)}%`,
+                                backgroundColor: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary
+                              }
+                            ]} 
+                          />
+                        </View>
+                      </>
+                    )}
                   </View>
-                )}
-                
-                {/* Mostrar progresso do orçamento se aplicável */}
-                {budgetInfo.hasBudget && item.type === 'expense' && (
-                  <View style={styles.budgetProgress}>
-                    <Text style={styles.budgetProgressText}>
-                      {formatCurrency(budgetInfo.spent || 0)} / {formatCurrency(budgetInfo.limit || 0)}
-                    </Text>
-                    <View style={styles.progressBarContainer}>
-                      <View 
-                        style={[
-                          styles.progressBar,
-                          { 
-                            width: `${Math.min(((budgetInfo.spent || 0) / (budgetInfo.limit || 1)) * 100, 100)}%`,
-                            backgroundColor: budgetInfo.isOverBudget ? COLORS.error : COLORS.primary
-                          }
-                        ]} 
-                      />
-                    </View>
-                  </View>
-                )}
+                </View>
               </View>
             </View>
           </View>
 
-          {/* Botões de ação */}
           <View style={styles.actionButtons}>
             <TouchableOpacity
               style={[styles.actionButton, styles.editButton]}
-              onPress={() => handleEditTransaction(item)}
+              onPress={() => navigation.navigate('EditTransaction', { transactionId: item._id })}
             >
               <Ionicons name="create" size={16} color={COLORS.info} />
               <Text style={styles.editButtonText}>Editar</Text>
@@ -295,35 +215,7 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
     </View>
   );
 
-  // Renderizar footer para carregamento
-  const renderFooter = () => {
-    if (!loading || transactions.length === 0) return null;
-    
-    return (
-      <View style={styles.footerLoader}>
-        <Loading size="small" />
-      </View>
-    );
-  };
-
-  // Renderizar erro
-  const renderError = () => {
-    if (!error) return null;
-
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity
-          style={styles.retryButton}
-          onPress={() => fetchTransactions()}
-        >
-          <Text style={styles.retryText}>Tentar Novamente</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // Se está carregando e não tem transações
+  // Loading state
   if (loading && transactions.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
@@ -343,6 +235,27 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Toast */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+        action={toast.action}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        visible={confirm.visible}
+        title={confirm.title}
+        message={confirm.message}
+        confirmText={confirm.confirmText}
+        cancelText={confirm.cancelText}
+        type={confirm.type}
+        onConfirm={confirm.onConfirm}
+        onCancel={confirm.onCancel}
+      />
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Transações</Text>
@@ -354,33 +267,23 @@ export const TransactionListScreen: React.FC<TransactionListScreenProps> = ({ na
         </TouchableOpacity>
       </View>
 
-      {/* Erro */}
-      {renderError()}
-
-      {/* Lista de transações ou estado vazio */}
-      {isEmpty && !loading ? (
+      {/* Lista */}
+      {isEmpty ? (
         renderEmptyState()
       ) : (
         <FlatList
           data={transactions}
-          keyExtractor={(item) => item.id || item._id}
           renderItem={renderTransactionItem}
-          contentContainerStyle={styles.listContainer}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
               colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
             />
           }
-          onEndReached={() => {
-            if (hasMore && !loading) {
-              loadMore();
-            }
-          }}
-          onEndReachedThreshold={0.1}
-          ListFooterComponent={renderFooter}
-          showsVerticalScrollIndicator={false}
         />
       )}
     </SafeAreaView>
@@ -397,48 +300,46 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.sm,
+    backgroundColor: COLORS.white,
     ...SHADOWS.sm,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
-    color: COLORS.white,
+    color: COLORS.textPrimary,
   },
   addButton: {
+    backgroundColor: COLORS.primary,
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.primaryDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  listContainer: {
+  listContent: {
     padding: SPACING.md,
   },
-  
-  // Estilos dos itens de transação
   transactionItem: {
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   transactionCard: {
     padding: SPACING.md,
   },
   transactionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
   transactionInfo: {
-    flex: 1,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    flex: 1,
   },
   categoryIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: SPACING.sm,
@@ -446,118 +347,98 @@ const styles = StyleSheet.create({
   transactionDetails: {
     flex: 1,
   },
+  transactionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   transactionDescription: {
     fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    marginBottom: 2,
-  },
-  transactionCategory: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray600,
-    marginBottom: 2,
-  },
-  transactionDate: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray500,
-  },
-  transactionAmount: {
-    alignItems: 'flex-end',
+    fontFamily: FONTS.semibold,
+    color: COLORS.textPrimary,
+    flex: 1,
+    marginRight: SPACING.sm,
   },
   amountText: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
   },
-
-  // NOVOS ESTILOS PARA INFORMAÇÕES DO ORÇAMENTO
-  budgetInfo: {
+  transactionCategory: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    flex: 1,
+    marginRight: SPACING.sm,
+  },
+  dateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
-    marginBottom: 2,
   },
-  budgetText: {
+  transactionDate: {
     fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
-    marginLeft: 4,
-    flex: 1,
-  },
-  overBudgetBadge: {
-    backgroundColor: COLORS.error + '20',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: BORDER_RADIUS.sm,
-    marginLeft: 4,
-  },
-  overBudgetText: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.bold,
-    color: COLORS.error,
-  },
-  
-  // Badges e progresso
-  badges: {
-    alignItems: 'flex-end',
-    marginTop: 4,
+    fontFamily: FONTS.regular,
+    color: COLORS.textTertiary,
+    marginRight: SPACING.xs,
   },
   recurringBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.info + '20',
-    paddingHorizontal: 6,
+    backgroundColor: COLORS.info + '15',
+    paddingHorizontal: 4,
     paddingVertical: 2,
     borderRadius: BORDER_RADIUS.sm,
-    marginBottom: 4,
   },
   recurringText: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.medium,
     color: COLORS.info,
-    marginLeft: 2,
+    marginLeft: 4,
   },
-  budgetProgress: {
+  budgetInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  budgetText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.semibold,
+    marginLeft: 4,
+  },
+  budgetProgressContainer: {
     alignItems: 'flex-end',
-    marginTop: 4,
   },
   budgetProgressText: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.medium,
-    color: COLORS.gray600,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
   },
-  progressBarContainer: {
-    width: 60,
-    height: 3,
+  budgetProgressBar: {
+    width: 140,
+    height: 4,
     backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.sm,
-    marginTop: 2,
+    borderRadius: 2,
     overflow: 'hidden',
   },
-  progressBar: {
-    height: '100%',
-    borderRadius: BORDER_RADIUS.sm,
-  },
-
-  // Botões de ação
   actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: SPACING.sm,
-    paddingTop: SPACING.sm,
     borderTopWidth: 1,
     borderTopColor: COLORS.gray200,
+    paddingTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
   actionButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-    marginLeft: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    marginHorizontal: 4,
   },
   editButton: {
-    backgroundColor: COLORS.info + '20',
+    backgroundColor: COLORS.info + '15',
+  },
+  deleteButton: {
+    backgroundColor: COLORS.error + '15',
   },
   editButtonText: {
     fontSize: FONT_SIZES.sm,
@@ -565,80 +446,44 @@ const styles = StyleSheet.create({
     color: COLORS.info,
     marginLeft: 4,
   },
-  deleteButton: {
-    backgroundColor: COLORS.error + '20',
-  },
   deleteButtonText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
     color: COLORS.error,
     marginLeft: 4,
   },
-
-  // Estados vazios e erros
   emptyStateContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
+    padding: SPACING.xl,
   },
   emptyStateIcon: {
     marginBottom: SPACING.lg,
   },
   emptyStateTitle: {
-    fontSize: FONT_SIZES.lg,
+    fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
-    color: COLORS.gray700,
-    textAlign: 'center',
+    color: COLORS.textPrimary,
     marginBottom: SPACING.sm,
+    textAlign: 'center',
   },
   emptyStateDescription: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
-    color: COLORS.gray500,
+    color: COLORS.textSecondary,
     textAlign: 'center',
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   emptyStateButton: {
     backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
+    borderRadius: BORDER_RADIUS.lg,
   },
   emptyStateButtonText: {
     fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-  },
-  footerLoader: {
-    paddingVertical: SPACING.lg,
-    alignItems: 'center',
-  },
-  errorContainer: {
-    backgroundColor: COLORS.error + '10',
-    padding: SPACING.md,
-    margin: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.error + '30',
-  },
-  errorText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.error,
-    textAlign: 'center',
-    marginBottom: SPACING.sm,
-  },
-  retryButton: {
-    backgroundColor: COLORS.error,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.sm,
-    alignSelf: 'center',
-  },
-  retryText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.semibold,
     color: COLORS.white,
   },
 });

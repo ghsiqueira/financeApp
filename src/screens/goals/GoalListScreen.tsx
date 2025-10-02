@@ -1,286 +1,270 @@
-// src/screens/goals/GoalListScreen.tsx - COMPLETO COM COMPARTILHAMENTO
-import React, { useState, useEffect } from 'react';
+// src/screens/goals/GoalListScreen.tsx - COM TOAST E CONFIRM
+import React, { useState } from 'react';
 import {
   View,
   Text,
+  StyleSheet,
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  Alert,
-  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { NavigationProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Importações do projeto
-import { useGoals } from '../../hooks';
+import { useGoals, useToast, useConfirm } from '../../hooks';
 import { Goal } from '../../types';
 import { formatCurrency, formatDate } from '../../utils';
-import { EmptyState, Loading } from '../../components/common';
+import { Card, Loading, ProgressBar, Toast, ConfirmDialog } from '../../components/common';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
+import { GoalStackParamList } from '../../navigation/GoalNavigator';
 
-// Types de navegação
-type GoalStackParamList = {
-  GoalList: undefined;
-  CreateGoal: undefined;
-  EditGoal: { goalId: string };
-  GoalDetail: { goalId: string };
-  SharedGoals: undefined; // ✅ NOVO
-};
+type NavigationProp = NativeStackNavigationProp<GoalStackParamList, 'GoalList'>;
 
-interface GoalListScreenProps {
-  navigation: NavigationProp<GoalStackParamList>;
+interface Props {
+  navigation: NavigationProp;
 }
 
-export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) => {
+export const GoalListScreen: React.FC<Props> = ({ navigation }) => {
   const { goals, loading, refreshing, error, refresh, deleteGoal } = useGoals();
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | 'completed' | 'paused'>('all');
 
-  // Filtrar metas baseado no filtro selecionado
+  // Hooks de feedback
+  const { toast, success, error: showError, hideToast } = useToast();
+  const { confirm, confirmDelete } = useConfirm();
+
+  // Filtrar metas
   const filteredGoals = goals.filter(goal => {
-    switch (selectedFilter) {
-      case 'active':
-        return goal.status === 'active';
-      case 'completed':
-        return goal.status === 'completed';
-      case 'paused':
-        return goal.status === 'paused';
-      default:
-        return true;
-    }
+    if (selectedFilter === 'all') return true;
+    return goal.status === selectedFilter;
   });
 
-  // Calcular progresso da meta
-  const calculateProgress = (goal: Goal): number => {
-    if (goal.targetAmount <= 0) return 0;
-    return Math.min((goal.currentAmount / goal.targetAmount) * 100, 100);
-  };
+  const isEmpty = !loading && filteredGoals.length === 0;
 
-  // Obter cor do status
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return COLORS.success;
-      case 'paused':
-        return COLORS.warning;
-      case 'active':
-        return COLORS.primary;
-      default:
-        return COLORS.gray400;
-    }
-  };
-
-  // Obter texto do status
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Concluída';
-      case 'paused':
-        return 'Pausada';
-      case 'active':
-        return 'Ativa';
-      default:
-        return 'Indefinido';
-    }
-  };
-
-  // Confirmar exclusão de meta
-  const confirmDelete = (goal: Goal) => {
-    Alert.alert(
-      'Excluir Meta',
-      `Tem certeza que deseja excluir a meta "${goal.title}"?`,
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => deleteGoal(goal._id),
-        },
-      ]
-    );
-  };
-
-  // Navegação para criar nova meta
-  const handleCreateGoal = () => {
-    navigation.navigate('CreateGoal');
-  };
-
-  // Navegação para detalhes da meta
-  const handleGoalPress = (goal: Goal) => {
-    navigation.navigate('GoalDetail', { goalId: goal._id });
-  };
-
-  // NOVA FUNÇÃO: Navegar para metas compartilhadas
-  const handleSharedGoals = () => {
-    navigation.navigate('SharedGoals');
-  };
-
-  // Renderizar filtros
-  const renderFilters = () => {
-    const filters = [
-      { key: 'all', label: 'Todas', count: goals.length },
-      { key: 'active', label: 'Ativas', count: goals.filter(g => g.status === 'active').length },
-      { key: 'completed', label: 'Concluídas', count: goals.filter(g => g.status === 'completed').length },
-      { key: 'paused', label: 'Pausadas', count: goals.filter(g => g.status === 'paused').length },
-    ];
-
-    return (
-      <View style={styles.filtersContainer}>
-        {filters.map((filter) => (
-          <TouchableOpacity
-            key={filter.key}
-            style={[
-              styles.filterButton,
-              selectedFilter === filter.key && styles.filterButtonActive,
-            ]}
-            onPress={() => setSelectedFilter(filter.key as any)}
-          >
-            <Text
-              style={[
-                styles.filterButtonText,
-                selectedFilter === filter.key && styles.filterButtonTextActive,
-              ]}
-            >
-              {filter.label}
-            </Text>
-            <View
-              style={[
-                styles.filterCount,
-                selectedFilter === filter.key && styles.filterCountActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterCountText,
-                  selectedFilter === filter.key && styles.filterCountTextActive,
-                ]}
-              >
-                {filter.count}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
+  // Deletar meta COM FEEDBACK
+  const handleDeleteGoal = (goal: Goal) => {
+    const goalName = goal.title || goal.name || 'esta meta';
+    confirmDelete(goalName, async () => {
+      try {
+        await deleteGoal(goal._id);
+        success('Meta excluída com sucesso!');
+      } catch (err: any) {
+        showError(err.message || 'Erro ao excluir meta');
+      }
+    });
   };
 
   // Renderizar item da lista
-  const renderGoalItem = ({ item: goal }: { item: Goal }) => {
-    const progress = calculateProgress(goal);
-    const statusColor = getStatusColor(goal.status);
-    const isCompleted = goal.status === 'completed';
-    const daysRemaining = goal.daysRemaining || 0;
+  const renderGoalItem = ({ item }: { item: Goal }) => {
+    const progress = item.progress || 0;
+    const daysRemaining = item.daysRemaining || 0;
+
+    const getStatusColor = () => {
+      if (item.status === 'completed') return COLORS.success;
+      if (item.status === 'paused') return COLORS.warning;
+      if (daysRemaining < 30 && progress < 50) return COLORS.error;
+      return COLORS.primary;
+    };
+
+    const getStatusText = () => {
+      if (item.status === 'completed') return 'Concluída';
+      if (item.status === 'paused') return 'Pausada';
+      return `${daysRemaining} dias restantes`;
+    };
 
     return (
       <TouchableOpacity
-        style={styles.goalCard}
-        onPress={() => handleGoalPress(goal)}
+        style={styles.goalItem}
+        onPress={() => navigation.navigate('GoalDetail', { goalId: item._id })}
         activeOpacity={0.7}
       >
-        {/* Header do card */}
-        <View style={styles.goalHeader}>
-          <View style={styles.goalTitleContainer}>
-            <Text style={styles.goalTitle} numberOfLines={2}>
-              {goal.title}
-            </Text>
-            <View style={[styles.statusBadge, { backgroundColor: statusColor + '20' }]}>
-              <Text style={[styles.statusText, { color: statusColor }]}>
-                {getStatusText(goal.status)}
+        <Card style={styles.goalCard}>
+          {/* Header */}
+          <View style={styles.goalHeader}>
+            <View style={styles.goalInfo}>
+              <Text style={styles.goalTitle} numberOfLines={1}>
+                {item.title || item.name}
+              </Text>
+              <Text style={styles.goalCategory} numberOfLines={1}>
+                {item.category || 'Sem categoria'}
+              </Text>
+            </View>
+            <View style={styles.goalStatus}>
+              <Ionicons
+                name={item.status === 'completed' ? 'checkmark-circle' : 'flag'}
+                size={24}
+                color={getStatusColor()}
+              />
+            </View>
+          </View>
+
+          {/* Valores */}
+          <View style={styles.goalValues}>
+            <View style={styles.valueItem}>
+              <Text style={styles.valueLabel}>Economizado</Text>
+              <Text style={[styles.valueAmount, { color: COLORS.success }]}>
+                {formatCurrency(item.currentAmount)}
+              </Text>
+            </View>
+            <View style={styles.valueDivider} />
+            <View style={styles.valueItem}>
+              <Text style={styles.valueLabel}>Meta</Text>
+              <Text style={styles.valueAmount}>
+                {formatCurrency(item.targetAmount)}
               </Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => confirmDelete(goal)}
-          >
-            <Ionicons name="trash-outline" size={20} color={COLORS.error} />
-          </TouchableOpacity>
-        </View>
 
-        {/* Descrição */}
-        {goal.description && (
-          <Text style={styles.goalDescription} numberOfLines={2}>
-            {goal.description}
-          </Text>
-        )}
-
-        {/* Progresso */}
-        <View style={styles.progressContainer}>
-          <View style={styles.progressInfo}>
-            <Text style={styles.progressText}>
-              {formatCurrency(goal.currentAmount)} de {formatCurrency(goal.targetAmount)}
-            </Text>
-            <Text style={styles.progressPercentage}>
-              {progress.toFixed(1)}%
-            </Text>
-          </View>
-          <View style={styles.progressBarContainer}>
-            <View
-              style={[
-                styles.progressBar,
-                {
-                  width: `${progress}%`,
-                  backgroundColor: isCompleted ? COLORS.success : statusColor,
-                },
-              ]}
+          {/* Progresso */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressText}>{progress.toFixed(0)}%</Text>
+              <Text style={[styles.statusText, { color: getStatusColor() }]}>
+                {getStatusText()}
+              </Text>
+            </View>
+            <ProgressBar
+              progress={progress}
+              color={getStatusColor()}
+              height={8}
+              showText={false}
             />
           </View>
-        </View>
 
-        {/* Informações adicionais */}
-        <View style={styles.goalFooter}>
-          <View style={styles.goalInfo}>
-            <Ionicons name="calendar-outline" size={16} color={COLORS.gray600} />
-            <Text style={styles.goalInfoText}>
-              {goal.targetDate ? formatDate(new Date(goal.targetDate)) : 'Sem prazo'}
-            </Text>
+          {/* Ações */}
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => navigation.navigate('EditGoal', { goalId: item._id })}
+            >
+              <Ionicons name="create" size={16} color={COLORS.info} />
+              <Text style={styles.editButtonText}>Editar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.shareButton]}
+              onPress={() => {
+                const goalTitle: string = item.title || item.name || 'Meta';
+                navigation.navigate('ShareGoal', { 
+                  goalId: item._id, 
+                  goalTitle: goalTitle
+                });
+              }}
+            >
+              <Ionicons name="share-social" size={16} color={COLORS.primary} />
+              <Text style={styles.shareButtonText}>Compartilhar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={() => handleDeleteGoal(item)}
+            >
+              <Ionicons name="trash" size={16} color={COLORS.error} />
+              <Text style={styles.deleteButtonText}>Excluir</Text>
+            </TouchableOpacity>
           </View>
-          {daysRemaining > 0 && !isCompleted && (
-            <View style={styles.goalInfo}>
-              <Ionicons name="time-outline" size={16} color={COLORS.gray600} />
-              <Text style={styles.goalInfoText}>
-                {daysRemaining} dias restantes
-              </Text>
-            </View>
-          )}
-        </View>
+        </Card>
       </TouchableOpacity>
     );
   };
 
-  // Renderizar estado vazio
+  // Renderizar filtros
+  const renderFilters = () => (
+    <View style={styles.filterContainer}>
+      {(['all', 'active', 'completed', 'paused'] as const).map(filter => (
+        <TouchableOpacity
+          key={filter}
+          style={[
+            styles.filterButton,
+            selectedFilter === filter && styles.filterButtonActive,
+          ]}
+          onPress={() => setSelectedFilter(filter)}
+        >
+          <Text
+            style={[
+              styles.filterText,
+              selectedFilter === filter && styles.filterTextActive,
+            ]}
+          >
+            {filter === 'all' ? 'Todas' : 
+             filter === 'active' ? 'Ativas' : 
+             filter === 'completed' ? 'Concluídas' : 'Pausadas'}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  // Estado vazio
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <Ionicons name="flag-outline" size={80} color={COLORS.gray400} />
-      <Text style={styles.emptyTitle}>Nenhuma meta encontrada</Text>
-      <Text style={styles.emptyDescription}>
+    <View style={styles.emptyStateContainer}>
+      <Ionicons name="flag-outline" size={64} color={COLORS.gray400} />
+      <Text style={styles.emptyStateTitle}>Nenhuma meta encontrada</Text>
+      <Text style={styles.emptyStateDescription}>
         {selectedFilter === 'all'
-          ? 'Comece criando sua primeira meta financeira!'
-          : `Não há metas ${selectedFilter === 'active' ? 'ativas' : selectedFilter === 'completed' ? 'concluídas' : 'pausadas'} no momento.`}
+          ? 'Comece criando sua primeira meta financeira'
+          : `Não há metas ${selectedFilter === 'active' ? 'ativas' : selectedFilter === 'completed' ? 'concluídas' : 'pausadas'} no momento`}
       </Text>
       {selectedFilter === 'all' && (
-        <TouchableOpacity style={styles.createButton} onPress={handleCreateGoal}>
-          <Text style={styles.createButtonText}>Criar Meta</Text>
+        <TouchableOpacity
+          style={styles.emptyStateButton}
+          onPress={() => navigation.navigate('CreateGoal')}
+        >
+          <Text style={styles.emptyStateButtonText}>Criar Meta</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 
+  // Loading
+  if (loading && goals.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Metas</Text>
+        </View>
+        <Loading text="Carregando metas..." />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Toast */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+        action={toast.action}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        visible={confirm.visible}
+        title={confirm.title}
+        message={confirm.message}
+        confirmText={confirm.confirmText}
+        cancelText={confirm.cancelText}
+        type={confirm.type}
+        onConfirm={confirm.onConfirm}
+        onCancel={confirm.onCancel}
+      />
+
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Minhas Metas</Text>
+        <Text style={styles.title}>Metas</Text>
         <View style={styles.headerButtons}>
-          {/* NOVO BOTÃO: Metas Compartilhadas */}
-          <TouchableOpacity style={styles.sharedButton} onPress={handleSharedGoals}>
-            <Ionicons name="people-outline" size={24} color={COLORS.primary} />
+          <TouchableOpacity
+            style={styles.sharedButton}
+            onPress={() => navigation.navigate('SharedGoals')}
+          >
+            <Ionicons name="people" size={24} color={COLORS.primary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.addButton} onPress={handleCreateGoal}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('CreateGoal')}
+          >
             <Ionicons name="add" size={24} color={COLORS.white} />
           </TouchableOpacity>
         </View>
@@ -289,33 +273,24 @@ export const GoalListScreen: React.FC<GoalListScreenProps> = ({ navigation }) =>
       {/* Filtros */}
       {renderFilters()}
 
-      {/* Lista de metas */}
-      <FlatList
-        data={filteredGoals}
-        renderItem={renderGoalItem}
-        keyExtractor={(item) => item._id}
-        contentContainerStyle={[
-          styles.listContainer,
-          filteredGoals.length === 0 && styles.listContainerEmpty,
-        ]}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refresh}
-            colors={[COLORS.primary]}
-            tintColor={COLORS.primary}
-          />
-        }
-        ListEmptyComponent={renderEmptyState}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-      />
-
-      {/* Botão flutuante para criar meta */}
-      {filteredGoals.length > 0 && (
-        <TouchableOpacity style={styles.floatingButton} onPress={handleCreateGoal}>
-          <Ionicons name="add" size={28} color={COLORS.white} />
-        </TouchableOpacity>
+      {/* Lista */}
+      {isEmpty ? (
+        renderEmptyState()
+      ) : (
+        <FlatList
+          data={filteredGoals}
+          renderItem={renderGoalItem}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refresh}
+              colors={[COLORS.primary]}
+              tintColor={COLORS.primary}
+            />
+          }
+        />
       )}
     </SafeAreaView>
   );
@@ -335,213 +310,211 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     ...SHADOWS.sm,
   },
-  headerTitle: {
+  title: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
   },
   headerButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: SPACING.sm,
   },
   sharedButton: {
-    padding: SPACING.xs,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButton: {
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.full,
     width: 40,
     height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  filtersContainer: {
+  filterContainer: {
     flexDirection: 'row',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    padding: SPACING.md,
     backgroundColor: COLORS.white,
-    gap: SPACING.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.gray200,
   },
   filterButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.xs,
     borderRadius: BORDER_RADIUS.md,
     backgroundColor: COLORS.gray100,
-    gap: SPACING.xs,
+    marginRight: SPACING.xs,
   },
   filterButtonActive: {
     backgroundColor: COLORS.primary,
   },
-  filterButtonText: {
+  filterText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
-    color: COLORS.gray600,
+    color: COLORS.textSecondary,
   },
-  filterButtonTextActive: {
+  filterTextActive: {
     color: COLORS.white,
   },
-  filterCount: {
-    backgroundColor: COLORS.gray300,
-    borderRadius: BORDER_RADIUS.full,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.xs,
-  },
-  filterCountActive: {
-    backgroundColor: COLORS.white,
-  },
-  filterCountText: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray600,
-  },
-  filterCountTextActive: {
-    color: COLORS.primary,
-  },
-  listContainer: {
+  listContent: {
     padding: SPACING.md,
   },
-  listContainerEmpty: {
-    flex: 1,
-  },
-  separator: {
-    height: SPACING.md,
+  goalItem: {
+    marginBottom: SPACING.md,
   },
   goalCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
-    ...SHADOWS.card,
   },
   goalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
   },
-  goalTitleContainer: {
+  goalInfo: {
     flex: 1,
     marginRight: SPACING.sm,
   },
   goalTitle: {
     fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.semibold,
+    color: COLORS.textPrimary,
+    marginBottom: 4,
+  },
+  goalCategory: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+  },
+  goalStatus: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.gray100,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  goalValues: {
+    flexDirection: 'row',
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.gray50,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.sm,
+  },
+  valueItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  valueDivider: {
+    width: 1,
+    backgroundColor: COLORS.gray300,
+    marginHorizontal: SPACING.sm,
+  },
+  valueLabel: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.regular,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+  },
+  valueAmount: {
+    fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
+  },
+  progressContainer: {
+    marginBottom: SPACING.md,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: SPACING.xs,
   },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    borderRadius: BORDER_RADIUS.full,
+  progressText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.semibold,
+    color: COLORS.textPrimary,
   },
   statusText: {
     fontSize: FONT_SIZES.xs,
     fontFamily: FONTS.medium,
   },
-  menuButton: {
-    padding: SPACING.xs,
-  },
-  goalDescription: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.md,
-    lineHeight: 20,
-  },
-  progressContainer: {
-    marginBottom: SPACING.md,
-  },
-  progressInfo: {
+  actionButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: SPACING.xs,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.gray200,
+    paddingTop: SPACING.sm,
+    marginTop: SPACING.xs,
   },
-  progressText: {
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.xs,
+    borderRadius: BORDER_RADIUS.md,
+    marginHorizontal: 2,
+  },
+  editButton: {
+    backgroundColor: COLORS.info + '15',
+  },
+  shareButton: {
+    backgroundColor: COLORS.primary + '15',
+  },
+  deleteButton: {
+    backgroundColor: COLORS.error + '15',
+  },
+  editButtonText: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
+    color: COLORS.info,
+    marginLeft: 4,
   },
-  progressPercentage: {
+  shareButtonText: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.medium,
     color: COLORS.primary,
+    marginLeft: 4,
   },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.full,
-    overflow: 'hidden',
+  deleteButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.medium,
+    color: COLORS.error,
+    marginLeft: 4,
   },
-  progressBar: {
-    height: '100%',
-    borderRadius: BORDER_RADIUS.full,
-  },
-  goalFooter: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
-  },
-  goalInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.xs,
-  },
-  goalInfoText: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-  },
-  emptyContainer: {
+  emptyStateContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: SPACING.xl,
+    padding: SPACING.xl,
   },
-  emptyTitle: {
+  emptyStateTitle: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.bold,
     color: COLORS.textPrimary,
     marginTop: SPACING.lg,
     marginBottom: SPACING.sm,
+    textAlign: 'center',
   },
-  emptyDescription: {
+  emptyStateDescription: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.regular,
     color: COLORS.textSecondary,
     textAlign: 'center',
-    lineHeight: 22,
     marginBottom: SPACING.xl,
   },
-  createButton: {
+  emptyStateButton: {
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.md,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
   },
-  createButtonText: {
+  emptyStateButtonText: {
     fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.bold,
+    fontFamily: FONTS.semibold,
     color: COLORS.white,
-  },
-  floatingButton: {
-    position: 'absolute',
-    bottom: SPACING.xl,
-    right: SPACING.xl,
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.full,
-    width: 56,
-    height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...SHADOWS.lg,
   },
 });
