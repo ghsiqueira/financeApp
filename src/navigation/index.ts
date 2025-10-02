@@ -7,6 +7,7 @@ export { GoalNavigator } from './GoalNavigator';
 export { BudgetNavigator } from './BudgetNavigator';
 export { ProfileNavigator } from './ProfileNavigator';
 export { CategoryNavigator } from './CategoryNavigator';
+export { ProjectionNavigator } from './ProjectionNavigator';
 
 export type {
   RootStackParamList,

@@ -22,12 +22,18 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../.
 import { CategoryStackParamList } from '../../navigation/CategoryNavigator';
 import { useToast } from '../../hooks';
 
-type NavigationProp = NativeStackNavigationProp<CategoryStackParamList>;
-type RoutePropType = RouteProp<CategoryStackParamList, 'EditCategory'>;
+// TIPAGEM CORRIGIDA
+type NavigationProp = NativeStackNavigationProp<
+  CategoryStackParamList,
+  'CreateCategory' | 'EditCategory'
+>;
+
+type RouteCreateProp = RouteProp<CategoryStackParamList, 'CreateCategory'>;
+type RouteEditProp = RouteProp<CategoryStackParamList, 'EditCategory'>;
 
 interface Props {
   navigation: NavigationProp;
-  route: RoutePropType;
+  route: RouteCreateProp | RouteEditProp;
 }
 
 // Emojis sugeridos para categorias
@@ -44,8 +50,9 @@ const COLOR_PALETTE = [
 ];
 
 export const CreateCategoryScreen: React.FC<Props> = ({ navigation, route }) => {
-  const isEditing = !!route.params?.categoryId;
-  const categoryId = route.params?.categoryId;
+  // Verificar se estamos editando
+  const isEditing = route.params && 'categoryId' in route.params && !!route.params.categoryId;
+  const categoryId = isEditing && 'categoryId' in route.params ? route.params.categoryId : undefined;
 
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);

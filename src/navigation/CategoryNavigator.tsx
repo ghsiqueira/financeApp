@@ -1,4 +1,3 @@
-// src/navigation/CategoryNavigator.tsx
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { CategoryListScreen } from '../screens/categories/CategoryListScreen';
@@ -20,8 +19,14 @@ export const CategoryNavigator: React.FC = () => {
       }}
     >
       <Stack.Screen name="CategoryList" component={CategoryListScreen} />
-      <Stack.Screen name="CreateCategory" component={CreateCategoryScreen} />
-      <Stack.Screen name="EditCategory" component={CreateCategoryScreen} />
+      <Stack.Screen 
+        name="CreateCategory" 
+        component={CreateCategoryScreen}
+      />
+      <Stack.Screen 
+        name="EditCategory" 
+        component={CreateCategoryScreen}
+      />
     </Stack.Navigator>
   );
 };

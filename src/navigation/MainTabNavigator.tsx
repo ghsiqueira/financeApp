@@ -5,11 +5,11 @@ import { Platform } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-import ProjectionsScreen from '../screens/projections/ProjectionsScreen';
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { TransactionNavigator } from './TransactionNavigator';
 import { GoalNavigator } from './GoalNavigator';
 import { BudgetNavigator } from './BudgetNavigator';
+import { ProjectionNavigator } from './ProjectionNavigator';
 import { ReportsScreen } from '../screens/reports/ReportsScreen';
 import { ProfileNavigator } from './ProfileNavigator';
 import { MainTabParamList } from './types';
@@ -37,9 +37,6 @@ export const MainTabNavigator: React.FC = () => {
               break;
             case 'Budgets':
               iconName = focused ? 'pie-chart' : 'pie-chart-outline';
-              break;
-            case 'Projections':
-              iconName = focused ? 'analytics' : 'analytics-outline';
               break;
             case 'Reports':
               iconName = focused ? 'analytics' : 'analytics-outline';
@@ -96,10 +93,7 @@ export const MainTabNavigator: React.FC = () => {
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
-            // Previne o comportamento padrão
             e.preventDefault();
-            
-            // Reseta o stack para a tela inicial (TransactionList)
             navigation.navigate('Transactions', {
               screen: 'TransactionList',
             });
@@ -139,15 +133,6 @@ export const MainTabNavigator: React.FC = () => {
             });
           },
         })}
-      />
-      <Tab.Screen 
-        name="Projections" 
-        component={ProjectionsScreen}
-        options={{ 
-          title: 'Projeções',
-          tabBarLabel: 'Projeções',
-          headerShown: false,
-        }}
       />
       <Tab.Screen 
         name="Reports" 

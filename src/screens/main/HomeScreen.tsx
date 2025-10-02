@@ -12,12 +12,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Card, Loading, Badge, EmptyState, ProjectionCard } from '../../components/common';
+import { Card, Loading, Badge, EmptyState } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
 import { TransactionService } from '../../services/TransactionService';
 import { GoalService } from '../../services/GoalService';
 import { BudgetService } from '../../services/BudgetService';
-import { ProjectionService } from '../../services/ProjectionService';
 import { 
   COLORS, 
   FONTS, 
@@ -48,9 +47,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [activeGoals, setActiveGoals] = useState<Goal[]>([]);
   const [currentBudgets, setCurrentBudgets] = useState<Budget[]>([]);
 
-  // Função para formatar valor monetário - VERSÃO CORRIGIDA
   const formatCurrency = (value: number | undefined | null): string => {
-    // Verificar se o valor é válido
     if (value === null || value === undefined || isNaN(Number(value))) {
       return 'R$ 0,00';
     }
@@ -65,11 +62,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }).format(numericValue);
   };
 
-  // FUNÇÕES DE NAVEGAÇÃO CORRIGIDAS
   const handleSeeAllTransactions = () => {
     navigation.navigate('Transactions', {
       screen: 'TransactionList'
-    }); // Vai direto para TransactionList (tela inicial)
+    });
   };
 
   const handleCreateTransaction = () => {
@@ -85,7 +81,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     });
   };
 
-  // Carregar dados iniciais - VERSÃO MELHORADA
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -105,7 +100,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         budgets: budgets?.length
       });
 
-      // Garantir que summary não é null e tem valores válidos
       const safeSummary = summaryData || {
         income: 0,
         expense: 0,
@@ -114,16 +108,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         balance: 0,
       };
 
-      // Validar cada valor do summary
       const validatedSummary = {
         income: isNaN(Number(safeSummary.income)) ? 0 : Number(safeSummary.income),
         expense: isNaN(Number(safeSummary.expense)) ? 0 : Number(safeSummary.expense),
         incomeCount: isNaN(Number(safeSummary.incomeCount)) ? 0 : Number(safeSummary.incomeCount),
         expenseCount: isNaN(Number(safeSummary.expenseCount)) ? 0 : Number(safeSummary.expenseCount),
-        balance: 0, // Será calculado abaixo
+        balance: 0,
       };
 
-      // Calcular balance manualmente
       validatedSummary.balance = validatedSummary.income - validatedSummary.expense;
 
       setSummary(validatedSummary);
@@ -134,7 +126,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       console.error('❌ Erro ao carregar dados:', error);
       Alert.alert('Erro', 'Não foi possível carregar os dados. Tente novamente.');
       
-      // Definir valores padrão em caso de erro
       setSummary({
         income: 0,
         expense: 0,
@@ -151,27 +142,23 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   }, []);
 
-  // Carregar dados ao focar na tela
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [loadData])
   );
 
-  // Função de refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
   }, [loadData]);
 
-  // Função para obter cor do saldo
   const getBalanceColor = (balance: number): string => {
     if (balance > 0) return COLORS.success;
     if (balance < 0) return COLORS.error;
     return COLORS.textSecondary;
   };
 
-  // Renderizar cartão de resumo
   const renderSummaryCard = () => {
     if (!summary) return null;
 
@@ -229,14 +216,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   };
 
-  // Renderizar ações rápidas
   const renderQuickActions = () => {
     const actions = [
       {
         icon: 'add-circle',
         label: 'Nova Transação',
         color: COLORS.primary,
-        onPress: handleCreateTransaction, // NAVEGAÇÃO CORRIGIDA
+        onPress: handleCreateTransaction,
       },
       {
         icon: 'flag',
@@ -251,9 +237,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         onPress: () => navigation.navigate('Budgets', { screen: 'CreateBudget' }),
       },
       {
+        icon: 'trending-up',
+        label: 'Projeções',
+        color: COLORS.info,
+        onPress: () => navigation.navigate('Projections'),
+      },
+      {
         icon: 'analytics',
         label: 'Relatórios',
-        color: COLORS.info,
+        color: COLORS.success,
         onPress: () => navigation.navigate('Reports'),
       },
     ];
@@ -279,7 +271,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   };
 
-  // Renderizar transações recentes
   const renderRecentTransactions = () => {
     return (
       <View style={styles.section}>
@@ -297,7 +288,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               title="Nenhuma transação"
               description="Comece criando sua primeira transação"
               actionText="Criar Transação"
-              onAction={handleCreateTransaction} // NAVEGAÇÃO CORRIGIDA
+              onAction={handleCreateTransaction}
             />
           </Card>
         ) : (
@@ -305,7 +296,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Card key={transaction._id} style={styles.transactionCard}>
               <TouchableOpacity
                 style={styles.transactionItem}
-                onPress={() => handleViewTransaction(transaction._id)} // NAVEGAÇÃO CORRIGIDA
+                onPress={() => handleViewTransaction(transaction._id)}
               >
                 <View style={styles.transactionLeft}>
                   <View style={[
@@ -345,7 +336,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   };
 
-  // Renderizar metas ativas
   const renderActiveGoals = () => {
     return (
       <View style={styles.section}>
@@ -377,7 +367,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               >
                 <View style={styles.goalHeader}>
                   <Text style={styles.goalTitle}>{goal.title}</Text>
-                  <Badge text={`${goal.progress || 0}%`} variant="info" />
+                  <Badge text={`${Math.round(goal.progress || 0)}%`} variant="info" />
                 </View>
                 
                 <View style={styles.goalProgress}>
@@ -405,7 +395,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     );
   };
 
-  // Renderizar orçamentos atuais
   const renderCurrentBudgets = () => {
     return (
       <View style={styles.section}>
@@ -498,7 +487,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <View style={styles.header}>
           <View>
             <Text style={styles.greeting}>Olá, {user?.name?.split(' ')[0] || 'Usuário'}!</Text>
@@ -511,22 +499,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Resumo financeiro */}
         {renderSummaryCard()}
-
-        {/* Ações rápidas */}
         {renderQuickActions()}
-
-        {/* Transações recentes */}
         {renderRecentTransactions()}
-
-        {/* Metas ativas */}
         {renderActiveGoals()}
-
-        {/* Orçamentos atuais */}
         {renderCurrentBudgets()}
 
-        {/* Espaçamento final */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
@@ -642,11 +620,12 @@ const styles = StyleSheet.create({
   quickActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    flexWrap: 'wrap',
   },
   quickAction: {
     alignItems: 'center',
-    flex: 1,
-    marginHorizontal: SPACING.xs,
+    width: '18%',
+    marginBottom: SPACING.md,
   },
   quickActionIcon: {
     width: 50,
