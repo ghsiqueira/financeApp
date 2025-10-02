@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
-
+import ProjectionsScreen from '../screens/projections/ProjectionsScreen';
 import { HomeScreen } from '../screens/main/HomeScreen';
 import { TransactionNavigator } from './TransactionNavigator';
 import { GoalNavigator } from './GoalNavigator';
@@ -37,6 +37,9 @@ export const MainTabNavigator: React.FC = () => {
               break;
             case 'Budgets':
               iconName = focused ? 'pie-chart' : 'pie-chart-outline';
+              break;
+            case 'Projections':
+              iconName = focused ? 'analytics' : 'analytics-outline';
               break;
             case 'Reports':
               iconName = focused ? 'analytics' : 'analytics-outline';
@@ -136,6 +139,15 @@ export const MainTabNavigator: React.FC = () => {
             });
           },
         })}
+      />
+      <Tab.Screen 
+        name="Projections" 
+        component={ProjectionsScreen}
+        options={{ 
+          title: 'Projeções',
+          tabBarLabel: 'Projeções',
+          headerShown: false,
+        }}
       />
       <Tab.Screen 
         name="Reports" 

@@ -22,6 +22,7 @@ export type MainTabParamList = {
   Transactions: NavigatorScreenParams<TransactionStackParamList>;
   Goals: NavigatorScreenParams<GoalStackParamList>;
   Budgets: NavigatorScreenParams<BudgetStackParamList>;
+  Projections: undefined; 
   Reports: undefined;
   Profile: NavigatorScreenParams<ProfileStackParamList>;
 };

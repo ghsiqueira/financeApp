@@ -255,6 +255,7 @@ export type MainTabParamList = {
   Transactions: undefined;
   Goals: undefined;
   Budgets: undefined;
+  Projections: undefined; 
   Reports: undefined;
   Profile: undefined;
 };

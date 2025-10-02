@@ -12,11 +12,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { Card, Loading, Badge, EmptyState } from '../../components/common';
+import { Card, Loading, Badge, EmptyState, ProjectionCard } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
 import { TransactionService } from '../../services/TransactionService';
 import { GoalService } from '../../services/GoalService';
 import { BudgetService } from '../../services/BudgetService';
+import { ProjectionService } from '../../services/ProjectionService';
 import { 
   COLORS, 
   FONTS, 
