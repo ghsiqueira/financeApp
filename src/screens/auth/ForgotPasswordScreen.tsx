@@ -1,4 +1,3 @@
-// src/screens/auth/ForgotPasswordScreen.tsx - COM TEMA ESCURO
 import React, { useState } from 'react';
 import {
   View,
@@ -62,7 +61,7 @@ const ForgotPasswordScreen: React.FC = () => {
     }
   };
 
-  // Estilos dinâmicos
+  // Estilos dinâmicos - ✅ LABELS CORRIGIDAS
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,
@@ -86,7 +85,7 @@ const ForgotPasswordScreen: React.FC = () => {
     inputLabel: {
       fontSize: 14,
       fontFamily: FONTS.medium,
-      color: theme.textPrimary,
+      color: theme.textSecondary, // ✅ MUDANÇA AQUI
       marginBottom: 8,
     },
     helpText: {
@@ -137,7 +136,6 @@ const ForgotPasswordScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Header com botão voltar */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
@@ -148,20 +146,17 @@ const ForgotPasswordScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Icon */}
           <View style={styles.iconContainer}>
             <View style={dynamicStyles.iconCircle}>
               <Ionicons name="mail-outline" size={48} color={theme.primary} />
             </View>
           </View>
 
-          {/* Title & Description */}
           <Text style={dynamicStyles.title}>Esqueceu sua senha?</Text>
           <Text style={dynamicStyles.description}>
             Digite seu email e enviaremos um código para redefinir sua senha
           </Text>
 
-          {/* Form */}
           <Card style={styles.formCard}>
             <View style={styles.inputGroup}>
               <Text style={dynamicStyles.inputLabel}>Email *</Text>
@@ -189,7 +184,6 @@ const ForgotPasswordScreen: React.FC = () => {
             />
           </Card>
 
-          {/* Help Card */}
           <Card style={dynamicStyles.helpCard}>
             <View style={styles.helpItem}>
               <Ionicons name="checkmark-circle" size={20} color={theme.success} />
@@ -211,7 +205,6 @@ const ForgotPasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Footer */}
           <View style={styles.footer}>
             <Text style={dynamicStyles.footerText}>Lembrou sua senha?</Text>
             <TouchableOpacity onPress={() => navigation.goBack()} disabled={loading}>
@@ -219,7 +212,6 @@ const ForgotPasswordScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Back to Login */}
           <TouchableOpacity
             style={styles.backToLogin}
             onPress={() => navigation.goBack()}

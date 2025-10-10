@@ -134,7 +134,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [error]);
 
-  // Estilos dinâmicos
+  // Estilos dinâmicos - ✅ LABELS CORRIGIDAS
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,

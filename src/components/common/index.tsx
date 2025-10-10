@@ -1,3 +1,4 @@
+// src/components/common/index.tsx - VERSÃO COMPLETA CORRIGIDA
 import React from 'react';
 import {
   View,
@@ -120,7 +121,7 @@ interface InputProps extends TextInputProps {
   required?: boolean;
 }
 
-// Componente Input - ✅ VERSÃO SIMPLIFICADA (USA APENAS THEME)
+// ✅ COMPONENTE INPUT - CORRIGIDO PARA MODO ESCURO
 export const Input: React.FC<InputProps> = ({
   label,
   error,
@@ -134,7 +135,7 @@ export const Input: React.FC<InputProps> = ({
   const { theme } = useTheme();
   const hasError = !!error;
 
-  // Estilos dinâmicos - SIMPLES E DIRETO
+  // ✅ Estilos dinâmicos com textSecondary para labels
   const dynamicStyles = {
     inputContainer: {
       marginBottom: SPACING.md,
@@ -142,7 +143,7 @@ export const Input: React.FC<InputProps> = ({
     inputLabel: {
       fontSize: FONT_SIZES.sm,
       fontFamily: FONTS.medium,
-      color: theme.textPrimary, // ✅ Agora é #FFFFFF no escuro!
+      color: theme.textSecondary, // ✅ CORREÇÃO PRINCIPAL
       marginBottom: SPACING.xs,
     },
     inputRequired: {
@@ -162,7 +163,7 @@ export const Input: React.FC<InputProps> = ({
       paddingHorizontal: SPACING.md,
       fontSize: FONT_SIZES.md,
       fontFamily: FONTS.regular,
-      color: theme.textPrimary, // ✅ Agora é #FFFFFF no escuro!
+      color: theme.textPrimary,
     },
     inputWithLeftIcon: {
       paddingLeft: SPACING.xs,
@@ -184,14 +185,12 @@ export const Input: React.FC<InputProps> = ({
     },
   };
 
-  // Cor dos ícones
   const getIconColor = () => {
     if (hasError) return theme.error;
-    return theme.textSecondary; // ✅ Agora é #E2E8F0 no escuro!
+    return theme.textSecondary;
   };
 
-  // Cor do placeholder
-  const placeholderColor = theme.textTertiary; // ✅ Agora é #CBD5E1 no escuro!
+  const placeholderColor = theme.textTertiary;
 
   return (
     <View style={dynamicStyles.inputContainer}>
@@ -255,10 +254,10 @@ export const Card: React.FC<CardProps> = ({
   const { theme } = useTheme();
 
   const cardStyle = {
-    backgroundColor: theme.card, // ✅ Dinâmico
+    backgroundColor: theme.card,
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
-    borderColor: theme.borderLight, // ✅ Dinâmico
+    borderColor: theme.borderLight,
     ...(padding && { padding: SPACING.md }),
     ...(shadow && SHADOWS.md),
   };
@@ -524,7 +523,7 @@ const styles = StyleSheet.create({
     color: COLORS.gray400,
   },
 
-  // Input styles (não mais usados pois Input agora usa estilos dinâmicos)
+  // Input styles (não são mais usados, mas mantidos para compatibilidade)
   inputContainer: {
     marginBottom: SPACING.md,
   },

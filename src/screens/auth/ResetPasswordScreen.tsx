@@ -35,7 +35,6 @@ const ResetPasswordScreen: React.FC = () => {
 
   const codeInputRefs = useRef<(TextInput | null)[]>([]);
 
-  // Timer de expiração
   useEffect(() => {
     const interval = setInterval(() => {
       setTimer((prev) => {
@@ -61,7 +60,6 @@ const ResetPasswordScreen: React.FC = () => {
     const numericText = text.replace(/[^0-9]/g, '');
     
     if (numericText.length > 1) {
-      // Colar código completo
       const digits = numericText.slice(0, 6).split('');
       const newCode = [...code];
       digits.forEach((digit, i) => {
@@ -109,10 +107,8 @@ const ResetPasswordScreen: React.FC = () => {
     setError('');
 
     try {
-      // Verificar código
       await AuthService.verifyResetCode(email, fullCode);
 
-      // Se código válido, navegar para tela de nova senha
       Alert.alert(
         'Código Válido!',
         'Agora defina sua nova senha.',
@@ -153,7 +149,7 @@ const ResetPasswordScreen: React.FC = () => {
     }
   };
 
-  // Estilos dinâmicos
+  // Estilos dinâmicos - ✅ LABELS CORRIGIDAS
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,
@@ -181,7 +177,7 @@ const ResetPasswordScreen: React.FC = () => {
     codeLabel: {
       fontSize: 14,
       fontFamily: FONTS.medium,
-      color: theme.textPrimary,
+      color: theme.textSecondary, // ✅ MUDANÇA AQUI
       marginBottom: 16,
       textAlign: 'center',
     },
@@ -262,7 +258,6 @@ const ResetPasswordScreen: React.FC = () => {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -273,23 +268,19 @@ const ResetPasswordScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Content */}
         <View style={styles.content}>
-          {/* Icon */}
           <View style={styles.iconContainer}>
             <View style={dynamicStyles.iconCircle}>
               <Ionicons name="mail-open-outline" size={48} color={theme.primary} />
             </View>
           </View>
 
-          {/* Title */}
           <Text style={dynamicStyles.title}>Verifique seu Email</Text>
           <Text style={dynamicStyles.description}>
             Enviamos um código de 6 dígitos para{'\n'}
             <Text style={dynamicStyles.emailText}>{email}</Text>
           </Text>
 
-          {/* Code Input */}
           <Card style={styles.codeCard}>
             <Text style={dynamicStyles.codeLabel}>Digite o Código</Text>
             <View style={styles.codeContainer}>
@@ -323,7 +314,6 @@ const ResetPasswordScreen: React.FC = () => {
               </View>
             )}
 
-            {/* Timer */}
             <View style={styles.timerContainer}>
               <Ionicons 
                 name="time-outline" 
@@ -347,7 +337,6 @@ const ResetPasswordScreen: React.FC = () => {
             />
           </Card>
 
-          {/* Help Card */}
           <Card style={dynamicStyles.helpCard}>
             <View style={styles.helpItem}>
               <Ionicons name="mail-unread-outline" size={20} color={theme.warning} />
@@ -363,7 +352,6 @@ const ResetPasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Resend Code */}
           <View style={styles.footer}>
             <Text style={dynamicStyles.footerText}>Não recebeu o código?</Text>
             <TouchableOpacity
@@ -379,7 +367,6 @@ const ResetPasswordScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Wrong Email */}
           <TouchableOpacity
             style={styles.wrongEmail}
             onPress={() => navigation.goBack()}

@@ -1,4 +1,3 @@
-// src/screens/auth/LoginScreen.tsx - COM BOTÃO DE TEMA
 import React, { useState } from 'react';
 import {
   View,
@@ -159,6 +158,16 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
       marginBottom: SPACING.lg,
       textAlign: 'center',
     },
+    // ✅ CORREÇÃO: Labels agora usam textSecondary para melhor contraste
+    inputLabel: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.medium,
+      color: theme.textSecondary, // ✅ Era textPrimary, agora é textSecondary
+      marginBottom: SPACING.xs,
+    },
+    inputRequired: {
+      color: theme.error,
+    },
     forgotPasswordText: {
       fontSize: FONT_SIZES.sm,
       fontFamily: FONTS.medium,
@@ -208,56 +217,64 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContainer}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <View style={dynamicStyles.logo}>
-                <Text style={styles.logoText}>💰</Text>
-              </View>
-              <Text style={dynamicStyles.appName}>Finance App</Text>
-              <Text style={dynamicStyles.tagline}>Controle suas finanças de forma simples</Text>
+          {/* Logo Section */}
+          <View style={styles.logoSection}>
+            <View style={dynamicStyles.logo}>
+              <Ionicons name="wallet" size={40} color="#FFFFFF" />
             </View>
+            <Text style={dynamicStyles.appName}>Finance App</Text>
+            <Text style={dynamicStyles.tagline}>
+              Organize suas finanças de forma simples
+            </Text>
           </View>
 
-          {/* Formulário */}
-          <View style={styles.formContainer}>
+          {/* Form Section */}
+          <View style={styles.formSection}>
             <Text style={dynamicStyles.formTitle}>Entre na sua conta</Text>
 
-            <Input
-              label="Email"
-              placeholder="seu@email.com"
-              value={formData.email}
-              onChangeText={(value) => handleInputChange('email', value)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              error={errors.email}
-              leftIcon="mail-outline"
-              required
-            />
+            {/* ✅ CORREÇÃO: Labels agora ficam visíveis no modo escuro */}
+            <View style={styles.inputGroup}>
+              <Text style={dynamicStyles.inputLabel}>
+                Email <Text style={dynamicStyles.inputRequired}>*</Text>
+              </Text>
+              <Input
+                placeholder="seu@email.com"
+                value={formData.email}
+                onChangeText={(value) => handleInputChange('email', value)}
+                error={errors.email}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                leftIcon="mail-outline"
+              />
+            </View>
 
-            <Input
-              label="Senha"
-              placeholder="Sua senha"
-              value={formData.password}
-              onChangeText={(value) => handleInputChange('password', value)}
-              secureTextEntry={!showPassword}
-              error={errors.password}
-              leftIcon="lock-closed-outline"
-              rightIcon={showPassword ? "eye-off-outline" : "eye-outline"}
-              onRightIconPress={() => setShowPassword(!showPassword)}
-              required
-            />
+            <View style={styles.inputGroup}>
+              <Text style={dynamicStyles.inputLabel}>
+                Senha <Text style={dynamicStyles.inputRequired}>*</Text>
+              </Text>
+              <Input
+                placeholder="Sua senha"
+                value={formData.password}
+                onChangeText={(value) => handleInputChange('password', value)}
+                error={errors.password}
+                secureTextEntry={!showPassword}
+                leftIcon="lock-closed-outline"
+                rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                onRightIconPress={() => setShowPassword(!showPassword)}
+              />
+            </View>
 
             <TouchableOpacity
-              style={styles.forgotPassword}
+              style={styles.forgotPasswordButton}
               onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text style={dynamicStyles.forgotPasswordText}>Esqueceu sua senha?</Text>
+              <Text style={dynamicStyles.forgotPasswordText}>
+                Esqueceu sua senha?
+              </Text>
             </TouchableOpacity>
 
             <Button
@@ -274,8 +291,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               <View style={dynamicStyles.dividerLine} />
             </View>
 
-            <View style={styles.registerContainer}>
-              <Text style={dynamicStyles.registerText}>Não tem uma conta? </Text>
+            <View style={styles.registerSection}>
+              <Text style={dynamicStyles.registerText}>
+                Não tem uma conta?{' '}
+              </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Register')}>
                 <Text style={dynamicStyles.registerLink}>Cadastre-se</Text>
               </TouchableOpacity>
@@ -284,11 +303,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Alert de erro */}
       <CustomAlert
         visible={showAlert}
-        title="Erro no login"
-        message={error || 'Não foi possível fazer login'}
+        title="Erro ao fazer login"
+        message={error || 'Ocorreu um erro ao fazer login. Tente novamente.'}
         type="error"
         onConfirm={() => {
           setShowAlert(false);
@@ -303,42 +321,36 @@ const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
   },
-  scrollView: {
-    flex: 1,
+  scrollContainer: {
+    flexGrow: 1,
     paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.xl * 2,
   },
-  header: {
-    paddingTop: SPACING.xxl,
-    paddingBottom: SPACING.xl,
+  logoSection: {
     alignItems: 'center',
+    marginBottom: SPACING.xl * 2,
   },
-  logoContainer: {
-    alignItems: 'center',
-  },
-  logoText: {
-    fontSize: 40,
-  },
-  formContainer: {
+  formSection: {
     flex: 1,
-    paddingTop: SPACING.lg,
   },
-  forgotPassword: {
+  inputGroup: {
+    marginBottom: SPACING.lg,
+  },
+  forgotPasswordButton: {
     alignSelf: 'flex-end',
     marginBottom: SPACING.lg,
-    marginTop: -SPACING.sm,
   },
   loginButton: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.lg,
+    marginVertical: SPACING.lg,
   },
-  registerContainer: {
+  registerSection: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: SPACING.xl,
   },
 });

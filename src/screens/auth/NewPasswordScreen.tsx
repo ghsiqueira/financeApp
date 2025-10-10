@@ -115,7 +115,7 @@ const NewPasswordScreen: React.FC = () => {
 
   const passwordStrength = getPasswordStrength(newPassword);
 
-  // Estilos dinâmicos
+  // Estilos dinâmicos - ✅ LABELS CORRIGIDAS
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,
@@ -139,7 +139,7 @@ const NewPasswordScreen: React.FC = () => {
     inputLabel: {
       fontSize: 14,
       fontFamily: FONTS.medium,
-      color: theme.textPrimary,
+      color: theme.textSecondary, // ✅ MUDANÇA AQUI
       marginBottom: 8,
     },
     strengthBar: {
@@ -188,7 +188,6 @@ const NewPasswordScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.backButton}
@@ -199,20 +198,17 @@ const NewPasswordScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Icon */}
           <View style={styles.iconContainer}>
             <View style={dynamicStyles.iconCircle}>
               <Ionicons name="lock-closed-outline" size={48} color={theme.primary} />
             </View>
           </View>
 
-          {/* Title */}
           <Text style={dynamicStyles.title}>Criar Nova Senha</Text>
           <Text style={dynamicStyles.description}>
             Escolha uma senha forte e segura para proteger sua conta
           </Text>
 
-          {/* Password Form */}
           <Card style={styles.formCard}>
             <View style={styles.inputGroup}>
               <Text style={dynamicStyles.inputLabel}>Nova Senha *</Text>
@@ -234,7 +230,6 @@ const NewPasswordScreen: React.FC = () => {
                 autoCapitalize="none"
               />
 
-              {/* Password Strength */}
               {newPassword && (
                 <View style={styles.strengthContainer}>
                   <View style={dynamicStyles.strengthBar}>
@@ -275,7 +270,6 @@ const NewPasswordScreen: React.FC = () => {
                 autoCapitalize="none"
               />
 
-              {/* Match Indicator */}
               {confirmPassword && newPassword && (
                 <View style={styles.matchContainer}>
                   <Ionicons
@@ -296,7 +290,6 @@ const NewPasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Requirements Card */}
           <Card style={dynamicStyles.requirementsCard}>
             <Text style={dynamicStyles.requirementsTitle}>
               <Ionicons name="information-circle" size={16} color={theme.info} />
@@ -338,7 +331,6 @@ const NewPasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Action Button */}
           <Button
             title="Redefinir Senha"
             onPress={handleResetPassword}

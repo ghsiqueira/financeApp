@@ -149,7 +149,7 @@ const ChangePasswordScreen: React.FC = () => {
 
   const passwordStrength = getPasswordStrength(newPassword);
 
-  // Estilos dinâmicos
+  // Estilos dinâmicos - ✅ LABELS CORRIGIDAS
   const dynamicStyles = StyleSheet.create({
     container: {
       flex: 1,
@@ -194,7 +194,7 @@ const ChangePasswordScreen: React.FC = () => {
     inputLabel: {
       fontSize: 14,
       fontFamily: FONTS.medium,
-      color: theme.textPrimary,
+      color: theme.textSecondary, // ✅ MUDANÇA AQUI
       marginBottom: 8,
     },
     divider: {
@@ -265,7 +265,6 @@ const ChangePasswordScreen: React.FC = () => {
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
         <View style={dynamicStyles.header}>
           <TouchableOpacity
             style={styles.headerButton}
@@ -283,7 +282,6 @@ const ChangePasswordScreen: React.FC = () => {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Icon Section */}
           <View style={styles.iconContainer}>
             <View style={dynamicStyles.iconCircle}>
               <Ionicons name="shield-checkmark" size={48} color={theme.primary} />
@@ -295,9 +293,7 @@ const ChangePasswordScreen: React.FC = () => {
             Mantenha sua conta segura alterando sua senha regularmente
           </Text>
 
-          {/* Form Card */}
           <Card style={styles.formCard}>
-            {/* Senha Atual */}
             <View style={styles.inputGroup}>
               <Text style={dynamicStyles.inputLabel}>Senha Atual *</Text>
               <Input
@@ -321,7 +317,6 @@ const ChangePasswordScreen: React.FC = () => {
 
             <View style={dynamicStyles.divider} />
 
-            {/* Nova Senha */}
             <View style={styles.inputGroup}>
               <Text style={dynamicStyles.inputLabel}>Nova Senha *</Text>
               <Input
@@ -342,7 +337,6 @@ const ChangePasswordScreen: React.FC = () => {
                 autoCapitalize="none"
               />
 
-              {/* Password Strength Indicator */}
               {newPassword && (
                 <View style={styles.strengthContainer}>
                   <View style={dynamicStyles.strengthBar}>
@@ -363,7 +357,6 @@ const ChangePasswordScreen: React.FC = () => {
               )}
             </View>
 
-            {/* Confirmar Nova Senha */}
             <View style={styles.inputGroup}>
               <Text style={dynamicStyles.inputLabel}>Confirmar Nova Senha *</Text>
               <Input
@@ -384,7 +377,6 @@ const ChangePasswordScreen: React.FC = () => {
                 autoCapitalize="none"
               />
 
-              {/* Match Indicator */}
               {confirmPassword && newPassword && (
                 <View style={styles.matchContainer}>
                   <Ionicons
@@ -405,7 +397,6 @@ const ChangePasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Requirements Card */}
           <Card style={dynamicStyles.requirementsCard}>
             <Text style={dynamicStyles.requirementsTitle}>
               <Ionicons name="information-circle" size={16} color={theme.info} />
@@ -455,7 +446,6 @@ const ChangePasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Security Tips */}
           <Card style={dynamicStyles.tipsCard}>
             <Text style={dynamicStyles.tipsTitle}>
               <Ionicons name="shield-outline" size={16} color={theme.warning} />
@@ -481,7 +471,6 @@ const ChangePasswordScreen: React.FC = () => {
             </View>
           </Card>
 
-          {/* Actions */}
           <View style={styles.actionsSection}>
             <Button
               title="Alterar Senha"
@@ -499,7 +488,6 @@ const ChangePasswordScreen: React.FC = () => {
             />
           </View>
 
-          {/* Forgot Password Link */}
           <TouchableOpacity
             style={styles.forgotPasswordLink}
             onPress={() => navigation.navigate('ForgotPassword' as never)}
