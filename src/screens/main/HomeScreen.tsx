@@ -1,3 +1,4 @@
+// src/screens/main/HomeScreen.tsx - SEM BOTÃO DE TEMA (só no Profile)
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -14,11 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Card, Loading, Badge, EmptyState } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { TransactionService } from '../../services/TransactionService';
 import { GoalService } from '../../services/GoalService';
 import { BudgetService } from '../../services/BudgetService';
 import { 
-  COLORS, 
   FONTS, 
   FONT_SIZES, 
   SPACING, 
@@ -40,6 +41,7 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
@@ -154,10 +156,139 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   }, [loadData]);
 
   const getBalanceColor = (balance: number): string => {
-    if (balance > 0) return COLORS.success;
-    if (balance < 0) return COLORS.error;
-    return COLORS.textSecondary;
+    if (balance > 0) return theme.success;
+    if (balance < 0) return theme.error;
+    return theme.textSecondary;
   };
+
+  // Estilos dinâmicos baseados no tema
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: SPACING.md,
+      paddingVertical: SPACING.lg,
+      backgroundColor: theme.primary,
+    },
+    greeting: {
+      fontSize: FONT_SIZES.xl,
+      fontFamily: FONTS.bold,
+      color: theme.white,
+    },
+    subtitle: {
+      fontSize: FONT_SIZES.md,
+      fontFamily: FONTS.regular,
+      color: theme.white,
+      opacity: 0.9,
+      marginTop: SPACING.xs,
+    },
+    avatar: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.primaryDark,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    summaryTitle: {
+      fontSize: FONT_SIZES.lg,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+    },
+    balanceLabel: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      marginBottom: SPACING.xs,
+    },
+    summaryItemLabel: {
+      fontSize: FONT_SIZES.xs,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    summaryItemCount: {
+      fontSize: FONT_SIZES.xs,
+      fontFamily: FONTS.regular,
+      color: theme.textTertiary,
+    },
+    sectionTitle: {
+      fontSize: FONT_SIZES.lg,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+    },
+    seeAllText: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.medium,
+      color: theme.primary,
+    },
+    quickActionLabel: {
+      fontSize: FONT_SIZES.xs,
+      fontFamily: FONTS.medium,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+    transactionDescription: {
+      fontSize: FONT_SIZES.md,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+    },
+    transactionCategory: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    transactionDate: {
+      fontSize: FONT_SIZES.xs,
+      fontFamily: FONTS.regular,
+      color: theme.textTertiary,
+      marginTop: 2,
+    },
+    goalTitle: {
+      fontSize: FONT_SIZES.md,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+      flex: 1,
+      marginRight: SPACING.sm,
+    },
+    goalAmount: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+    },
+    goalDays: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    budgetName: {
+      fontSize: FONT_SIZES.md,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+      flex: 1,
+      marginRight: SPACING.sm,
+    },
+    budgetAmount: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+    },
+    progressBar: {
+      height: 8,
+      backgroundColor: theme.border,
+      borderRadius: BORDER_RADIUS.full,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: theme.primary,
+    },
+  });
 
   const renderSummaryCard = () => {
     if (!summary) return null;
@@ -165,14 +296,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return (
       <Card style={styles.summaryCard}>
         <View style={styles.summaryHeader}>
-          <Text style={styles.summaryTitle}>Resumo do Mês</Text>
+          <Text style={dynamicStyles.summaryTitle}>Resumo do Mês</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Reports')}>
-            <Ionicons name="analytics-outline" size={24} color={COLORS.primary} />
+            <Ionicons name="analytics-outline" size={24} color={theme.primary} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>Saldo Atual</Text>
+          <Text style={dynamicStyles.balanceLabel}>Saldo Atual</Text>
           <Text style={[
             styles.balanceValue,
             { color: getBalanceColor(summary.balance) }
@@ -183,30 +314,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
         <View style={styles.summaryRow}>
           <View style={styles.summaryItem}>
-            <View style={[styles.summaryIcon, { backgroundColor: COLORS.success + '20' }]}>
-              <Ionicons name="arrow-up" size={20} color={COLORS.success} />
+            <View style={[styles.summaryIcon, { backgroundColor: theme.success + '20' }]}>
+              <Ionicons name="arrow-up" size={20} color={theme.success} />
             </View>
             <View style={styles.summaryDetails}>
-              <Text style={styles.summaryItemLabel}>Receitas</Text>
-              <Text style={[styles.summaryItemValue, { color: COLORS.success }]}>
+              <Text style={dynamicStyles.summaryItemLabel}>Receitas</Text>
+              <Text style={[styles.summaryItemValue, { color: theme.success }]}>
                 {formatCurrency(summary.income)}
               </Text>
-              <Text style={styles.summaryItemCount}>
+              <Text style={dynamicStyles.summaryItemCount}>
                 {summary.incomeCount} transações
               </Text>
             </View>
           </View>
 
           <View style={styles.summaryItem}>
-            <View style={[styles.summaryIcon, { backgroundColor: COLORS.error + '20' }]}>
-              <Ionicons name="arrow-down" size={20} color={COLORS.error} />
+            <View style={[styles.summaryIcon, { backgroundColor: theme.error + '20' }]}>
+              <Ionicons name="arrow-down" size={20} color={theme.error} />
             </View>
             <View style={styles.summaryDetails}>
-              <Text style={styles.summaryItemLabel}>Despesas</Text>
-              <Text style={[styles.summaryItemValue, { color: COLORS.error }]}>
+              <Text style={dynamicStyles.summaryItemLabel}>Despesas</Text>
+              <Text style={[styles.summaryItemValue, { color: theme.error }]}>
                 {formatCurrency(summary.expense)}
               </Text>
-              <Text style={styles.summaryItemCount}>
+              <Text style={dynamicStyles.summaryItemCount}>
                 {summary.expenseCount} transações
               </Text>
             </View>
@@ -221,38 +352,38 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       {
         icon: 'add-circle',
         label: 'Nova Transação',
-        color: COLORS.primary,
+        color: theme.primary,
         onPress: handleCreateTransaction,
       },
       {
         icon: 'flag',
         label: 'Nova Meta',
-        color: COLORS.secondary,
+        color: theme.secondary,
         onPress: () => navigation.navigate('Goals', { screen: 'CreateGoal' }),
       },
       {
         icon: 'pie-chart',
         label: 'Orçamento',
-        color: COLORS.warning,
+        color: theme.warning,
         onPress: () => navigation.navigate('Budgets', { screen: 'CreateBudget' }),
       },
       {
         icon: 'trending-up',
         label: 'Projeções',
-        color: COLORS.info,
+        color: theme.info,
         onPress: () => navigation.navigate('Projections'),
       },
       {
         icon: 'analytics',
         label: 'Relatórios',
-        color: COLORS.success,
+        color: theme.success,
         onPress: () => navigation.navigate('Reports'),
       },
     ];
 
     return (
       <View style={styles.quickActionsContainer}>
-        <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+        <Text style={dynamicStyles.sectionTitle}>Ações Rápidas</Text>
         <View style={styles.quickActions}>
           {actions.map((action, index) => (
             <TouchableOpacity
@@ -263,7 +394,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <View style={[styles.quickActionIcon, { backgroundColor: `${action.color}20` }]}>
                 <Ionicons name={action.icon as any} size={24} color={action.color} />
               </View>
-              <Text style={styles.quickActionLabel}>{action.label}</Text>
+              <Text style={dynamicStyles.quickActionLabel}>{action.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -275,9 +406,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Transações Recentes</Text>
+          <Text style={dynamicStyles.sectionTitle}>Transações Recentes</Text>
           <TouchableOpacity onPress={handleSeeAllTransactions}>
-            <Text style={styles.seeAllText}>Ver todas</Text>
+            <Text style={dynamicStyles.seeAllText}>Ver todas</Text>
           </TouchableOpacity>
         </View>
 
@@ -301,29 +432,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 <View style={styles.transactionLeft}>
                   <View style={[
                     styles.transactionIcon,
-                    { backgroundColor: transaction.type === 'income' ? COLORS.success + '20' : COLORS.error + '20' }
+                    { backgroundColor: transaction.type === 'income' ? theme.success + '20' : theme.error + '20' }
                   ]}>
                     <Ionicons
                       name={transaction.type === 'income' ? 'arrow-up' : 'arrow-down'}
                       size={20}
-                      color={transaction.type === 'income' ? COLORS.success : COLORS.error}
+                      color={transaction.type === 'income' ? theme.success : theme.error}
                     />
                   </View>
                   <View style={styles.transactionDetails}>
-                    <Text style={styles.transactionDescription}>
+                    <Text style={dynamicStyles.transactionDescription}>
                       {transaction.description}
                     </Text>
-                    <Text style={styles.transactionCategory}>
+                    <Text style={dynamicStyles.transactionCategory}>
                       {transaction.category?.name || 'Sem categoria'}
                     </Text>
-                    <Text style={styles.transactionDate}>
+                    <Text style={dynamicStyles.transactionDate}>
                       {new Date(transaction.date).toLocaleDateString('pt-BR')}
                     </Text>
                   </View>
                 </View>
                 <Text style={[
                   styles.transactionAmount,
-                  { color: transaction.type === 'income' ? COLORS.success : COLORS.error }
+                  { color: transaction.type === 'income' ? theme.success : theme.error }
                 ]}>
                   {transaction.type === 'expense' ? '- ' : '+ '}
                   {formatCurrency(transaction.amount)}
@@ -340,9 +471,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Metas Ativas</Text>
+          <Text style={dynamicStyles.sectionTitle}>Metas Ativas</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Goals')}>
-            <Text style={styles.seeAllText}>Ver todas</Text>
+            <Text style={dynamicStyles.seeAllText}>Ver todas</Text>
           </TouchableOpacity>
         </View>
 
@@ -366,24 +497,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 })}
               >
                 <View style={styles.goalHeader}>
-                  <Text style={styles.goalTitle}>{goal.title}</Text>
+                  <Text style={dynamicStyles.goalTitle}>{goal.title}</Text>
                   <Badge text={`${Math.round(goal.progress || 0)}%`} variant="info" />
                 </View>
                 
                 <View style={styles.goalProgress}>
-                  <View style={styles.progressBar}>
+                  <View style={dynamicStyles.progressBar}>
                     <View style={[
-                      styles.progressFill,
+                      dynamicStyles.progressFill,
                       { width: `${Math.min(goal.progress || 0, 100)}%` }
                     ]} />
                   </View>
                 </View>
 
                 <View style={styles.goalFooter}>
-                  <Text style={styles.goalAmount}>
+                  <Text style={dynamicStyles.goalAmount}>
                     {formatCurrency(goal.currentAmount)} / {formatCurrency(goal.targetAmount)}
                   </Text>
-                  <Text style={styles.goalDays}>
+                  <Text style={dynamicStyles.goalDays}>
                     {goal.daysRemaining || 0} dias restantes
                   </Text>
                 </View>
@@ -399,9 +530,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     return (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Orçamentos do Mês</Text>
+          <Text style={dynamicStyles.sectionTitle}>Orçamentos do Mês</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Budgets')}>
-            <Text style={styles.seeAllText}>Ver todos</Text>
+            <Text style={dynamicStyles.seeAllText}>Ver todos</Text>
           </TouchableOpacity>
         </View>
 
@@ -425,7 +556,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 })}
               >
                 <View style={styles.budgetHeader}>
-                  <Text style={styles.budgetName}>{budget.name}</Text>
+                  <Text style={dynamicStyles.budgetName}>{budget.name}</Text>
                   <Badge 
                     text={budget.isOverBudget ? 'Excedido' : 'Normal'}
                     variant={budget.isOverBudget ? 'error' : 'success'}
@@ -433,24 +564,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                 </View>
 
                 <View style={styles.budgetProgress}>
-                  <View style={styles.progressBar}>
+                  <View style={dynamicStyles.progressBar}>
                     <View style={[
-                      styles.progressFill,
+                      dynamicStyles.progressFill,
                       { 
                         width: `${Math.min(budget.usage || 0, 100)}%`,
-                        backgroundColor: budget.isOverBudget ? COLORS.error : COLORS.primary
+                        backgroundColor: budget.isOverBudget ? theme.error : theme.primary
                       }
                     ]} />
                   </View>
                 </View>
 
                 <View style={styles.budgetFooter}>
-                  <Text style={styles.budgetAmount}>
+                  <Text style={dynamicStyles.budgetAmount}>
                     {formatCurrency(budget.spent)} / {formatCurrency(budget.monthlyLimit)}
                   </Text>
                   <Text style={[
                     styles.budgetRemaining,
-                    { color: budget.isOverBudget ? COLORS.error : COLORS.success }
+                    { color: budget.isOverBudget ? theme.error : theme.success }
                   ]}>
                     {budget.isOverBudget 
                       ? `Excesso: ${formatCurrency(budget.overage || 0)}`
@@ -468,33 +599,33 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={dynamicStyles.container}>
         <Loading text="Carregando painel..." />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
       <ScrollView
         style={styles.scrollView}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[COLORS.primary]}
+            colors={[theme.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        <View style={dynamicStyles.header}>
           <View>
-            <Text style={styles.greeting}>Olá, {user?.name?.split(' ')[0] || 'Usuário'}!</Text>
-            <Text style={styles.subtitle}>Como estão suas finanças hoje?</Text>
+            <Text style={dynamicStyles.greeting}>Olá, {user?.name?.split(' ')[0] || 'Usuário'}!</Text>
+            <Text style={dynamicStyles.subtitle}>Como estão suas finanças hoje?</Text>
           </View>
           <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={24} color={COLORS.white} />
+            <View style={dynamicStyles.avatar}>
+              <Ionicons name="person" size={24} color={theme.white} />
             </View>
           </TouchableOpacity>
         </View>
@@ -512,40 +643,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   scrollView: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.lg,
-    backgroundColor: COLORS.primary,
-  },
-  greeting: {
-    fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
-  },
-  subtitle: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.regular,
-    color: COLORS.white,
-    opacity: 0.9,
-    marginTop: SPACING.xs,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: COLORS.primaryDark,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   summaryCard: {
     marginHorizontal: SPACING.md,
@@ -558,20 +657,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  summaryTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
   balanceContainer: {
     alignItems: 'center',
     marginBottom: SPACING.lg,
-  },
-  balanceLabel: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xs,
   },
   balanceValue: {
     fontSize: FONT_SIZES['3xl'],
@@ -598,20 +686,10 @@ const styles = StyleSheet.create({
   summaryDetails: {
     flex: 1,
   },
-  summaryItemLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
   summaryItemValue: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
     marginVertical: 2,
-  },
-  summaryItemCount: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textTertiary,
   },
   quickActionsContainer: {
     paddingHorizontal: SPACING.md,
@@ -635,12 +713,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
-  quickActionLabel: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.medium,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
-  },
   section: {
     paddingHorizontal: SPACING.md,
     marginBottom: SPACING.lg,
@@ -650,16 +722,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.md,
-  },
-  sectionTitle: {
-    fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-  },
-  seeAllText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.primary,
   },
   transactionCard: {
     marginBottom: SPACING.sm,
@@ -685,23 +747,6 @@ const styles = StyleSheet.create({
   transactionDetails: {
     flex: 1,
   },
-  transactionDescription: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-  },
-  transactionCategory: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  transactionDate: {
-    fontSize: FONT_SIZES.xs,
-    fontFamily: FONTS.regular,
-    color: COLORS.textTertiary,
-    marginTop: 2,
-  },
   transactionAmount: {
     fontSize: FONT_SIZES.lg,
     fontFamily: FONTS.bold,
@@ -715,40 +760,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
-  goalTitle: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-    flex: 1,
-    marginRight: SPACING.sm,
-  },
   goalProgress: {
     marginBottom: SPACING.sm,
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: COLORS.gray200,
-    borderRadius: BORDER_RADIUS.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.primary,
   },
   goalFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  goalAmount: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-  },
-  goalDays: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
   },
   budgetCard: {
     marginBottom: SPACING.sm,
@@ -759,13 +777,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.sm,
   },
-  budgetName: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
-    flex: 1,
-    marginRight: SPACING.sm,
-  },
   budgetProgress: {
     marginBottom: SPACING.sm,
   },
@@ -773,11 +784,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  budgetAmount: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.textPrimary,
   },
   budgetRemaining: {
     fontSize: FONT_SIZES.sm,

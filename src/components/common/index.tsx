@@ -1,5 +1,3 @@
-// src/components/common/index.tsx
-
 import React from 'react';
 import {
   View,
@@ -17,6 +15,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS, SHADOWS } from '../../constants';
 
 // Interface para Button
@@ -121,7 +120,7 @@ interface InputProps extends TextInputProps {
   required?: boolean;
 }
 
-// Componente Input
+// Componente Input - ✅ VERSÃO SIMPLIFICADA (USA APENAS THEME)
 export const Input: React.FC<InputProps> = ({
   label,
   error,
@@ -132,49 +131,108 @@ export const Input: React.FC<InputProps> = ({
   style,
   ...props
 }) => {
+  const { theme } = useTheme();
   const hasError = !!error;
 
+  // Estilos dinâmicos - SIMPLES E DIRETO
+  const dynamicStyles = {
+    inputContainer: {
+      marginBottom: SPACING.md,
+    },
+    inputLabel: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary, // ✅ Agora é #FFFFFF no escuro!
+      marginBottom: SPACING.xs,
+    },
+    inputRequired: {
+      color: theme.error,
+    },
+    inputWrapper: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      borderWidth: 1,
+      borderColor: hasError ? theme.error : theme.border,
+      borderRadius: BORDER_RADIUS.md,
+      backgroundColor: theme.card,
+    },
+    input: {
+      flex: 1,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      fontSize: FONT_SIZES.md,
+      fontFamily: FONTS.regular,
+      color: theme.textPrimary, // ✅ Agora é #FFFFFF no escuro!
+    },
+    inputWithLeftIcon: {
+      paddingLeft: SPACING.xs,
+    },
+    inputWithRightIcon: {
+      paddingRight: SPACING.xs,
+    },
+    inputLeftIcon: {
+      marginLeft: SPACING.sm,
+    },
+    inputRightIcon: {
+      paddingHorizontal: SPACING.sm,
+    },
+    inputError: {
+      fontSize: FONT_SIZES.xs,
+      fontFamily: FONTS.regular,
+      color: theme.error,
+      marginTop: SPACING.xs,
+    },
+  };
+
+  // Cor dos ícones
+  const getIconColor = () => {
+    if (hasError) return theme.error;
+    return theme.textSecondary; // ✅ Agora é #E2E8F0 no escuro!
+  };
+
+  // Cor do placeholder
+  const placeholderColor = theme.textTertiary; // ✅ Agora é #CBD5E1 no escuro!
+
   return (
-    <View style={styles.inputContainer}>
+    <View style={dynamicStyles.inputContainer}>
       {label && (
-        <Text style={styles.inputLabel}>
+        <Text style={dynamicStyles.inputLabel}>
           {label}
-          {required && <Text style={styles.inputRequired}> *</Text>}
+          {required && <Text style={dynamicStyles.inputRequired}> *</Text>}
         </Text>
       )}
-      <View style={[
-        styles.inputWrapper,
-        hasError && styles.inputWrapperError,
-        style,
-      ]}>
+      <View style={[dynamicStyles.inputWrapper, style]}>
         {leftIcon && (
           <Ionicons 
             name={leftIcon as any} 
             size={20} 
-            color={hasError ? COLORS.error : COLORS.gray400} 
-            style={styles.inputLeftIcon}
+            color={getIconColor()} 
+            style={dynamicStyles.inputLeftIcon}
           />
         )}
         <TextInput
           style={[
-            styles.input,
-            leftIcon && styles.inputWithLeftIcon,
-            rightIcon && styles.inputWithRightIcon,
+            dynamicStyles.input,
+            leftIcon && dynamicStyles.inputWithLeftIcon,
+            rightIcon && dynamicStyles.inputWithRightIcon,
           ]}
-          placeholderTextColor={COLORS.gray400}
+          placeholderTextColor={placeholderColor}
           {...props}
         />
         {rightIcon && (
-          <TouchableOpacity onPress={onRightIconPress} style={styles.inputRightIcon}>
+          <TouchableOpacity 
+            onPress={onRightIconPress} 
+            style={dynamicStyles.inputRightIcon}
+          >
             <Ionicons 
               name={rightIcon as any} 
               size={20} 
-              color={hasError ? COLORS.error : COLORS.gray400} 
+              color={getIconColor()} 
             />
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={styles.inputError}>{error}</Text>}
+      {error && <Text style={dynamicStyles.inputError}>{error}</Text>}
     </View>
   );
 };
@@ -194,13 +252,19 @@ export const Card: React.FC<CardProps> = ({
   padding = true,
   shadow = true,
 }) => {
+  const { theme } = useTheme();
+
+  const cardStyle = {
+    backgroundColor: theme.card, // ✅ Dinâmico
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    borderColor: theme.borderLight, // ✅ Dinâmico
+    ...(padding && { padding: SPACING.md }),
+    ...(shadow && SHADOWS.md),
+  };
+
   return (
-    <View style={[
-      styles.card,
-      padding && styles.cardPadding,
-      shadow && SHADOWS.md,
-      style,
-    ]}>
+    <View style={[cardStyle, style]}>
       {children}
     </View>
   );
@@ -460,7 +524,7 @@ const styles = StyleSheet.create({
     color: COLORS.gray400,
   },
 
-  // Input styles
+  // Input styles (não mais usados pois Input agora usa estilos dinâmicos)
   inputContainer: {
     marginBottom: SPACING.md,
   },

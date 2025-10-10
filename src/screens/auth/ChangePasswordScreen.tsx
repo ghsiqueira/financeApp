@@ -1,4 +1,3 @@
-// src/screens/auth/ChangePasswordScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -14,7 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Input, Button, Card } from '../../components/common';
-import { COLORS, FONTS } from '../../constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import { FONTS, SPACING, BORDER_RADIUS } from '../../constants';
 import { AuthService } from '../../services/AuthService';
 
 interface FormErrors {
@@ -25,6 +25,7 @@ interface FormErrors {
 
 const ChangePasswordScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(false);
   
   const [currentPassword, setCurrentPassword] = useState('');
@@ -49,11 +50,11 @@ const ChangePasswordScreen: React.FC = () => {
     if (/[0-9]/.test(password)) strength += 10;
     if (/[^A-Za-z0-9]/.test(password)) strength += 10;
 
-    if (strength <= 30) return { strength: 'Muito Fraca', color: COLORS.error, percentage: 20 };
-    if (strength <= 50) return { strength: 'Fraca', color: COLORS.warning, percentage: 40 };
-    if (strength <= 70) return { strength: 'Regular', color: COLORS.info, percentage: 60 };
-    if (strength <= 90) return { strength: 'Boa', color: COLORS.success, percentage: 80 };
-    return { strength: 'Muito Forte', color: COLORS.success, percentage: 100 };
+    if (strength <= 30) return { strength: 'Muito Fraca', color: theme.error, percentage: 20 };
+    if (strength <= 50) return { strength: 'Fraca', color: theme.warning, percentage: 40 };
+    if (strength <= 70) return { strength: 'Regular', color: theme.info, percentage: 60 };
+    if (strength <= 90) return { strength: 'Boa', color: theme.success, percentage: 80 };
+    return { strength: 'Muito Forte', color: theme.success, percentage: 100 };
   };
 
   const validateForm = (): boolean => {
@@ -148,22 +149,132 @@ const ChangePasswordScreen: React.FC = () => {
 
   const passwordStrength = getPasswordStrength(newPassword);
 
+  // Estilos dinâmicos
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    headerTitle: {
+      fontSize: 18,
+      fontFamily: FONTS.bold,
+      color: theme.white,
+    },
+    iconCircle: {
+      width: 90,
+      height: 90,
+      borderRadius: 45,
+      backgroundColor: theme.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pageTitle: {
+      fontSize: 24,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    pageDescription: {
+      fontSize: 14,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      marginBottom: 24,
+      lineHeight: 20,
+    },
+    inputLabel: {
+      fontSize: 14,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+      marginBottom: 8,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: theme.border,
+      marginVertical: 20,
+    },
+    strengthBar: {
+      height: 6,
+      backgroundColor: theme.border,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    requirementsCard: {
+      padding: 16,
+      backgroundColor: theme.info + '10',
+      borderLeftWidth: 4,
+      borderLeftColor: theme.info,
+      marginBottom: 16,
+    },
+    requirementsTitle: {
+      fontSize: 15,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      marginBottom: 12,
+    },
+    requirementText: {
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    tipsCard: {
+      padding: 16,
+      backgroundColor: theme.warning + '10',
+      borderLeftWidth: 4,
+      borderLeftColor: theme.warning,
+      marginBottom: 16,
+    },
+    tipsTitle: {
+      fontSize: 15,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      marginBottom: 12,
+    },
+    tipText: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      lineHeight: 18,
+    },
+    tipBullet: {
+      fontSize: 16,
+      fontFamily: FONTS.bold,
+      color: theme.warning,
+      marginTop: -2,
+    },
+    forgotPasswordText: {
+      fontSize: 14,
+      fontFamily: FONTS.medium,
+      color: theme.primary,
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity
             style={styles.headerButton}
             onPress={handleCancel}
             disabled={loading}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
+            <Ionicons name="arrow-back" size={24} color={theme.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Alterar Senha</Text>
+          <Text style={dynamicStyles.headerTitle}>Alterar Senha</Text>
           <View style={styles.headerButton} />
         </View>
 
@@ -174,13 +285,13 @@ const ChangePasswordScreen: React.FC = () => {
         >
           {/* Icon Section */}
           <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="shield-checkmark" size={48} color={COLORS.primary} />
+            <View style={dynamicStyles.iconCircle}>
+              <Ionicons name="shield-checkmark" size={48} color={theme.primary} />
             </View>
           </View>
 
-          <Text style={styles.pageTitle}>Segurança da Conta</Text>
-          <Text style={styles.pageDescription}>
+          <Text style={dynamicStyles.pageTitle}>Segurança da Conta</Text>
+          <Text style={dynamicStyles.pageDescription}>
             Mantenha sua conta segura alterando sua senha regularmente
           </Text>
 
@@ -188,7 +299,7 @@ const ChangePasswordScreen: React.FC = () => {
           <Card style={styles.formCard}>
             {/* Senha Atual */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Senha Atual *</Text>
+              <Text style={dynamicStyles.inputLabel}>Senha Atual *</Text>
               <Input
                 placeholder="Digite sua senha atual"
                 value={currentPassword}
@@ -208,11 +319,11 @@ const ChangePasswordScreen: React.FC = () => {
               />
             </View>
 
-            <View style={styles.divider} />
+            <View style={dynamicStyles.divider} />
 
             {/* Nova Senha */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nova Senha *</Text>
+              <Text style={dynamicStyles.inputLabel}>Nova Senha *</Text>
               <Input
                 placeholder="Digite sua nova senha"
                 value={newPassword}
@@ -234,7 +345,7 @@ const ChangePasswordScreen: React.FC = () => {
               {/* Password Strength Indicator */}
               {newPassword && (
                 <View style={styles.strengthContainer}>
-                  <View style={styles.strengthBar}>
+                  <View style={dynamicStyles.strengthBar}>
                     <View
                       style={[
                         styles.strengthFill,
@@ -254,7 +365,7 @@ const ChangePasswordScreen: React.FC = () => {
 
             {/* Confirmar Nova Senha */}
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Confirmar Nova Senha *</Text>
+              <Text style={dynamicStyles.inputLabel}>Confirmar Nova Senha *</Text>
               <Input
                 placeholder="Confirme sua nova senha"
                 value={confirmPassword}
@@ -279,12 +390,12 @@ const ChangePasswordScreen: React.FC = () => {
                   <Ionicons
                     name={newPassword === confirmPassword ? 'checkmark-circle' : 'close-circle'}
                     size={16}
-                    color={newPassword === confirmPassword ? COLORS.success : COLORS.error}
+                    color={newPassword === confirmPassword ? theme.success : theme.error}
                   />
                   <Text
                     style={[
                       styles.matchText,
-                      { color: newPassword === confirmPassword ? COLORS.success : COLORS.error },
+                      { color: newPassword === confirmPassword ? theme.success : theme.error },
                     ]}
                   >
                     {newPassword === confirmPassword ? 'As senhas coincidem' : 'As senhas não coincidem'}
@@ -295,9 +406,9 @@ const ChangePasswordScreen: React.FC = () => {
           </Card>
 
           {/* Requirements Card */}
-          <Card style={styles.requirementsCard}>
-            <Text style={styles.requirementsTitle}>
-              <Ionicons name="information-circle" size={16} color={COLORS.info} />
+          <Card style={dynamicStyles.requirementsCard}>
+            <Text style={dynamicStyles.requirementsTitle}>
+              <Ionicons name="information-circle" size={16} color={theme.info} />
               {' '}Requisitos da Senha
             </Text>
             <View style={styles.requirementsList}>
@@ -305,67 +416,67 @@ const ChangePasswordScreen: React.FC = () => {
                 <Ionicons
                   name={newPassword.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={newPassword.length >= 6 ? COLORS.success : COLORS.gray400}
+                  color={newPassword.length >= 6 ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Mínimo de 6 caracteres</Text>
+                <Text style={dynamicStyles.requirementText}>Mínimo de 6 caracteres</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={/[A-Z]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={/[A-Z]/.test(newPassword) ? COLORS.success : COLORS.gray400}
+                  color={/[A-Z]/.test(newPassword) ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Pelo menos uma letra maiúscula</Text>
+                <Text style={dynamicStyles.requirementText}>Pelo menos uma letra maiúscula</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={/[a-z]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={/[a-z]/.test(newPassword) ? COLORS.success : COLORS.gray400}
+                  color={/[a-z]/.test(newPassword) ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Pelo menos uma letra minúscula</Text>
+                <Text style={dynamicStyles.requirementText}>Pelo menos uma letra minúscula</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={/[0-9]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={/[0-9]/.test(newPassword) ? COLORS.success : COLORS.gray400}
+                  color={/[0-9]/.test(newPassword) ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Pelo menos um número</Text>
+                <Text style={dynamicStyles.requirementText}>Pelo menos um número</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={newPassword !== currentPassword && newPassword ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={newPassword !== currentPassword && newPassword ? COLORS.success : COLORS.gray400}
+                  color={newPassword !== currentPassword && newPassword ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Diferente da senha atual</Text>
+                <Text style={dynamicStyles.requirementText}>Diferente da senha atual</Text>
               </View>
             </View>
           </Card>
 
           {/* Security Tips */}
-          <Card style={styles.tipsCard}>
-            <Text style={styles.tipsTitle}>
-              <Ionicons name="shield-outline" size={16} color={COLORS.warning} />
+          <Card style={dynamicStyles.tipsCard}>
+            <Text style={dynamicStyles.tipsTitle}>
+              <Ionicons name="shield-outline" size={16} color={theme.warning} />
               {' '}Dicas de Segurança
             </Text>
             <View style={styles.tipsList}>
               <View style={styles.tip}>
-                <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>Use uma combinação de letras, números e símbolos</Text>
+                <Text style={dynamicStyles.tipBullet}>•</Text>
+                <Text style={dynamicStyles.tipText}>Use uma combinação de letras, números e símbolos</Text>
               </View>
               <View style={styles.tip}>
-                <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>Evite usar informações pessoais óbvias</Text>
+                <Text style={dynamicStyles.tipBullet}>•</Text>
+                <Text style={dynamicStyles.tipText}>Evite usar informações pessoais óbvias</Text>
               </View>
               <View style={styles.tip}>
-                <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>Não reutilize senhas de outras contas</Text>
+                <Text style={dynamicStyles.tipBullet}>•</Text>
+                <Text style={dynamicStyles.tipText}>Não reutilize senhas de outras contas</Text>
               </View>
               <View style={styles.tip}>
-                <Text style={styles.tipBullet}>•</Text>
-                <Text style={styles.tipText}>Altere sua senha regularmente</Text>
+                <Text style={dynamicStyles.tipBullet}>•</Text>
+                <Text style={dynamicStyles.tipText}>Altere sua senha regularmente</Text>
               </View>
             </View>
           </Card>
@@ -394,8 +505,8 @@ const ChangePasswordScreen: React.FC = () => {
             onPress={() => navigation.navigate('ForgotPassword' as never)}
             disabled={loading}
           >
-            <Ionicons name="help-circle-outline" size={18} color={COLORS.primary} />
-            <Text style={styles.forgotPasswordText}>Esqueceu sua senha atual?</Text>
+            <Ionicons name="help-circle-outline" size={18} color={theme.primary} />
+            <Text style={dynamicStyles.forgotPasswordText}>Esqueceu sua senha atual?</Text>
           </TouchableOpacity>
 
           <View style={{ height: 40 }} />
@@ -406,31 +517,14 @@ const ChangePasswordScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   keyboardView: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   headerButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: FONTS.bold,
-    color: COLORS.white,
   },
   content: {
     flex: 1,
@@ -442,29 +536,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginVertical: 20,
   },
-  iconCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: COLORS.primary + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pageTitle: {
-    fontSize: 24,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  pageDescription: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
   formCard: {
     padding: 20,
     marginBottom: 16,
@@ -472,26 +543,9 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
-  inputLabel: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray700,
-    marginBottom: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.gray200,
-    marginVertical: 20,
-  },
   strengthContainer: {
     marginTop: 12,
     gap: 6,
-  },
-  strengthBar: {
-    height: 6,
-    backgroundColor: COLORS.gray200,
-    borderRadius: 3,
-    overflow: 'hidden',
   },
   strengthFill: {
     height: '100%',
@@ -512,19 +566,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.medium,
   },
-  requirementsCard: {
-    padding: 16,
-    backgroundColor: COLORS.info + '10',
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.info,
-    marginBottom: 16,
-  },
-  requirementsTitle: {
-    fontSize: 15,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    marginBottom: 12,
-  },
   requirementsList: {
     gap: 10,
   },
@@ -533,24 +574,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  requirementText: {
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray700,
-  },
-  tipsCard: {
-    padding: 16,
-    backgroundColor: COLORS.warning + '10',
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.warning,
-    marginBottom: 16,
-  },
-  tipsTitle: {
-    fontSize: 15,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    marginBottom: 12,
-  },
   tipsList: {
     gap: 8,
   },
@@ -558,19 +581,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-  },
-  tipBullet: {
-    fontSize: 16,
-    fontFamily: FONTS.bold,
-    color: COLORS.warning,
-    marginTop: -2,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray700,
-    lineHeight: 18,
   },
   actionsSection: {
     marginBottom: 16,
@@ -584,11 +594,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.primary,
   },
 });
 

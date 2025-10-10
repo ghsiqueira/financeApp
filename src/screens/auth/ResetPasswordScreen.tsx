@@ -1,4 +1,3 @@
-// src/screens/auth/ResetPasswordScreen.tsx - SOMENTE CÓDIGO
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -10,12 +9,12 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Button, Card } from '../../components/common';
-import { COLORS, FONTS } from '../../constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import { FONTS, SPACING, BORDER_RADIUS } from '../../constants';
 import { AuthService } from '../../services/AuthService';
 
 interface RouteParams {
@@ -25,6 +24,7 @@ interface RouteParams {
 const ResetPasswordScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const { theme } = useTheme();
   const { email } = (route.params as RouteParams) || { email: '' };
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
@@ -153,8 +153,111 @@ const ResetPasswordScreen: React.FC = () => {
     }
   };
 
+  // Estilos dinâmicos
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    title: {
+      fontSize: 28,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    description: {
+      fontSize: 15,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 32,
+    },
+    emailText: {
+      fontFamily: FONTS.bold,
+      color: theme.primary,
+    },
+    codeLabel: {
+      fontSize: 14,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+      marginBottom: 16,
+      textAlign: 'center',
+    },
+    codeInput: {
+      width: 50,
+      height: 60,
+      borderWidth: 2,
+      borderColor: theme.border,
+      borderRadius: 12,
+      fontSize: 24,
+      fontFamily: FONTS.bold,
+      textAlign: 'center',
+      color: theme.textPrimary,
+      backgroundColor: theme.card,
+    },
+    codeInputFilled: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primary + '10',
+    },
+    codeInputError: {
+      borderColor: theme.error,
+      backgroundColor: theme.error + '10',
+    },
+    errorText: {
+      fontSize: 13,
+      fontFamily: FONTS.medium,
+      color: theme.error,
+    },
+    helpText: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    footerText: {
+      fontSize: 14,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    footerLink: {
+      fontSize: 14,
+      fontFamily: FONTS.bold,
+      color: theme.primary,
+    },
+    footerLinkDisabled: {
+      color: theme.gray400,
+    },
+    wrongEmailText: {
+      fontSize: 14,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    iconCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: theme.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    helpCard: {
+      padding: 16,
+      backgroundColor: theme.backgroundSecondary,
+      marginBottom: 24,
+      borderRadius: BORDER_RADIUS.lg,
+    },
+  });
+
+  const getTimerColor = () => {
+    if (timer > 300) return theme.success;
+    if (timer > 0) return theme.warning;
+    return theme.error;
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -166,7 +269,7 @@ const ResetPasswordScreen: React.FC = () => {
             onPress={() => navigation.goBack()}
             disabled={loading}
           >
-            <Ionicons name="arrow-back" size={24} color={COLORS.gray900} />
+            <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
           </TouchableOpacity>
         </View>
 
@@ -174,21 +277,21 @@ const ResetPasswordScreen: React.FC = () => {
         <View style={styles.content}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="mail-open-outline" size={48} color={COLORS.primary} />
+            <View style={dynamicStyles.iconCircle}>
+              <Ionicons name="mail-open-outline" size={48} color={theme.primary} />
             </View>
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Verifique seu Email</Text>
-          <Text style={styles.description}>
+          <Text style={dynamicStyles.title}>Verifique seu Email</Text>
+          <Text style={dynamicStyles.description}>
             Enviamos um código de 6 dígitos para{'\n'}
-            <Text style={styles.emailText}>{email}</Text>
+            <Text style={dynamicStyles.emailText}>{email}</Text>
           </Text>
 
           {/* Code Input */}
           <Card style={styles.codeCard}>
-            <Text style={styles.codeLabel}>Digite o Código</Text>
+            <Text style={dynamicStyles.codeLabel}>Digite o Código</Text>
             <View style={styles.codeContainer}>
               {code.map((digit, index) => (
                 <TextInput
@@ -197,9 +300,9 @@ const ResetPasswordScreen: React.FC = () => {
                     codeInputRefs.current[index] = ref;
                   }}
                   style={[
-                    styles.codeInput,
-                    digit && styles.codeInputFilled,
-                    error && styles.codeInputError,
+                    dynamicStyles.codeInput,
+                    digit && dynamicStyles.codeInputFilled,
+                    error && dynamicStyles.codeInputError,
                   ]}
                   value={digit}
                   onChangeText={(text) => handleCodeChange(text, index)}
@@ -208,14 +311,15 @@ const ResetPasswordScreen: React.FC = () => {
                   maxLength={1}
                   editable={!loading && timer > 0}
                   selectTextOnFocus
+                  placeholderTextColor={theme.textTertiary}
                 />
               ))}
             </View>
 
             {error && (
               <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle" size={16} color={COLORS.error} />
-                <Text style={styles.errorText}>{error}</Text>
+                <Ionicons name="alert-circle" size={16} color={theme.error} />
+                <Text style={dynamicStyles.errorText}>{error}</Text>
               </View>
             )}
 
@@ -224,11 +328,11 @@ const ResetPasswordScreen: React.FC = () => {
               <Ionicons 
                 name="time-outline" 
                 size={16} 
-                color={timer > 300 ? COLORS.success : timer > 0 ? COLORS.warning : COLORS.error} 
+                color={getTimerColor()} 
               />
               <Text style={[
                 styles.timerText,
-                { color: timer > 300 ? COLORS.success : timer > 0 ? COLORS.warning : COLORS.error }
+                { color: getTimerColor() }
               ]}>
                 {timer > 0 ? `Código expira em ${formatTime(timer)}` : 'Código expirado'}
               </Text>
@@ -244,16 +348,16 @@ const ResetPasswordScreen: React.FC = () => {
           </Card>
 
           {/* Help Card */}
-          <Card style={styles.helpCard}>
+          <Card style={dynamicStyles.helpCard}>
             <View style={styles.helpItem}>
-              <Ionicons name="mail-unread-outline" size={20} color={COLORS.warning} />
-              <Text style={styles.helpText}>
+              <Ionicons name="mail-unread-outline" size={20} color={theme.warning} />
+              <Text style={dynamicStyles.helpText}>
                 Não recebeu? Verifique a pasta de spam
               </Text>
             </View>
             <View style={styles.helpItem}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.success} />
-              <Text style={styles.helpText}>
+              <Ionicons name="shield-checkmark-outline" size={20} color={theme.success} />
+              <Text style={dynamicStyles.helpText}>
                 Nunca compartilhe este código
               </Text>
             </View>
@@ -261,14 +365,14 @@ const ResetPasswordScreen: React.FC = () => {
 
           {/* Resend Code */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Não recebeu o código?</Text>
+            <Text style={dynamicStyles.footerText}>Não recebeu o código?</Text>
             <TouchableOpacity
               onPress={handleResendCode}
               disabled={loading || !canResend}
             >
               <Text style={[
-                styles.footerLink,
-                (!canResend || loading) && styles.footerLinkDisabled
+                dynamicStyles.footerLink,
+                (!canResend || loading) && dynamicStyles.footerLinkDisabled
               ]}>
                 {canResend ? 'Reenviar código' : 'Aguarde para reenviar'}
               </Text>
@@ -281,8 +385,8 @@ const ResetPasswordScreen: React.FC = () => {
             onPress={() => navigation.goBack()}
             disabled={loading}
           >
-            <Ionicons name="mail-outline" size={18} color={COLORS.gray600} />
-            <Text style={styles.wrongEmailText}>Email incorreto? Voltar</Text>
+            <Ionicons name="mail-outline" size={18} color={theme.textSecondary} />
+            <Text style={dynamicStyles.wrongEmailText}>Email incorreto? Voltar</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -291,10 +395,6 @@ const ResetPasswordScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   keyboardView: {
     flex: 1,
   },
@@ -316,43 +416,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: COLORS.primary + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 15,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
-  emailText: {
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
   codeCard: {
     padding: 24,
     marginBottom: 16,
-  },
-  codeLabel: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray700,
-    marginBottom: 16,
-    textAlign: 'center',
   },
   codeContainer: {
     flexDirection: 'row',
@@ -360,37 +426,12 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 16,
   },
-  codeInput: {
-    width: 50,
-    height: 60,
-    borderWidth: 2,
-    borderColor: COLORS.gray300,
-    borderRadius: 12,
-    fontSize: 24,
-    fontFamily: FONTS.bold,
-    textAlign: 'center',
-    color: COLORS.gray900,
-    backgroundColor: COLORS.white,
-  },
-  codeInputFilled: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
-  },
-  codeInputError: {
-    borderColor: COLORS.error,
-    backgroundColor: COLORS.error + '10',
-  },
   errorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: FONTS.medium,
-    color: COLORS.error,
   },
   timerContainer: {
     flexDirection: 'row',
@@ -400,7 +441,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     paddingVertical: 8,
     paddingHorizontal: 16,
-    backgroundColor: COLORS.gray50,
     borderRadius: 8,
   },
   timerText: {
@@ -410,22 +450,11 @@ const styles = StyleSheet.create({
   verifyButton: {
     marginTop: 4,
   },
-  helpCard: {
-    padding: 16,
-    backgroundColor: COLORS.gray50,
-    marginBottom: 24,
-  },
   helpItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
-  },
-  helpText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray700,
   },
   footer: {
     flexDirection: 'row',
@@ -434,30 +463,12 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 16,
   },
-  footerText: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
-  footerLinkDisabled: {
-    color: COLORS.gray400,
-  },
   wrongEmail: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
-  },
-  wrongEmailText: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
   },
 });
 

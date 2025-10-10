@@ -5,21 +5,24 @@ import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 import NewPasswordScreen from '../screens/auth/NewPasswordScreen';
+import { useTheme } from '../contexts/ThemeContext';
 import { AuthStackParamList } from './types';
-import { COLORS } from '../constants';
+import { FONTS } from '../constants';
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 export const AuthNavigator: React.FC = () => {
+  const { theme } = useTheme();
+
   return (
     <Stack.Navigator
       screenOptions={{
         headerStyle: {
-          backgroundColor: COLORS.primary,
+          backgroundColor: theme.primary,
         },
-        headerTintColor: COLORS.white,
+        headerTintColor: theme.white,
         headerTitleStyle: {
-          fontWeight: 'bold',
+          fontFamily: FONTS.bold,
         },
       }}
     >
@@ -31,7 +34,10 @@ export const AuthNavigator: React.FC = () => {
       <Stack.Screen 
         name="Register" 
         component={RegisterScreen}
-        options={{ title: 'Criar Conta' }}
+        options={{ 
+          title: 'Criar Conta',
+          headerShown: false 
+        }}
       />
       <Stack.Screen 
         name="ForgotPassword" 

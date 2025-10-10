@@ -1,4 +1,4 @@
-// src/screens/auth/ForgotPasswordScreen.tsx
+// src/screens/auth/ForgotPasswordScreen.tsx - COM TEMA ESCURO
 import React, { useState } from 'react';
 import {
   View,
@@ -9,114 +9,162 @@ import {
   Platform,
   TouchableOpacity,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { Input, Button, Card } from '../../components/common';
-import { COLORS, FONTS } from '../../constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import { FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../constants';
 import { AuthService } from '../../services/AuthService';
+import { validateEmail } from '../../utils';
 
 const ForgotPasswordScreen: React.FC = () => {
   const navigation = useNavigation();
+  const { theme } = useTheme();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const validateEmail = (email: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
   const handleSendCode = async () => {
-    // Limpar erro anterior
-    setError('');
-
-    // Validar email
     if (!email.trim()) {
-      setError('Email é obrigatório');
+      setError('Digite seu email');
       return;
     }
 
     if (!validateEmail(email)) {
-      setError('Email inválido');
+      setError('Digite um email válido');
       return;
     }
 
     setLoading(true);
+    setError('');
 
     try {
-      // Chamar API para enviar código
-      await AuthService.forgotPassword(email.trim());
+      await AuthService.forgotPassword(email);
 
-      // Sucesso - navegar para tela de reset com o email
       Alert.alert(
-        'Código Enviado!',
-        `Um código de verificação foi enviado para ${email}. Verifique sua caixa de entrada e spam.`,
+        'Email Enviado!',
+        'Enviamos um código de verificação para seu email. Verifique sua caixa de entrada.',
         [
           {
             text: 'OK',
             onPress: () => {
-              (navigation as any).navigate('ResetPassword', { email: email.trim() });
+              (navigation as any).navigate('ResetPassword', { email });
             },
           },
         ]
       );
     } catch (err: any) {
-      setError(err.message || 'Erro ao enviar código. Tente novamente.');
+      setError(err.message || 'Não foi possível enviar o email. Tente novamente.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResendCode = () => {
-    Alert.alert(
-      'Reenviar Código',
-      'Deseja receber um novo código de verificação?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Reenviar',
-          onPress: handleSendCode,
-        },
-      ]
-    );
-  };
+  // Estilos dinâmicos
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    title: {
+      fontSize: 28,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    description: {
+      fontSize: 15,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 32,
+    },
+    inputLabel: {
+      fontSize: 14,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+      marginBottom: 8,
+    },
+    helpText: {
+      flex: 1,
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    footerText: {
+      fontSize: 14,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    footerLink: {
+      fontSize: 14,
+      fontFamily: FONTS.bold,
+      color: theme.primary,
+    },
+    backToLoginText: {
+      fontSize: 15,
+      fontFamily: FONTS.medium,
+      color: theme.primary,
+    },
+    iconCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: theme.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    helpCard: {
+      padding: 16,
+      backgroundColor: theme.backgroundSecondary,
+      marginBottom: 24,
+      borderRadius: BORDER_RADIUS.lg,
+    },
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={COLORS.gray900} />
-          </TouchableOpacity>
-        </View>
+        <ScrollView
+          style={styles.content}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Header com botão voltar */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+              disabled={loading}
+            >
+              <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+            </TouchableOpacity>
+          </View>
 
-        {/* Content */}
-        <View style={styles.content}>
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="mail-outline" size={48} color={COLORS.primary} />
+            <View style={dynamicStyles.iconCircle}>
+              <Ionicons name="mail-outline" size={48} color={theme.primary} />
             </View>
           </View>
 
-          {/* Title and Description */}
-          <Text style={styles.title}>Esqueceu a Senha?</Text>
-          <Text style={styles.description}>
-            Não se preocupe! Digite seu email e enviaremos um código de verificação para redefinir sua senha.
+          {/* Title & Description */}
+          <Text style={dynamicStyles.title}>Esqueceu sua senha?</Text>
+          <Text style={dynamicStyles.description}>
+            Digite seu email e enviaremos um código para redefinir sua senha
           </Text>
 
-          {/* Form Card */}
+          {/* Form */}
           <Card style={styles.formCard}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email</Text>
+              <Text style={dynamicStyles.inputLabel}>Email *</Text>
               <Input
                 placeholder="seu@email.com"
                 value={email}
@@ -124,14 +172,12 @@ const ForgotPasswordScreen: React.FC = () => {
                   setEmail(text);
                   setError('');
                 }}
-                error={error}
-                leftIcon="mail-outline"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                error={error}
+                leftIcon="mail-outline"
                 editable={!loading}
-                returnKeyType="send"
-                onSubmitEditing={handleSendCode}
               />
             </View>
 
@@ -139,106 +185,78 @@ const ForgotPasswordScreen: React.FC = () => {
               title="Enviar Código"
               onPress={handleSendCode}
               loading={loading}
-              disabled={loading || !email.trim()}
+              fullWidth
             />
           </Card>
 
-          {/* Help Section */}
-          <Card style={styles.helpCard}>
+          {/* Help Card */}
+          <Card style={dynamicStyles.helpCard}>
             <View style={styles.helpItem}>
-              <Ionicons name="time-outline" size={20} color={COLORS.info} />
-              <Text style={styles.helpText}>
+              <Ionicons name="checkmark-circle" size={20} color={theme.success} />
+              <Text style={dynamicStyles.helpText}>
+                O código será enviado para seu email
+              </Text>
+            </View>
+            <View style={styles.helpItem}>
+              <Ionicons name="time-outline" size={20} color={theme.info} />
+              <Text style={dynamicStyles.helpText}>
                 O código expira em 15 minutos
               </Text>
             </View>
             <View style={styles.helpItem}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={COLORS.success} />
-              <Text style={styles.helpText}>
-                Link seguro e criptografado
-              </Text>
-            </View>
-            <View style={styles.helpItem}>
-              <Ionicons name="mail-unread-outline" size={20} color={COLORS.warning} />
-              <Text style={styles.helpText}>
-                Verifique também a pasta de spam
+              <Ionicons name="mail-unread-outline" size={20} color={theme.warning} />
+              <Text style={dynamicStyles.helpText}>
+                Verifique também sua caixa de spam
               </Text>
             </View>
           </Card>
 
           {/* Footer */}
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Não recebeu o código?</Text>
-            <TouchableOpacity
-              onPress={handleResendCode}
-              disabled={loading}
-            >
-              <Text style={styles.footerLink}>Reenviar código</Text>
+            <Text style={dynamicStyles.footerText}>Lembrou sua senha?</Text>
+            <TouchableOpacity onPress={() => navigation.goBack()} disabled={loading}>
+              <Text style={dynamicStyles.footerLink}>Fazer login</Text>
             </TouchableOpacity>
           </View>
 
           {/* Back to Login */}
           <TouchableOpacity
             style={styles.backToLogin}
-            onPress={() => navigation.navigate('Login' as never)}
+            onPress={() => navigation.goBack()}
             disabled={loading}
           >
-            <Ionicons name="arrow-back-circle-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.backToLoginText}>Voltar para o Login</Text>
+            <Ionicons name="arrow-back-circle-outline" size={20} color={theme.primary} />
+            <Text style={dynamicStyles.backToLoginText}>Voltar para Login</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   keyboardView: {
     flex: 1,
   },
+  content: {
+    flex: 1,
+    paddingHorizontal: SPACING.lg,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xl,
+  },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.lg,
   },
   backButton: {
     width: 40,
     height: 40,
-    alignItems: 'center',
     justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-    padding: 24,
   },
   iconContainer: {
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: COLORS.primary + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 15,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
+    marginBottom: SPACING.lg,
   },
   formCard: {
     padding: 20,
@@ -247,28 +265,11 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
-  inputLabel: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray700,
-    marginBottom: 8,
-  },
-  helpCard: {
-    padding: 16,
-    backgroundColor: COLORS.gray50,
-    marginBottom: 24,
-  },
   helpItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 12,
-  },
-  helpText: {
-    flex: 1,
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray700,
   },
   footer: {
     flexDirection: 'row',
@@ -277,27 +278,12 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 16,
   },
-  footerText: {
-    fontSize: 14,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-  },
-  footerLink: {
-    fontSize: 14,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
-  },
   backToLogin: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     paddingVertical: 12,
-  },
-  backToLoginText: {
-    fontSize: 15,
-    fontFamily: FONTS.medium,
-    color: COLORS.primary,
   },
 });
 

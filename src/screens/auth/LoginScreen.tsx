@@ -1,4 +1,4 @@
-// src/screens/auth/LoginScreen.tsx
+// src/screens/auth/LoginScreen.tsx - COM BOTÃO DE TEMA
 import React, { useState } from 'react';
 import {
   View,
@@ -8,13 +8,14 @@ import {
   Platform,
   ScrollView,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, Input, CustomAlert } from '../../components/common';
 import { useAuth } from '../../contexts/AuthContext';
-import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import { FONTS, FONT_SIZES, SPACING } from '../../constants';
 import { validateEmail } from '../../utils';
 
 type AuthStackParamList = {
@@ -41,6 +42,7 @@ interface FormErrors {
 
 export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const { login, isLoading, error, clearError } = useAuth();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
   const [showAlert, setShowAlert] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -54,12 +56,10 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     
-    // Limpar erro do campo quando usuário digitar
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
     }
     
-    // Limpar erro global se existir
     if (error) {
       clearError();
     }
@@ -68,14 +68,12 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    // Validar email
     if (!formData.email.trim()) {
       newErrors.email = 'Email é obrigatório';
     } else if (!validateEmail(formData.email)) {
       newErrors.email = 'Digite um email válido';
     }
 
-    // Validar senha
     if (!formData.password) {
       newErrors.password = 'Senha é obrigatória';
     } else if (formData.password.length < 6) {
@@ -113,11 +111,101 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [error]);
 
+  // Estilos dinâmicos
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    themeButton: {
+      position: 'absolute',
+      top: SPACING.md,
+      right: SPACING.md,
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 10,
+    },
+    logo: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: SPACING.md,
+    },
+    appName: {
+      fontSize: FONT_SIZES.xxxl,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      marginBottom: SPACING.xs,
+    },
+    tagline: {
+      fontSize: FONT_SIZES.md,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+    formTitle: {
+      fontSize: FONT_SIZES.xl,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      marginBottom: SPACING.lg,
+      textAlign: 'center',
+    },
+    forgotPasswordText: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.medium,
+      color: theme.primary,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    dividerText: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      marginHorizontal: SPACING.md,
+    },
+    registerText: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    registerLink: {
+      fontSize: FONT_SIZES.sm,
+      fontFamily: FONTS.bold,
+      color: theme.primary,
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
+      {/* Botão de Tema Flutuante */}
+      <TouchableOpacity
+        style={dynamicStyles.themeButton}
+        onPress={toggleTheme}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={isDarkMode ? 'sunny-outline' : 'moon-outline'}
+          size={24}
+          color={theme.textPrimary}
+        />
+      </TouchableOpacity>
+
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
           style={styles.scrollView}
@@ -127,17 +215,17 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
-              <View style={styles.logo}>
+              <View style={dynamicStyles.logo}>
                 <Text style={styles.logoText}>💰</Text>
               </View>
-              <Text style={styles.appName}>Finance App</Text>
-              <Text style={styles.tagline}>Controle suas finanças de forma simples</Text>
+              <Text style={dynamicStyles.appName}>Finance App</Text>
+              <Text style={dynamicStyles.tagline}>Controle suas finanças de forma simples</Text>
             </View>
           </View>
 
           {/* Formulário */}
           <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>Entre na sua conta</Text>
+            <Text style={dynamicStyles.formTitle}>Entre na sua conta</Text>
 
             <Input
               label="Email"
@@ -169,7 +257,7 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.forgotPassword}
               onPress={() => navigation.navigate('ForgotPassword')}
             >
-              <Text style={styles.forgotPasswordText}>Esqueceu sua senha?</Text>
+              <Text style={dynamicStyles.forgotPasswordText}>Esqueceu sua senha?</Text>
             </TouchableOpacity>
 
             <Button
@@ -181,15 +269,15 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
             />
 
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>ou</Text>
-              <View style={styles.dividerLine} />
+              <View style={dynamicStyles.dividerLine} />
+              <Text style={dynamicStyles.dividerText}>ou</Text>
+              <View style={dynamicStyles.dividerLine} />
             </View>
 
             <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Não tem uma conta? </Text>
+              <Text style={dynamicStyles.registerText}>Não tem uma conta? </Text>
               <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-                <Text style={styles.registerLink}>Cadastre-se</Text>
+                <Text style={dynamicStyles.registerLink}>Cadastre-se</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -212,10 +300,6 @@ export const LoginScreen: React.FC<Props> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   keyboardContainer: {
     flex: 1,
   },
@@ -231,50 +315,17 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
   },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
   logoText: {
     fontSize: 40,
-  },
-  appName: {
-    fontSize: FONT_SIZES.xxxl, // Usar xxxl em vez de '3xl'
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.xs,
-  },
-  tagline: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
   },
   formContainer: {
     flex: 1,
     paddingTop: SPACING.lg,
   },
-  formTitle: {
-    fontSize: FONT_SIZES.xl,
-    fontFamily: FONTS.bold,
-    color: COLORS.textPrimary,
-    marginBottom: SPACING.lg,
-    textAlign: 'center',
-  },
   forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: SPACING.lg,
     marginTop: -SPACING.sm,
-  },
-  forgotPasswordText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.medium,
-    color: COLORS.primary,
   },
   loginButton: {
     marginBottom: SPACING.lg,
@@ -284,31 +335,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.lg,
   },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: COLORS.border,
-  },
-  dividerText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-    marginHorizontal: SPACING.md,
-  },
   registerContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingBottom: SPACING.xl,
-  },
-  registerText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.regular,
-    color: COLORS.textSecondary,
-  },
-  registerLink: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.bold,
-    color: COLORS.primary,
   },
 });

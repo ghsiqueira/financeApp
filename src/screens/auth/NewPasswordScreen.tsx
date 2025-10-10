@@ -1,4 +1,3 @@
-// src/screens/auth/NewPasswordScreen.tsx - DEFINIR NOVA SENHA
 import React, { useState } from 'react';
 import {
   View,
@@ -14,7 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Input, Button, Card } from '../../components/common';
-import { COLORS, FONTS } from '../../constants';
+import { useTheme } from '../../contexts/ThemeContext';
+import { FONTS, SPACING, BORDER_RADIUS } from '../../constants';
 import { AuthService } from '../../services/AuthService';
 
 interface RouteParams {
@@ -25,6 +25,7 @@ interface RouteParams {
 const NewPasswordScreen: React.FC = () => {
   const navigation = useNavigation();
   const route = useRoute();
+  const { theme } = useTheme();
   const { email, code } = (route.params as RouteParams) || { email: '', code: '' };
 
   const [newPassword, setNewPassword] = useState('');
@@ -45,10 +46,10 @@ const NewPasswordScreen: React.FC = () => {
     if (/[0-9]/.test(password)) strength += 10;
     if (/[^A-Za-z0-9]/.test(password)) strength += 10;
 
-    if (strength <= 30) return { strength: 'Fraca', color: COLORS.error, percentage: 25 };
-    if (strength <= 60) return { strength: 'Regular', color: COLORS.warning, percentage: 50 };
-    if (strength <= 85) return { strength: 'Boa', color: COLORS.info, percentage: 75 };
-    return { strength: 'Forte', color: COLORS.success, percentage: 100 };
+    if (strength <= 30) return { strength: 'Fraca', color: theme.error, percentage: 25 };
+    if (strength <= 60) return { strength: 'Regular', color: theme.warning, percentage: 50 };
+    if (strength <= 85) return { strength: 'Boa', color: theme.info, percentage: 75 };
+    return { strength: 'Forte', color: theme.success, percentage: 100 };
   };
 
   const validateForm = (): boolean => {
@@ -114,8 +115,70 @@ const NewPasswordScreen: React.FC = () => {
 
   const passwordStrength = getPasswordStrength(newPassword);
 
+  // Estilos dinâmicos
+  const dynamicStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    title: {
+      fontSize: 28,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    description: {
+      fontSize: 15,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 32,
+    },
+    inputLabel: {
+      fontSize: 14,
+      fontFamily: FONTS.medium,
+      color: theme.textPrimary,
+      marginBottom: 8,
+    },
+    strengthBar: {
+      height: 6,
+      backgroundColor: theme.border,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    requirementsCard: {
+      padding: 16,
+      backgroundColor: theme.info + '10',
+      borderLeftWidth: 4,
+      borderLeftColor: theme.info,
+      marginBottom: 24,
+      borderRadius: BORDER_RADIUS.lg,
+    },
+    requirementsTitle: {
+      fontSize: 15,
+      fontFamily: FONTS.bold,
+      color: theme.textPrimary,
+      marginBottom: 12,
+    },
+    requirementText: {
+      fontSize: 13,
+      fontFamily: FONTS.regular,
+      color: theme.textSecondary,
+    },
+    iconCircle: {
+      width: 100,
+      height: 100,
+      borderRadius: 50,
+      backgroundColor: theme.primary + '20',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={dynamicStyles.container}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -132,27 +195,27 @@ const NewPasswordScreen: React.FC = () => {
               onPress={() => navigation.goBack()}
               disabled={loading}
             >
-              <Ionicons name="arrow-back" size={24} color={COLORS.gray900} />
+              <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
             </TouchableOpacity>
           </View>
 
           {/* Icon */}
           <View style={styles.iconContainer}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="lock-closed-outline" size={48} color={COLORS.primary} />
+            <View style={dynamicStyles.iconCircle}>
+              <Ionicons name="lock-closed-outline" size={48} color={theme.primary} />
             </View>
           </View>
 
           {/* Title */}
-          <Text style={styles.title}>Criar Nova Senha</Text>
-          <Text style={styles.description}>
+          <Text style={dynamicStyles.title}>Criar Nova Senha</Text>
+          <Text style={dynamicStyles.description}>
             Escolha uma senha forte e segura para proteger sua conta
           </Text>
 
           {/* Password Form */}
           <Card style={styles.formCard}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Nova Senha *</Text>
+              <Text style={dynamicStyles.inputLabel}>Nova Senha *</Text>
               <Input
                 placeholder="Digite sua nova senha"
                 value={newPassword}
@@ -174,7 +237,7 @@ const NewPasswordScreen: React.FC = () => {
               {/* Password Strength */}
               {newPassword && (
                 <View style={styles.strengthContainer}>
-                  <View style={styles.strengthBar}>
+                  <View style={dynamicStyles.strengthBar}>
                     <View
                       style={[
                         styles.strengthFill,
@@ -193,7 +256,7 @@ const NewPasswordScreen: React.FC = () => {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Confirmar Senha *</Text>
+              <Text style={dynamicStyles.inputLabel}>Confirmar Senha *</Text>
               <Input
                 placeholder="Confirme sua nova senha"
                 value={confirmPassword}
@@ -218,12 +281,12 @@ const NewPasswordScreen: React.FC = () => {
                   <Ionicons
                     name={newPassword === confirmPassword ? 'checkmark-circle' : 'close-circle'}
                     size={16}
-                    color={newPassword === confirmPassword ? COLORS.success : COLORS.error}
+                    color={newPassword === confirmPassword ? theme.success : theme.error}
                   />
                   <Text
                     style={[
                       styles.matchText,
-                      { color: newPassword === confirmPassword ? COLORS.success : COLORS.error },
+                      { color: newPassword === confirmPassword ? theme.success : theme.error },
                     ]}
                   >
                     {newPassword === confirmPassword ? 'As senhas coincidem' : 'As senhas não coincidem'}
@@ -234,9 +297,9 @@ const NewPasswordScreen: React.FC = () => {
           </Card>
 
           {/* Requirements Card */}
-          <Card style={styles.requirementsCard}>
-            <Text style={styles.requirementsTitle}>
-              <Ionicons name="information-circle" size={16} color={COLORS.info} />
+          <Card style={dynamicStyles.requirementsCard}>
+            <Text style={dynamicStyles.requirementsTitle}>
+              <Ionicons name="information-circle" size={16} color={theme.info} />
               {' '}Requisitos da Senha
             </Text>
             <View style={styles.requirementsList}>
@@ -244,33 +307,33 @@ const NewPasswordScreen: React.FC = () => {
                 <Ionicons
                   name={newPassword.length >= 6 ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={newPassword.length >= 6 ? COLORS.success : COLORS.gray400}
+                  color={newPassword.length >= 6 ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Mínimo de 6 caracteres</Text>
+                <Text style={dynamicStyles.requirementText}>Mínimo de 6 caracteres</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={/[A-Z]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={/[A-Z]/.test(newPassword) ? COLORS.success : COLORS.gray400}
+                  color={/[A-Z]/.test(newPassword) ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Uma letra maiúscula</Text>
+                <Text style={dynamicStyles.requirementText}>Uma letra maiúscula</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={/[a-z]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={/[a-z]/.test(newPassword) ? COLORS.success : COLORS.gray400}
+                  color={/[a-z]/.test(newPassword) ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Uma letra minúscula</Text>
+                <Text style={dynamicStyles.requirementText}>Uma letra minúscula</Text>
               </View>
               <View style={styles.requirement}>
                 <Ionicons
                   name={/[0-9]/.test(newPassword) ? 'checkmark-circle' : 'ellipse-outline'}
                   size={18}
-                  color={/[0-9]/.test(newPassword) ? COLORS.success : COLORS.gray400}
+                  color={/[0-9]/.test(newPassword) ? theme.success : theme.gray400}
                 />
-                <Text style={styles.requirementText}>Um número</Text>
+                <Text style={dynamicStyles.requirementText}>Um número</Text>
               </View>
             </View>
           </Card>
@@ -292,10 +355,6 @@ const NewPasswordScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.background,
-  },
   keyboardView: {
     flex: 1,
   },
@@ -318,29 +377,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  iconCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: COLORS.primary + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  description: {
-    fontSize: 15,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray600,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-  },
   formCard: {
     padding: 20,
     marginBottom: 16,
@@ -348,21 +384,9 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 20,
   },
-  inputLabel: {
-    fontSize: 14,
-    fontFamily: FONTS.medium,
-    color: COLORS.gray700,
-    marginBottom: 8,
-  },
   strengthContainer: {
     marginTop: 12,
     gap: 6,
-  },
-  strengthBar: {
-    height: 6,
-    backgroundColor: COLORS.gray200,
-    borderRadius: 3,
-    overflow: 'hidden',
   },
   strengthFill: {
     height: '100%',
@@ -383,19 +407,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FONTS.medium,
   },
-  requirementsCard: {
-    padding: 16,
-    backgroundColor: COLORS.info + '10',
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.info,
-    marginBottom: 24,
-  },
-  requirementsTitle: {
-    fontSize: 15,
-    fontFamily: FONTS.bold,
-    color: COLORS.gray900,
-    marginBottom: 12,
-  },
   requirementsList: {
     gap: 10,
   },
@@ -403,11 +414,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-  },
-  requirementText: {
-    fontSize: 13,
-    fontFamily: FONTS.regular,
-    color: COLORS.gray700,
   },
   submitButton: {
     marginBottom: 16,
