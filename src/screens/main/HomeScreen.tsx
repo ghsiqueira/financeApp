@@ -41,7 +41,7 @@ interface HomeScreenProps {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
-  const { theme } = useTheme();
+  const { theme, isDarkMode, toggleTheme } = useTheme();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
@@ -623,11 +623,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
             <Text style={dynamicStyles.greeting}>Olá, {user?.name?.split(' ')[0] || 'Usuário'}!</Text>
             <Text style={dynamicStyles.subtitle}>Como estão suas finanças hoje?</Text>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <View style={dynamicStyles.avatar}>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={toggleTheme}
+              style={dynamicStyles.avatar}
+            >
+              <Ionicons
+                name={isDarkMode ? "sunny" : "moon"}
+                size={24}
+                color={theme.white}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Profile')}
+              style={dynamicStyles.avatar}
+            >
               <Ionicons name="person" size={24} color={theme.white} />
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {renderSummaryCard()}
@@ -645,6 +658,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   summaryCard: {
     marginHorizontal: SPACING.md,
