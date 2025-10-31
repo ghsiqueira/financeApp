@@ -1,6 +1,6 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import secureStorage, { StorageType } from '../utils/secureStorage';
 import { AuthService } from '../services/AuthService';
 import { STORAGE_KEYS, ERROR_MESSAGES } from '../constants';
 import { User as TypesUser } from '../types'; // Importar o tipo do arquivo de tipos
@@ -144,12 +144,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const initializeAuth = async (): Promise<void> => {
     try {
       const [storedToken, storedUser] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.TOKEN),
-        AsyncStorage.getItem(STORAGE_KEYS.USER),
+        secureStorage.getItem(STORAGE_KEYS.TOKEN, StorageType.SECURE),
+        secureStorage.getObject<User>(STORAGE_KEYS.USER, StorageType.REGULAR),
       ]);
 
       if (storedToken && storedUser) {
-        const user = JSON.parse(storedUser);
+        const user = storedUser;
         
         // Verificar se o token ainda é válido
         try {
@@ -188,8 +188,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const clearStoredAuth = async (): Promise<void> => {
     try {
       await Promise.all([
-        AsyncStorage.removeItem(STORAGE_KEYS.TOKEN),
-        AsyncStorage.removeItem(STORAGE_KEYS.USER),
+        secureStorage.removeItem(STORAGE_KEYS.TOKEN, StorageType.SECURE),
+        secureStorage.removeItem(STORAGE_KEYS.USER, StorageType.REGULAR),
       ]);
     } catch (error) {
       console.error('Erro ao limpar dados de auth:', error);
@@ -202,17 +202,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: 'AUTH_LOADING' });
 
       const response = await AuthService.login(credentials);
-      
+
       // Garantir que o usuário tenha updatedAt
       const userWithUpdatedAt: User = {
         ...response.user,
         updatedAt: response.user.updatedAt || new Date().toISOString(),
       };
-      
-      // Salvar no AsyncStorage
+
+      // Salvar de forma segura
       await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token),
-        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userWithUpdatedAt)),
+        secureStorage.setItem(STORAGE_KEYS.TOKEN, response.token, StorageType.SECURE),
+        secureStorage.setObject(STORAGE_KEYS.USER, userWithUpdatedAt, StorageType.REGULAR),
       ]);
 
       dispatch({
@@ -232,17 +232,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: 'AUTH_LOADING' });
 
       const response = await AuthService.register(userData);
-      
+
       // Garantir que o usuário tenha updatedAt
       const userWithUpdatedAt: User = {
         ...response.user,
         updatedAt: response.user.updatedAt || new Date().toISOString(),
       };
-      
-      // Salvar no AsyncStorage
+
+      // Salvar de forma segura
       await Promise.all([
-        AsyncStorage.setItem(STORAGE_KEYS.TOKEN, response.token),
-        AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userWithUpdatedAt)),
+        secureStorage.setItem(STORAGE_KEYS.TOKEN, response.token, StorageType.SECURE),
+        secureStorage.setObject(STORAGE_KEYS.USER, userWithUpdatedAt, StorageType.REGULAR),
       ]);
 
       dispatch({
@@ -313,10 +313,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           updatedAt: new Date().toISOString(),
         };
       }
-      
-      // Atualizar no AsyncStorage
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUser));
-      
+
+      // Atualizar de forma segura
+      await secureStorage.setObject(STORAGE_KEYS.USER, updatedUser, StorageType.REGULAR);
+
       dispatch({ type: 'UPDATE_USER', payload: updatedUser });
     } catch (error: any) {
       const errorMessage = error.message || ERROR_MESSAGES.UNKNOWN_ERROR;

@@ -1,7 +1,7 @@
 // src/services/api.ts - VERSÃO MELHORADA
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import secureStorage, { StorageType } from '../utils/secureStorage';
 import { ApiResponse, LoginFormData, RegisterFormData, Transaction, Goal, Budget, Category, FinancialSummary, CategorySpendingData } from '../types';
 
 class ApiService {
@@ -49,8 +49,8 @@ class ApiService {
       async (config) => {
         try {
           console.log(`📤 Fazendo requisição: ${config.method?.toUpperCase()} ${config.url}`);
-          
-          const token = await AsyncStorage.getItem('@FinanceApp:token');
+
+          const token = await secureStorage.getItem('@FinanceApp:token', StorageType.SECURE);
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
           }
@@ -92,7 +92,7 @@ class ApiService {
           switch (status) {
             case 401:
               // Token expirado - fazer logout
-              await AsyncStorage.removeItem('@FinanceApp:token');
+              await secureStorage.removeItem('@FinanceApp:token', StorageType.SECURE);
               throw new Error('Sessão expirada. Faça login novamente.');
             case 404:
               throw new Error('Recurso não encontrado.');
