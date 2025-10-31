@@ -7,11 +7,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  *
  * Usa expo-secure-store para dados sensíveis (tokens, senhas)
  * e AsyncStorage para dados não sensíveis (preferências, cache)
+ *
+ * IMPORTANTE: SecureStore só aceita chaves com caracteres alfanuméricos, ".", "-" e "_"
  */
 
 export enum StorageType {
   SECURE = 'secure',    // Dados criptografados (tokens, senhas)
   REGULAR = 'regular',  // Dados não sensíveis (preferências)
+}
+
+/**
+ * Valida se a chave é compatível com SecureStore
+ */
+function isValidSecureStoreKey(key: string): boolean {
+  // SecureStore aceita apenas: a-z, A-Z, 0-9, ".", "-", "_"
+  const validPattern = /^[a-zA-Z0-9._-]+$/;
+  return validPattern.test(key) && key.length > 0;
 }
 
 class SecureStorageService {
@@ -28,6 +39,12 @@ class SecureStorageService {
   ): Promise<void> {
     try {
       if (type === StorageType.SECURE) {
+        // Validar chave antes de salvar no SecureStore
+        if (!isValidSecureStoreKey(key)) {
+          throw new Error(
+            `Chave inválida para SecureStore: "${key}". Use apenas caracteres alfanuméricos, ".", "-" e "_"`
+          );
+        }
         await SecureStore.setItemAsync(key, value);
         console.log(`🔒 Salvo de forma segura: ${key}`);
       } else {
@@ -54,6 +71,14 @@ class SecureStorageService {
       let value: string | null = null;
 
       if (type === StorageType.SECURE) {
+        // Validar chave antes de buscar no SecureStore
+        if (!isValidSecureStoreKey(key)) {
+          console.warn(
+            `⚠️ Chave inválida para SecureStore: "${key}". Tentando AsyncStorage como fallback...`
+          );
+          value = await AsyncStorage.getItem(key);
+          return value;
+        }
         value = await SecureStore.getItemAsync(key);
         console.log(`🔓 Recuperado de forma segura: ${key}`);
       } else {
@@ -151,26 +176,92 @@ class SecureStorageService {
 
   /**
    * Migra dados do AsyncStorage para SecureStore
-   * @param key Chave do item a migrar
+   * @param oldKey Chave antiga (ex: @FinanceApp:token)
+   * @param newKey Nova chave (ex: FinanceApp_token)
    */
-  async migrateToSecure(key: string): Promise<void> {
+  async migrateToSecure(oldKey: string, newKey: string): Promise<void> {
     try {
-      // Buscar do AsyncStorage
-      const value = await AsyncStorage.getItem(key);
+      // Validar nova chave
+      if (!isValidSecureStoreKey(newKey)) {
+        throw new Error(
+          `Nova chave inválida para SecureStore: "${newKey}". Use apenas caracteres alfanuméricos, ".", "-" e "_"`
+        );
+      }
+
+      // Buscar do AsyncStorage (chave antiga)
+      const value = await AsyncStorage.getItem(oldKey);
 
       if (value) {
-        // Salvar no SecureStore
-        await SecureStore.setItemAsync(key, value);
-        // Remover do AsyncStorage
-        await AsyncStorage.removeItem(key);
-        console.log(`✅ Migrado para SecureStore: ${key}`);
+        // Salvar no SecureStore (chave nova)
+        await SecureStore.setItemAsync(newKey, value);
+        // Remover do AsyncStorage (chave antiga)
+        await AsyncStorage.removeItem(oldKey);
+        console.log(`✅ Migrado de "${oldKey}" para SecureStore "${newKey}"`);
+      } else {
+        console.log(`ℹ️ Nenhum dado para migrar em "${oldKey}"`);
       }
     } catch (error) {
-      console.error(`❌ Erro ao migrar ${key}:`, error);
+      console.error(`❌ Erro ao migrar ${oldKey} -> ${newKey}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Migra dados entre chaves no AsyncStorage
+   * @param oldKey Chave antiga
+   * @param newKey Nova chave
+   */
+  async migrateAsyncStorageKey(oldKey: string, newKey: string): Promise<void> {
+    try {
+      // Buscar da chave antiga
+      const value = await AsyncStorage.getItem(oldKey);
+
+      if (value) {
+        // Salvar na chave nova
+        await AsyncStorage.setItem(newKey, value);
+        // Remover da chave antiga
+        await AsyncStorage.removeItem(oldKey);
+        console.log(`✅ Migrado AsyncStorage de "${oldKey}" para "${newKey}"`);
+      } else {
+        console.log(`ℹ️ Nenhum dado para migrar em "${oldKey}"`);
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao migrar ${oldKey} -> ${newKey}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Executa migração automática de chaves antigas para novas
+   * Deve ser chamado ao iniciar o app
+   */
+  async runMigrations(): Promise<void> {
+    console.log('🔄 Executando migrações de storage...');
+
+    try {
+      // Migrar token (AsyncStorage -> SecureStore)
+      await this.migrateToSecure('@FinanceApp:token', 'FinanceApp_token');
+
+      // Migrar user (AsyncStorage antiga -> AsyncStorage nova chave)
+      await this.migrateAsyncStorageKey('@FinanceApp:user', 'FinanceApp_user');
+
+      // Migrar outras chaves se necessário
+      await this.migrateAsyncStorageKey('@FinanceApp:theme', 'FinanceApp_theme');
+
+      console.log('✅ Migrações concluídas com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro durante migrações:', error);
+      // Não lançar erro para não bloquear o app
     }
   }
 }
 
 // Exportar instância única (Singleton)
-export default new SecureStorageService();
+const secureStorageService = new SecureStorageService();
+
+// Executar migrações na primeira importação
+secureStorageService.runMigrations().catch((error) => {
+  console.error('❌ Falha nas migrações:', error);
+});
+
+export default secureStorageService;

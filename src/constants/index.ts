@@ -322,16 +322,25 @@ export const NOTIFICATION_CONFIG = {
   CHANNEL_DESCRIPTION: 'Notificações do app de finanças',
 };
 
-// Chaves do AsyncStorage
+// Chaves do AsyncStorage/SecureStore
+// NOTA: SecureStore só aceita caracteres alfanuméricos, ".", "-" e "_"
+// Por isso usamos underscore ao invés de @ e :
 export const STORAGE_KEYS = {
-  TOKEN: '@FinanceApp:token',
-  USER: '@FinanceApp:user',
-  BIOMETRIC_ENABLED: '@FinanceApp:biometric',
-  THEME: '@FinanceApp:theme',
-  LANGUAGE: '@FinanceApp:language',
-  FIRST_LAUNCH: '@FinanceApp:firstLaunch',
-  AUTH_TOKEN: '@FinanceApp:token', // Mesmo valor que TOKEN
-  USER_DATA: '@FinanceApp:user',   // Mesmo valor que USER
+  // Chaves para SecureStore (dados sensíveis)
+  TOKEN: 'FinanceApp_token',
+  AUTH_TOKEN: 'FinanceApp_token', // Alias para TOKEN
+
+  // Chaves para AsyncStorage (dados não sensíveis)
+  USER: 'FinanceApp_user',
+  USER_DATA: 'FinanceApp_user', // Alias para USER
+  BIOMETRIC_ENABLED: 'FinanceApp_biometric',
+  THEME: 'FinanceApp_theme',
+  LANGUAGE: 'FinanceApp_language',
+  FIRST_LAUNCH: 'FinanceApp_firstLaunch',
+
+  // Chaves antigas (para migração)
+  OLD_TOKEN: '@FinanceApp:token',
+  OLD_USER: '@FinanceApp:user',
 };
 
 // Mensagens de erro
