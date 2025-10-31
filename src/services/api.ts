@@ -2,6 +2,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { Platform } from 'react-native';
 import secureStorage, { StorageType } from '../utils/secureStorage';
+import { STORAGE_KEYS } from '../constants';
 import { ApiResponse, LoginFormData, RegisterFormData, Transaction, Goal, Budget, Category, FinancialSummary, CategorySpendingData } from '../types';
 
 class ApiService {
@@ -50,9 +51,12 @@ class ApiService {
         try {
           console.log(`📤 Fazendo requisição: ${config.method?.toUpperCase()} ${config.url}`);
 
-          const token = await secureStorage.getItem('@FinanceApp:token', StorageType.SECURE);
+          const token = await secureStorage.getItem(STORAGE_KEYS.TOKEN, StorageType.SECURE);
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
+            console.log(`🔑 Token adicionado ao header (${token.substring(0, 20)}...)`);
+          } else {
+            console.warn('⚠️ Token não encontrado no SecureStore');
           }
         } catch (error) {
           console.warn('⚠️ Erro ao obter token:', error);
@@ -92,7 +96,7 @@ class ApiService {
           switch (status) {
             case 401:
               // Token expirado - fazer logout
-              await secureStorage.removeItem('@FinanceApp:token', StorageType.SECURE);
+              await secureStorage.removeItem(STORAGE_KEYS.TOKEN, StorageType.SECURE);
               throw new Error('Sessão expirada. Faça login novamente.');
             case 404:
               throw new Error('Recurso não encontrado.');
